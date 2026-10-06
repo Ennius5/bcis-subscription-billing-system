@@ -3,6 +3,7 @@ import {
   boolean,
   check,
   integer,
+  jsonb,
   pgTable,
   primaryKey,
   text,
@@ -80,4 +81,27 @@ export const sessions = pgTable(
     revokedAt: timestamp("revoked_at", { withTimezone: true }),
   },
   (t) => [index("sessions_user_idx").on(t.userId)],
+);
+
+export const auditLogs = pgTable(
+  "audit_logs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    occurredAt: timestamp("occurred_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    actorUserId: uuid("actor_user_id").references(() => users.id),
+    action: text("action").notNull(),
+    entityType: text("entity_type").notNull(),
+    entityId: text("entity_id"),
+    reason: text("reason"),
+    oldValues: jsonb("old_values"),
+    newValues: jsonb("new_values"),
+  },
+  (t) => [
+    index("audit_logs_occurred_idx").on(t.occurredAt),
+    index("audit_logs_entity_idx").on(t.entityType, t.entityId),
+    index("audit_logs_actor_idx").on(t.actorUserId),
+    index("audit_logs_action_idx").on(t.action),
+  ],
 );

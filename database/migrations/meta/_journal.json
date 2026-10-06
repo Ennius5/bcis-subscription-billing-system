@@ -22,6 +22,20 @@
       "when": 1791246122706,
       "tag": "0002_lumpy_johnny_storm",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1791323903508,
+      "tag": "0003_optimal_hitman",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1791324121367,
+      "tag": "0004_audit_logs_append_only",
+      "breakpoints": true
     }
   ]
 }
