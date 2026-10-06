@@ -4,8 +4,8 @@ import { createDb } from "./db/client";
 
 async function main() {
   const config = loadConfig();
-  const { pool } = createDb(config.DATABASE_URL);
-  const app = buildApp(config, { pool });
+  const { db, pool } = createDb(config.DATABASE_URL);
+  const app = buildApp(config, { db, pool });
 
   app.addHook("onClose", async () => {
     await pool.end();

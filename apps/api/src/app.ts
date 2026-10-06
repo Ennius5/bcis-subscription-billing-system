@@ -1,9 +1,13 @@
 import Fastify, { type FastifyInstance } from "fastify";
 import type { Pool } from "pg";
 import type { Config } from "./config";
+import type { Db } from "./db/client";
+import { registerAuthRoutes } from "./auth/routes";
+
 
 export interface AppDeps {
   pool?: Pool;
+  db?: Db;
 }
 
 export function buildApp(config: Config, deps: AppDeps = {}): FastifyInstance {
@@ -13,6 +17,8 @@ export function buildApp(config: Config, deps: AppDeps = {}): FastifyInstance {
       redact: ["req.headers.authorization", "req.headers.cookie"],
     },
   });
+
+  app.decorateRequest("auth", null);
 
   app.get("/health", async () => ({
     status: "ok",
@@ -33,5 +39,7 @@ export function buildApp(config: Config, deps: AppDeps = {}): FastifyInstance {
     }
   });
 
+    if (deps.db) registerAuthRoutes(app, deps.db);
+    
   return app;
 }

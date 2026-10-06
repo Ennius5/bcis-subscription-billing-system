@@ -8,10 +8,12 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "tsx src/db/migrate.ts"
+    "db:migrate": "tsx src/db/migrate.ts",
+    "db:seed": "tsx src/db/seed-rbac.ts"
   },
   "dependencies": {
     "@bcis/shared": "workspace:*",
+    "@node-rs/argon2": "^2.2.1",
     "dotenv": "^18.0.5",
     "drizzle-orm": "^0.45.3",
     "fastify": "^5.12.5",

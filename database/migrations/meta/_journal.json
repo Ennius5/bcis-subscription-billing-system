@@ -8,6 +8,20 @@
       "when": 1791239590501,
       "tag": "0000_sour_stick",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1791244160982,
+      "tag": "0001_salty_sister_grimm",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791246122706,
+      "tag": "0002_lumpy_johnny_storm",
+      "breakpoints": true
     }
   ]
 }
