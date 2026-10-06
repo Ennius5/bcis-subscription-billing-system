@@ -3,6 +3,7 @@ import type { Pool } from "pg";
 import type { Config } from "./config";
 import type { Db } from "./db/client";
 import { registerAuthRoutes } from "./auth/routes";
+import { registerAdminRoutes } from "./admin/routes";
 
 
 export interface AppDeps {
@@ -39,7 +40,10 @@ export function buildApp(config: Config, deps: AppDeps = {}): FastifyInstance {
     }
   });
 
-    if (deps.db) registerAuthRoutes(app, deps.db);
-    
+  if (deps.db) {
+    registerAuthRoutes(app, deps.db);
+    registerAdminRoutes(app, deps.db);
+  }
+
   return app;
 }
