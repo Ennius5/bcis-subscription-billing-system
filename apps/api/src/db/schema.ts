@@ -145,3 +145,32 @@ export const servicePlans = pgTable(
     index("service_plans_active_idx").on(t.isActive),
   ],
 );
+export const collectionAreas = pgTable(
+  "collection_areas",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    code: text("code").notNull().unique(),
+    name: text("name").notNull(),
+    description: text("description"),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("collection_areas_active_idx").on(t.isActive)],
+);
+
+export const collectors = pgTable(
+  "collectors",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    code: text("code").notNull().unique(),
+    fullName: text("full_name").notNull(),
+    contactNumber: text("contact_number"),
+    // Optional login. A collector may never use the desktop app.
+    userId: uuid("user_id").unique().references(() => users.id),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("collectors_active_idx").on(t.isActive)],
+);

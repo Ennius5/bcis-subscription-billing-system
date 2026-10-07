@@ -50,6 +50,13 @@
       "when": 1791340507832,
       "tag": "0006_seed_service_types",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1791374623127,
+      "tag": "0007_goofy_layla_miller",
+      "breakpoints": true
     }
   ]
 }
