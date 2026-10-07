@@ -4,10 +4,12 @@ import {
   check,
   integer,
   jsonb,
+  pgSequence,
   pgTable,
   primaryKey,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
   index,
 } from "drizzle-orm/pg-core";
@@ -173,4 +175,123 @@ export const collectors = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("collectors_active_idx").on(t.isActive)],
+);
+
+export const subscriberAccountSeq = pgSequence("subscriber_account_seq", {
+  startWith: 1,
+  increment: 1,
+});
+
+export const subscribers = pgTable(
+  "subscribers",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    accountNumber: text("account_number")
+      .notNull()
+      .unique()
+      .default(sql`('BCIS-' || lpad(nextval('subscriber_account_seq')::text, 6, '0'))`),
+    fullName: text("full_name").notNull(),
+    status: text("status").notNull().default("active"),
+    billingDay: integer("billing_day").notNull(),
+    collectionAreaId: uuid("collection_area_id").references(() => collectionAreas.id),
+    assignedCollectorId: uuid("assigned_collector_id").references(() => collectors.id),
+    notes: text("notes"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    check(
+      "subscribers_status_valid",
+      sql`${t.status} IN ('active', 'inactive', 'terminated', 'archived')`,
+    ),
+    check("subscribers_billing_day_valid", sql`${t.billingDay} BETWEEN 1 AND 28`),
+    index("subscribers_full_name_idx").on(t.fullName),
+    index("subscribers_status_idx").on(t.status),
+    index("subscribers_area_idx").on(t.collectionAreaId),
+    index("subscribers_collector_idx").on(t.assignedCollectorId),
+  ],
+);
+
+export const subscriberAddresses = pgTable(
+  "subscriber_addresses",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    subscriberId: uuid("subscriber_id")
+      .notNull()
+      .references(() => subscribers.id),
+    label: text("label"),
+    line1: text("line1").notNull(),
+    barangay: text("barangay").notNull(),
+    city: text("city").notNull(),
+    province: text("province"),
+    landmark: text("landmark"),
+    isPrimary: boolean("is_primary").notNull().default(false),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("subscriber_addresses_subscriber_idx").on(t.subscriberId),
+    uniqueIndex("subscriber_addresses_one_primary_idx")
+      .on(t.subscriberId)
+      .where(sql`${t.isPrimary}`),
+  ],
+);
+
+export const subscriberContacts = pgTable(
+  "subscriber_contacts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    subscriberId: uuid("subscriber_id")
+      .notNull()
+      .references(() => subscribers.id),
+    type: text("type").notNull(),
+    value: text("value").notNull(),
+    contactName: text("contact_name"),
+    isPrimary: boolean("is_primary").notNull().default(false),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    check(
+      "subscriber_contacts_type_valid",
+      sql`${t.type} IN ('mobile', 'landline', 'email', 'other')`,
+    ),
+    index("subscriber_contacts_subscriber_idx").on(t.subscriberId),
+    index("subscriber_contacts_value_idx").on(t.value),
+    uniqueIndex("subscriber_contacts_one_primary_idx")
+      .on(t.subscriberId)
+      .where(sql`${t.isPrimary}`),
+  ],
+);
+
+export const collectorAssignments = pgTable(
+  "collector_assignments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    subscriberId: uuid("subscriber_id")
+      .notNull()
+      .references(() => subscribers.id),
+    collectionAreaId: uuid("collection_area_id").references(() => collectionAreas.id),
+    collectorId: uuid("collector_id").references(() => collectors.id),
+    effectiveFrom: timestamp("effective_from", { withTimezone: true }).notNull().defaultNow(),
+    effectiveTo: timestamp("effective_to", { withTimezone: true }),
+    assignedByUserId: uuid("assigned_by_user_id")
+      .notNull()
+      .references(() => users.id),
+    reason: text("reason"),
+  },
+  (t) => [
+    check(
+      "collector_assignments_period_valid",
+      sql`${t.effectiveTo} IS NULL OR ${t.effectiveTo} >= ${t.effectiveFrom}`,
+    ),
+    index("collector_assignments_subscriber_idx").on(t.subscriberId, t.effectiveFrom),
+    index("collector_assignments_collector_idx").on(t.collectorId),
+    index("collector_assignments_area_idx").on(t.collectionAreaId),
+    uniqueIndex("collector_assignments_one_open_idx")
+      .on(t.subscriberId)
+      .where(sql`${t.effectiveTo} IS NULL`),
+  ],
 );
