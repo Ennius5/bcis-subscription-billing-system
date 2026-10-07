@@ -56,3 +56,12 @@ export function formatPesos(value: Centavos): string {
   const grouped = whole.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
   return `${negative ? "-" : ""}₱${grouped}.${fraction}`;
 }
+
+/** Like parsePesos, but returns null for invalid input instead of throwing (for forms). */
+export function tryParsePesos(input: string): Centavos | null {
+  try {
+    return parsePesos(input);
+  } catch {
+    return null;
+  }
+}
