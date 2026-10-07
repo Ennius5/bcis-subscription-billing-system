@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { SessionInfo } from "../../preload/index";
 import { Login } from "./Login";
+import { Shell } from "./Shell";
 
 type AppState =
   | { kind: "loading" }
@@ -32,24 +33,5 @@ export function App() {
     return <Login onSignedIn={(session) => setState({ kind: "signedIn", session })} />;
   }
 
-  // Placeholder shell. The permission-aware navigation comes in the next step.
-  return (
-    <div className="min-h-screen">
-      <header className="flex items-center justify-between bg-navy px-6 py-3 text-white">
-        <span className="font-semibold">BCIS Billing</span>
-        <span className="flex items-center gap-4 text-sm">
-          {state.session.user.fullName}
-          <button
-            onClick={() => void handleSignOut()}
-            className="rounded border border-white/40 px-3 py-1 hover:bg-white/10"
-          >
-            Sign out
-          </button>
-        </span>
-      </header>
-      <main className="p-8">
-        <p className="text-muted">Signed in. Navigation comes next.</p>
-      </main>
-    </div>
-  );
+  return <Shell session={state.session} onSignOut={() => void handleSignOut()} />;
 }
