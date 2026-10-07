@@ -10,8 +10,10 @@
   --color-success: #059669;
   --color-warning: #d97706;
   --color-danger: #dc2626;
-  --font-sans: "Inter", "Segoe UI", system-ui, sans-serif;
+  --font-sans: "Inter Variable","Inter", "Segoe UI", system-ui, sans-serif;
 }
+@import "tailwindcss";
+@import "@fontsource-variable/inter";
 
 @layer base {
   body {
