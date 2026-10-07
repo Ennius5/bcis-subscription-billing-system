@@ -5,6 +5,7 @@ import {
   collectorCreateSchema,
   subscriberCreateSchema,
   subscriberListQuerySchema,
+  subscriberStatusChangeSchema,
 } from "@bcis/shared";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
@@ -15,7 +16,7 @@ import {
 } from "../collection/service";
 import { auditLogs, collectorAssignments, subscribers } from "../db/schema";
 import { createTestDb, createTestUser, prepareTestDatabase } from "../test/helpers";
-import { createSubscriber, listSubscribers } from "./service";
+import { changeSubscriberStatus, createSubscriber, listSubscribers } from "./service";
 
 const { db, pool } = createTestDb();
 let actorId: string;
@@ -210,5 +211,62 @@ describe("listSubscribers", () => {
     expect(names(percent)).toEqual(["Carla 100% Cruz"]);
     const underscore = await listSubscribers(db, subscriberListQuerySchema.parse({ search: "_" }));
     expect(underscore.total).toBe(0);
+  });
+});
+
+describe("changeSubscriberStatus", () => {
+  let subscriberId: string;
+
+  beforeAll(async () => {
+    subscriberId = (await createSubscriber(db, actorId, newSubscriber({ fullName: "Status Test" }))).id;
+  });
+
+  const change = (status: string, reason = "Customer request") =>
+    changeSubscriberStatus(
+      db,
+      actorId,
+      subscriberId,
+      subscriberStatusChangeSchema.parse({ status, reason }),
+    );
+
+  it("moves active to inactive and audits the old and new status with the reason", async () => {
+    const updated = await change("inactive", "Moved away temporarily");
+    expect(updated.status).toBe("inactive");
+
+    const audit = await auditFor("subscriber.status_change", subscriberId);
+    expect(audit).toHaveLength(1);
+    expect(audit[0]?.reason).toBe("Moved away temporarily");
+    expect(audit[0]?.oldValues).toEqual({ status: "active" });
+    expect(audit[0]?.newValues).toEqual({ status: "inactive" });
+  });
+
+  it("rejects a transition the rules do not allow", async () => {
+    await expect(change("archived")).rejects.toMatchObject({
+      code: "INVALID_STATUS_CHANGE",
+      status: 409,
+    });
+    expect(await auditFor("subscriber.status_change", subscriberId)).toHaveLength(1);
+  });
+
+  it("rejects changing to the current status", async () => {
+    await expect(change("inactive")).rejects.toMatchObject({ code: "INVALID_STATUS_CHANGE" });
+  });
+
+  it("follows inactive to terminated to archived, then stays final", async () => {
+    expect((await change("terminated")).status).toBe("terminated");
+    expect((await change("archived")).status).toBe("archived");
+    await expect(change("active")).rejects.toMatchObject({ code: "INVALID_STATUS_CHANGE" });
+    expect(await auditFor("subscriber.status_change", subscriberId)).toHaveLength(3);
+  });
+
+  it("reports NOT_FOUND for an unknown subscriber", async () => {
+    await expect(
+      changeSubscriberStatus(
+        db,
+        actorId,
+        randomUUID(),
+        subscriberStatusChangeSchema.parse({ status: "inactive", reason: "No such account" }),
+      ),
+    ).rejects.toMatchObject({ code: "NOT_FOUND", status: 404 });
   });
 });

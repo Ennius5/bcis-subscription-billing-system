@@ -1,5 +1,11 @@
 import { and, asc, count, desc, eq, ilike, ne, or } from "drizzle-orm";
-import type { SubscriberCreateInput, SubscriberListQuery } from "@bcis/shared";
+import {
+  statusChangeProblem,
+  type SubscriberCreateInput,
+  type SubscriberListQuery,
+  type SubscriberStatus,
+  type SubscriberStatusChangeInput,
+} from "@bcis/shared";
 import { writeAudit, type DbOrTx } from "../audit/audit";
 import type { Db } from "../db/client";
 import type { Tx } from "../db/query_helpers";
@@ -19,7 +25,8 @@ export class SubscriberError extends Error {
       | "AREA_NOT_FOUND"
       | "AREA_INACTIVE"
       | "COLLECTOR_NOT_FOUND"
-      | "COLLECTOR_INACTIVE",
+      | "COLLECTOR_INACTIVE"
+      | "INVALID_STATUS_CHANGE",
     public readonly status: number,
     message: string,
   ) {
@@ -334,5 +341,45 @@ export async function createSubscriber(
       newValues: subscriber,
     });
     return subscriber;
+  });
+}
+
+/* --------------------------- Status change --------------------------- */
+
+export async function changeSubscriberStatus(
+  db: Db,
+  actorUserId: string,
+  subscriberId: string,
+  input: SubscriberStatusChangeInput,
+): Promise<SubscriberDetail> {
+  return db.transaction(async (tx) => {
+    const [existing] = await tx
+      .select({ status: subscribers.status })
+      .from(subscribers)
+      .where(eq(subscribers.id, subscriberId))
+      .for("update");
+    if (!existing) throw new SubscriberError("NOT_FOUND", 404, "Subscriber not found.");
+
+    const problem = statusChangeProblem(existing.status as SubscriberStatus, input.status);
+    if (problem) throw new SubscriberError("INVALID_STATUS_CHANGE", 409, problem);
+
+    // Phase 4: decide whether "terminated" must be blocked while a balance is outstanding.
+
+    await tx
+      .update(subscribers)
+      .set({ status: input.status, updatedAt: new Date() })
+      .where(eq(subscribers.id, subscriberId));
+
+    await writeAudit(tx, {
+      actorUserId,
+      action: "subscriber.status_change",
+      entityType: "subscriber",
+      entityId: subscriberId,
+      reason: input.reason,
+      oldValues: { status: existing.status },
+      newValues: { status: input.status },
+    });
+
+    return fetchSubscriber(tx, subscriberId);
   });
 }
