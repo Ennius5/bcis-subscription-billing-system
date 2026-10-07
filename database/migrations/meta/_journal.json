@@ -43,6 +43,13 @@
       "when": 1791338820470,
       "tag": "0005_remarkable_hobgoblin",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1791340507832,
+      "tag": "0006_seed_service_types",
+      "breakpoints": true
     }
   ]
 }
