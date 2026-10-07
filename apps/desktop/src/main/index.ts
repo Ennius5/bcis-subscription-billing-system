@@ -1,6 +1,6 @@
 import path from "node:path";
 import { app, BrowserWindow, ipcMain } from "electron";
-import type { AuthResult, SessionInfo } from "../preload/index";
+import type {ApiFailure,ApiResult,  AuthResult, PlanDto, SessionInfo } from "../preload/index";
 
 const API_URL = process.env.BCIS_API_URL ?? "http://localhost:3000";
 
@@ -45,19 +45,24 @@ ipcMain.handle("api:health", async () => {
 // receives the user and permission codes.
 let currentToken: string | null = null;
 
-const NETWORK_ERROR: AuthResult = {
+const NETWORK_ERROR: ApiFailure = {
   ok: false,
   code: "NETWORK",
   message: "Cannot reach the BCIS server. Check your network connection and try again.",
 };
 
-async function readError(res: Response): Promise<AuthResult> {
+async function readError(res: Response): Promise<ApiFailure> {
   try {
-    const body = (await res.json()) as { error?: string; message?: string };
+    const body = (await res.json()) as {
+      error?: string;
+      message?: string;
+      issues?: { path: string; message: string }[];
+    };
     return {
       ok: false,
       code: body.error ?? "ERROR",
       message: body.message ?? "Something went wrong.",
+      ...(body.issues ? { issues: body.issues } : {}),
     };
   } catch {
     return { ok: false, code: "ERROR", message: "Something went wrong." };
@@ -118,6 +123,55 @@ ipcMain.handle("auth:logout", async (): Promise<void> => {
     // The server-side session expires on its own (30 min idle, 12 h absolute).
   }
 });
+
+// Private helper: the renderer can only reach it through the handlers below.
+async function authedRequest<T>(
+  method: "GET" | "POST" | "PATCH",
+  path: string,
+  body?: Record<string, unknown>,
+): Promise<ApiResult<T>> {
+  if (!currentToken) {
+    return { ok: false, code: "UNAUTHENTICATED", message: "Please sign in." };
+  }
+  try {
+    const headers: Record<string, string> = { Authorization: `Bearer ${currentToken}` };
+    if (body) headers["Content-Type"] = "application/json";
+    const res = await fetch(`${API_URL}${path}`, {
+      method,
+      headers,
+      ...(body ? { body: JSON.stringify(body) } : {}),
+    });
+    if (res.status === 401) currentToken = null; // session expired or revoked
+    if (!res.ok) return await readError(res);
+    return { ok: true, data: (await res.json()) as T };
+  } catch {
+    return NETWORK_ERROR;
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+const BAD_INPUT: ApiFailure = {
+  ok: false,
+  code: "VALIDATION",
+  message: "Invalid request.",
+};
+
+ipcMain.handle("plans:list", (_event, includeInactive: unknown) =>
+  authedRequest<PlanDto[]>("GET", includeInactive === true ? "/plans?includeInactive=true" : "/plans"),
+);
+
+ipcMain.handle("plans:create", (_event, input: unknown) =>
+  isRecord(input) ? authedRequest<PlanDto>("POST", "/plans", input) : BAD_INPUT,
+);
+
+ipcMain.handle("plans:update", (_event, id: unknown, input: unknown) =>
+  typeof id === "string" && isRecord(input)
+    ? authedRequest<PlanDto>("PATCH", `/plans/${encodeURIComponent(id)}`, input)
+    : BAD_INPUT,
+);
 
 void app.whenReady().then(() => {
   createWindow();
