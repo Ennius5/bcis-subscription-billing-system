@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { planAttributeProblem, planCreateSchema } from "./plans";
+import { planAttributeProblem, planCreateSchema, planUpdateSchema } from "./plans";
 
 const internet = {
   code: "inet-10",
@@ -61,5 +61,24 @@ describe("planAttributeProblem", () => {
     expect(planAttributeProblem("internet", 10, null)).toBeNull();
     expect(planAttributeProblem("cable", null, 80)).toBeNull();
     expect(planAttributeProblem("combo", 10, 80)).toBeNull();
+  });
+
+
+});
+
+describe("planUpdateSchema", () => {
+  it("accepts a partial update with a reason", () => {
+    const r = planUpdateSchema.safeParse({ priceCentavos: 109900, reason: "annual adjustment" });
+    expect(r.success).toBe(true);
+  });
+
+  it("rejects an empty update and a reason-only update", () => {
+    expect(planUpdateSchema.safeParse({}).success).toBe(false);
+    expect(planUpdateSchema.safeParse({ reason: "nothing changed" }).success).toBe(false);
+  });
+
+  it("rejects attempts to change code or service type", () => {
+    expect(planUpdateSchema.safeParse({ code: "NEW" }).success).toBe(false);
+    expect(planUpdateSchema.safeParse({ serviceType: "cable" }).success).toBe(false);
   });
 });

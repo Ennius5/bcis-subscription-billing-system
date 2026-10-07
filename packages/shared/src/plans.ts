@@ -47,3 +47,21 @@ export const planCreateSchema = z
   });
 
 export type PlanCreateInput = z.infer<typeof planCreateSchema>;
+
+export const planUpdateSchema = z
+  .strictObject({
+    name: z.string().trim().min(1, "Name is required.").max(100).optional(),
+    priceCentavos: centavos.optional(),
+    installationFeeCentavos: centavos.optional(),
+    reconnectionFeeCentavos: centavos.optional(),
+    description: z.string().trim().max(500).nullable().optional(),
+    speedMbps: z.number().int().positive().max(10_000).nullable().optional(),
+    channelCount: z.number().int().positive().max(1_000).nullable().optional(),
+    isActive: z.boolean().optional(),
+    reason: z.string().trim().max(200).optional(),
+  })
+  .refine((v) => Object.keys(v).some((k) => k !== "reason"), {
+    message: "Provide at least one field to change.",
+  });
+
+export type PlanUpdateInput = z.infer<typeof planUpdateSchema>;
