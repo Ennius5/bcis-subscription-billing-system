@@ -1,4 +1,4 @@
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq, isNull } from "drizzle-orm";
 import type {
   AreaCreateInput,
   AreaUpdateInput,
@@ -297,4 +297,22 @@ export async function updateCollector(
     if (err instanceof CollectionError) throw err;
     return rethrowCollectorConflict(err);
   }
+}
+
+/* ------------------------ Login picker (users) ------------------------ */
+
+export type AvailableUserRow = {
+  id: string;
+  username: string;
+  fullName: string;
+};
+
+/** Active users who are not linked to any collector, active or inactive. */
+export async function listAvailableUsers(db: Db): Promise<AvailableUserRow[]> {
+  return db
+    .select({ id: users.id, username: users.username, fullName: users.fullName })
+    .from(users)
+    .leftJoin(collectors, eq(collectors.userId, users.id))
+    .where(and(eq(users.isActive, true), isNull(collectors.id)))
+    .orderBy(asc(users.username));
 }

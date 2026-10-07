@@ -15,6 +15,7 @@ import {
   createArea,
   createCollector,
   listAreas,
+  listAvailableUsers,
   listCollectors,
   updateArea,
   updateCollector,
@@ -71,6 +72,8 @@ export function registerCollectionRoutes(app: FastifyInstance, db: Db): void {
 
   /* ---------------------------- Collectors ---------------------------- */
 
+  app.get("/collectors/available-users", canManage, async () => listAvailableUsers(db));
+
   app.get("/collectors", canView, async (request, reply) => {
     const query = listQuery.safeParse(request.query);
     if (!query.success) return sendValidationError(reply, query.error);
@@ -99,4 +102,5 @@ export function registerCollectionRoutes(app: FastifyInstance, db: Db): void {
       return sendCollectionError(reply, err);
     }
   });
+  
 }

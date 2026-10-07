@@ -3,7 +3,7 @@ import { eq, sql } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { buildApp } from "../app";
-import { auditLogs, collectionAreas, collectors } from "../db/schema";
+import { auditLogs, collectionAreas, collectors, users } from "../db/schema";
 import { createTestDb, createTestUser, prepareTestDatabase } from "../test/helpers";
 
 const PASSWORD = "Passw0rd!test";
@@ -386,5 +386,51 @@ describe("collector routes: administrator", () => {
     const all = await app.inject({ method: "GET", url: "/collectors?includeInactive=true", headers });
     expect(all.json()).toHaveLength(2);
     expect(col1Id).toBeTruthy();
+  });
+});
+
+describe("collector login picker", () => {
+  it("rejects no token, a cashier, and an auditor (view-only)", async () => {
+    const url = "/collectors/available-users";
+    expect((await app.inject({ method: "GET", url })).statusCode).toBe(401);
+
+    const cashier = bearer(await tokenFor("cashier1"));
+    expect((await app.inject({ method: "GET", url, headers: cashier })).statusCode).toBe(403);
+
+    const auditor = bearer(await tokenFor("auditor1"));
+    expect((await app.inject({ method: "GET", url, headers: auditor })).statusCode).toBe(403);
+  });
+
+  it("returns only id, username and fullName for unlinked active users", async () => {
+    const headers = bearer(await tokenFor("admin1"));
+    const res = await app.inject({ method: "GET", url: "/collectors/available-users", headers });
+    expect(res.statusCode).toBe(200);
+
+    const rows = res.json() as { id: string; username: string; fullName: string }[];
+    expect(rows.map((u) => u.username)).toEqual(["admin1", "auditor1", "cashier1", "collector_login"]);
+    expect(Object.keys(rows[0] ?? {}).sort()).toEqual(["fullName", "id", "username"]);
+  });
+
+  it("excludes users who are linked to a collector or are inactive", async () => {
+    const headers = bearer(await tokenFor("admin1"));
+
+    const link = await app.inject({
+      method: "PATCH",
+      url: `/collectors/${col1Id}`,
+      headers,
+      payload: { userId: loginUserId },
+    });
+    expect(link.statusCode).toBe(200);
+
+    await createTestUser(db, "inactive_user", PASSWORD, "viewer");
+    await db.update(users).set({ isActive: false }).where(eq(users.username, "inactive_user"));
+
+    const res = await app.inject({ method: "GET", url: "/collectors/available-users", headers });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().map((u: { username: string }) => u.username)).toEqual([
+      "admin1",
+      "auditor1",
+      "cashier1",
+    ]);
   });
 });
