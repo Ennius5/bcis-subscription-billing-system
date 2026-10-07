@@ -50,4 +50,9 @@ describe("visibleNavigation", () => {
   it("returns nothing for a user with no permissions", () => {
     expect(visibleNavigation([])).toEqual([]);
   });
+
+    it("shows Service Plans to the administrator but not to the cashier", () => {
+    expect(ids(visibleNavigation(ROLE_PERMISSIONS.administrator))).toContain("subscribers.plans");
+    expect(ids(visibleNavigation(ROLE_PERMISSIONS.cashier))).not.toContain("subscribers.plans");
+  });
 });

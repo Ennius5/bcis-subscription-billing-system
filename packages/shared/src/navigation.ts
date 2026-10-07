@@ -19,6 +19,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
       { id: "subscribers.all", label: "All Subscribers", permission: "subscriber.view" },
       { id: "subscribers.new", label: "New Subscriber", permission: "subscriber.manage" },
       { id: "subscribers.services", label: "Service Accounts", permission: "service.view" },
+      { id: "subscribers.plans", label: "Service Plans", permission: "plan.view" },
     ],
   },
   {

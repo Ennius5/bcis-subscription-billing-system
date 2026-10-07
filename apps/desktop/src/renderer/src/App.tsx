@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { SessionInfo } from "../../preload/index";
 import { Login } from "./Login";
 import { Shell } from "./Shell";
@@ -22,10 +22,11 @@ export function App() {
     });
   }, []);
 
-  async function handleSignOut() {
+  // Stable identity so screens can safely list it as an effect dependency.
+  const handleSignOut = useCallback(async () => {
     await window.bcis.logout();
     setState({ kind: "signedOut" });
-  }
+  }, []);
 
   if (state.kind === "loading") return null;
 
@@ -33,5 +34,5 @@ export function App() {
     return <Login onSignedIn={(session) => setState({ kind: "signedIn", session })} />;
   }
 
-  return <Shell session={state.session} onSignOut={() => void handleSignOut()} />;
+  return <Shell session={state.session} onSignOut={handleSignOut} />;
 }

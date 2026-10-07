@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { PERMISSIONS, visibleNavigation, type PermissionCode } from "@bcis/shared";
 import type { SessionInfo } from "../../preload/index";
 import { findItem, firstLeaf, Sidebar } from "./Sidebar";
+import { PlansScreen } from "./plans/PlanScreen";
 
 function isPermissionCode(value: string): value is PermissionCode {
   return (PERMISSIONS as readonly string[]).includes(value);
@@ -16,6 +17,10 @@ export function Shell({ session, onSignOut }: ShellProps) {
   // Menu visibility is a convenience only. The server enforces permissions on every request.
   const items = useMemo(
     () => visibleNavigation(session.permissions.filter(isPermissionCode)),
+    [session.permissions],
+  );
+    const permissions = useMemo(
+    () => session.permissions.filter(isPermissionCode),
     [session.permissions],
   );
   const [activeId, setActiveId] = useState<string | null>(() => firstLeaf(items)?.id ?? null);
@@ -39,15 +44,17 @@ export function Shell({ session, onSignOut }: ShellProps) {
       <div className="flex min-h-0 flex-1 border-t border-white/10">
         {items.length > 0 && <Sidebar items={items} activeId={activeId} onSelect={setActiveId} />}
         <main className="flex-1 overflow-y-auto p-8">
-          {active ? (
+          {!active ? (
+            <p className="text-muted">
+              Your account has no assigned permissions. Please contact the administrator.
+            </p>
+          ) : active.id === "subscribers.plans" ? (
+            <PlansScreen permissions={permissions} onSessionExpired={onSignOut} />
+          ) : (
             <>
               <h1 className="text-xl font-semibold text-navy">{active.label}</h1>
               <p className="mt-2 text-muted">This screen has not been built yet.</p>
             </>
-          ) : (
-            <p className="text-muted">
-              Your account has no assigned permissions. Please contact the administrator.
-            </p>
           )}
         </main>
       </div>
