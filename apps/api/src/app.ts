@@ -4,7 +4,7 @@ import type { Config } from "./config";
 import type { Db } from "./db/client";
 import { registerAuthRoutes } from "./auth/routes";
 import { registerAdminRoutes } from "./admin/routes";
-
+import { registerPlanRoutes } from "./plans/routes";
 
 export interface AppDeps {
   pool?: Pool;
@@ -43,6 +43,7 @@ export function buildApp(config: Config, deps: AppDeps = {}): FastifyInstance {
   if (deps.db) {
     registerAuthRoutes(app, deps.db);
     registerAdminRoutes(app, deps.db);
+    registerPlanRoutes(app, deps.db);
   }
 
   return app;
