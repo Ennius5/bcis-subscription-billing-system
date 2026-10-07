@@ -16,7 +16,13 @@ import {
 } from "../collection/service";
 import { auditLogs, collectorAssignments, subscribers } from "../db/schema";
 import { createTestDb, createTestUser, prepareTestDatabase } from "../test/helpers";
-import { changeSubscriberStatus, createSubscriber, listSubscribers } from "./service";
+import {
+  changeSubscriberStatus,
+  createSubscriber,
+  listSubscribers,
+  updateSubscriber,
+} from "./service";
+
 
 const { db, pool } = createTestDb();
 let actorId: string;
@@ -267,6 +273,75 @@ describe("changeSubscriberStatus", () => {
         randomUUID(),
         subscriberStatusChangeSchema.parse({ status: "inactive", reason: "No such account" }),
       ),
+    ).rejects.toMatchObject({ code: "NOT_FOUND", status: 404 });
+  });
+});
+
+describe("updateSubscriber", () => {
+  let subscriberId: string;
+
+  beforeAll(async () => {
+    subscriberId = (await createSubscriber(db, actorId, newSubscriber({ fullName: "Update Test" }))).id;
+  });
+
+  it("updates fields and audits only what changed, with the reason", async () => {
+    const updated = await updateSubscriber(db, actorId, subscriberId, {
+      fullName: "Updated Name",
+      billingDay: 5, // same as stored, must not appear in the audit
+      reason: "Name correction",
+    });
+    expect(updated.fullName).toBe("Updated Name");
+
+    const audit = await auditFor("subscriber.update", subscriberId);
+    expect(audit).toHaveLength(1);
+    expect(audit[0]?.reason).toBe("Name correction");
+    expect(audit[0]?.oldValues).toEqual({ fullName: "Update Test" });
+    expect(audit[0]?.newValues).toEqual({ fullName: "Updated Name" });
+  });
+
+  it("writes no audit row when an update changes nothing", async () => {
+    const result = await updateSubscriber(db, actorId, subscriberId, { fullName: "Updated Name" });
+    expect(result.fullName).toBe("Updated Name");
+    expect(await auditFor("subscriber.update", subscriberId)).toHaveLength(1);
+  });
+
+  it("sets and then clears the notes", async () => {
+    const withNotes = await updateSubscriber(db, actorId, subscriberId, {
+      notes: "Prefers evening collection",
+    });
+    expect(withNotes.notes).toBe("Prefers evening collection");
+
+    const cleared = await updateSubscriber(db, actorId, subscriberId, { notes: null });
+    expect(cleared.notes).toBeNull();
+    expect(await auditFor("subscriber.update", subscriberId)).toHaveLength(3);
+  });
+
+  it("allows edits on a terminated subscriber but not on an archived one", async () => {
+    const id = (await createSubscriber(db, actorId, newSubscriber({ fullName: "Closing Account" }))).id;
+    await changeSubscriberStatus(
+      db,
+      actorId,
+      id,
+      subscriberStatusChangeSchema.parse({ status: "terminated", reason: "Contract ended" }),
+    );
+    const edited = await updateSubscriber(db, actorId, id, { notes: "Final reading done" });
+    expect(edited.notes).toBe("Final reading done");
+
+    await changeSubscriberStatus(
+      db,
+      actorId,
+      id,
+      subscriberStatusChangeSchema.parse({ status: "archived", reason: "Account closed out" }),
+    );
+    await expect(updateSubscriber(db, actorId, id, { notes: "Too late" })).rejects.toMatchObject({
+      code: "SUBSCRIBER_ARCHIVED",
+      status: 409,
+    });
+  });
+
+  it("reports NOT_FOUND for an unknown subscriber", async () => {
+    await expect(
+      updateSubscriber(db, actorId, randomUUID(), { fullName: "Ghost" }),
     ).rejects.toMatchObject({ code: "NOT_FOUND", status: 404 });
   });
 });

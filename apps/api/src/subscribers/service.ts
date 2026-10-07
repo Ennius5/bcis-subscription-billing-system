@@ -1,6 +1,7 @@
 import { and, asc, count, desc, eq, ilike, ne, or } from "drizzle-orm";
 import {
   statusChangeProblem,
+  SubscriberUpdateInput,
   type SubscriberCreateInput,
   type SubscriberListQuery,
   type SubscriberStatus,
@@ -8,7 +9,7 @@ import {
 } from "@bcis/shared";
 import { writeAudit, type DbOrTx } from "../audit/audit";
 import type { Db } from "../db/client";
-import type { Tx } from "../db/query_helpers";
+import { changedFields, type Tx } from "../db/query_helpers";
 import {
   collectionAreas,
   collectorAssignments,
@@ -26,7 +27,8 @@ export class SubscriberError extends Error {
       | "AREA_INACTIVE"
       | "COLLECTOR_NOT_FOUND"
       | "COLLECTOR_INACTIVE"
-      | "INVALID_STATUS_CHANGE",
+      | "INVALID_STATUS_CHANGE"
+      | "SUBSCRIBER_ARCHIVED",
     public readonly status: number,
     message: string,
   ) {
@@ -378,6 +380,54 @@ export async function changeSubscriberStatus(
       reason: input.reason,
       oldValues: { status: existing.status },
       newValues: { status: input.status },
+    });
+
+    return fetchSubscriber(tx, subscriberId);
+  });
+}
+
+/* ------------------------------ Update ------------------------------ */
+
+export async function updateSubscriber(
+  db: Db,
+  actorUserId: string,
+  subscriberId: string,
+  input: SubscriberUpdateInput,
+): Promise<SubscriberDetail> {
+  return db.transaction(async (tx) => {
+    const [existing] = await tx
+      .select()
+      .from(subscribers)
+      .where(eq(subscribers.id, subscriberId))
+      .for("update");
+    if (!existing) throw new SubscriberError("NOT_FOUND", 404, "Subscriber not found.");
+
+    // Archived is final, so the record is read-only.
+    if (existing.status === "archived") {
+      throw new SubscriberError(
+        "SUBSCRIBER_ARCHIVED",
+        409,
+        "An archived subscriber can no longer be edited.",
+      );
+    }
+
+    const { reason, ...fields } = input;
+    const { oldValues, newValues } = changedFields(existing, fields);
+    if (Object.keys(newValues).length === 0) return fetchSubscriber(tx, subscriberId);
+
+    await tx
+      .update(subscribers)
+      .set({ ...fields, updatedAt: new Date() })
+      .where(eq(subscribers.id, subscriberId));
+
+    await writeAudit(tx, {
+      actorUserId,
+      action: "subscriber.update",
+      entityType: "subscriber",
+      entityId: subscriberId,
+      reason: reason ?? null,
+      oldValues,
+      newValues,
     });
 
     return fetchSubscriber(tx, subscriberId);
