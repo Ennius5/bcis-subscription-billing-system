@@ -5,6 +5,7 @@ import type {
   ApiResult,
   AreaDto,
   AuthResult,
+  AvailableUserDto,
   CollectorDto,
   PlanDto,
   SessionInfo,
@@ -213,6 +214,10 @@ ipcMain.handle("collectors:update", (_event, id: unknown, input: unknown) =>
   typeof id === "string" && isRecord(input)
     ? authedRequest<CollectorDto>("PATCH", `/collectors/${encodeURIComponent(id)}`, input)
     : BAD_INPUT,
+);
+
+ipcMain.handle("collectors:availableUsers", () =>
+  authedRequest<AvailableUserDto[]>("GET", "/collectors/available-users"),
 );
 
 void app.whenReady().then(() => {

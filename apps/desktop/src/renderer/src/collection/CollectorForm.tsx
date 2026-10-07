@@ -1,5 +1,5 @@
-import { useState, type FormEvent } from "react";
-import type { CollectorDto } from "../../../preload/index";
+import { useEffect, useState, type FormEvent } from "react";
+import type { AvailableUserDto, CollectorDto } from "../../../preload/index";
 import { TextField } from "../ui/TextField";
 
 export type CollectorFormMode = { kind: "create" } | { kind: "edit"; collector: CollectorDto };
@@ -17,12 +17,37 @@ export function CollectorForm({ mode, onSaved, onCancel, onExpired }: CollectorF
   const [code, setCode] = useState("");
   const [fullName, setFullName] = useState(editing?.fullName ?? "");
   const [contactNumber, setContactNumber] = useState(editing?.contactNumber ?? "");
+  const [userId, setUserId] = useState(editing?.userId ?? ""); // "" means no login
   const [isActive, setIsActive] = useState(editing?.isActive ?? true);
   const [reason, setReason] = useState("");
+
+  const [availableUsers, setAvailableUsers] = useState<AvailableUserDto[]>([]);
+  const [usersLoading, setUsersLoading] = useState(true);
+  const [usersError, setUsersError] = useState<string | null>(null);
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    void window.bcis.collectors.availableUsers().then((result) => {
+      if (cancelled) return;
+      if (result.ok) {
+        setAvailableUsers(result.data);
+        setUsersError(null);
+      } else if (result.code === "UNAUTHENTICATED") {
+        onExpired();
+        return;
+      } else {
+        setUsersError(result.message);
+      }
+      setUsersLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [onExpired]);
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -38,6 +63,7 @@ export function CollectorForm({ mode, onSaved, onCancel, onExpired }: CollectorF
     }
 
     const contactValue = contactNumber.trim() === "" ? null : contactNumber.trim();
+    const userIdValue = userId === "" ? null : userId;
 
     setSaving(true);
     setErrors({});
@@ -49,6 +75,7 @@ export function CollectorForm({ mode, onSaved, onCancel, onExpired }: CollectorF
       const changes: Record<string, unknown> = {};
       if (fullName.trim() !== editing.fullName) changes.fullName = fullName.trim();
       if (contactValue !== editing.contactNumber) changes.contactNumber = contactValue;
+      if (userIdValue !== editing.userId) changes.userId = userIdValue;
       if (isActive !== editing.isActive) changes.isActive = isActive;
 
       if (Object.keys(changes).length === 0) {
@@ -63,6 +90,7 @@ export function CollectorForm({ mode, onSaved, onCancel, onExpired }: CollectorF
         code: code.trim(),
         fullName: fullName.trim(),
         contactNumber: contactValue,
+        ...(userIdValue !== null ? { userId: userIdValue } : {}),
       });
     }
 
@@ -83,6 +111,9 @@ export function CollectorForm({ mode, onSaved, onCancel, onExpired }: CollectorF
     setFormError(Object.keys(serverErrors).length > 0 ? null : result.message);
     setSaving(false);
   }
+
+  // The endpoint excludes users who are already linked, so the current login is added back.
+  const otherUsers = availableUsers.filter((u) => u.id !== editing?.userId);
 
   return (
     <form
@@ -123,6 +154,48 @@ export function CollectorForm({ mode, onSaved, onCancel, onExpired }: CollectorF
             error={errors.contactNumber}
             maxLength={30}
           />
+        </div>
+      </fieldset>
+
+      <fieldset className="mt-5" disabled={saving}>
+        <legend className="text-xs font-semibold uppercase tracking-wide text-muted">
+          Login account
+        </legend>
+        <div className="mt-2 grid grid-cols-1 gap-4 md:grid-cols-3">
+          <label className="block text-sm font-medium text-ink">
+            Linked user
+            <select
+              className="mt-1 block w-full rounded border border-slate-300 bg-surface px-3 py-2 font-normal disabled:bg-slate-100 disabled:opacity-70"
+              value={userId}
+              disabled={usersLoading}
+              onChange={(e) => setUserId(e.target.value)}
+            >
+              <option value="">No login</option>
+              {editing?.userId && (
+                <option value={editing.userId}>{editing.username ?? "Current login"} (current)</option>
+              )}
+              {otherUsers.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.username} — {u.fullName}
+                </option>
+              ))}
+            </select>
+            {errors.userId && (
+              <span role="alert" className="mt-1 block text-xs font-normal text-danger">
+                {errors.userId}
+              </span>
+            )}
+            {usersError && (
+              <span className="mt-1 block text-xs font-normal text-danger">
+                Could not load users. {usersError}
+              </span>
+            )}
+            {!errors.userId && !usersError && (
+              <span className="mt-1 block text-xs font-normal text-muted">
+                Optional. Only users not linked to another collector are listed.
+              </span>
+            )}
+          </label>
         </div>
         {editing && (
           <>

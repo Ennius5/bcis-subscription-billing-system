@@ -60,6 +60,12 @@ export interface CollectorDto {
   isActive: boolean;
 }
 
+export interface AvailableUserDto {
+  id: string;
+  username: string;
+  fullName: string;
+}
+
 const bcis = {
   getHealth: (): Promise<HealthResult> => ipcRenderer.invoke("api:health"),
   login: (username: string, password: string): Promise<AuthResult> =>
@@ -90,6 +96,8 @@ const bcis = {
       ipcRenderer.invoke("collectors:create", input),
     update: (id: string, input: Record<string, unknown>): Promise<ApiResult<CollectorDto>> =>
       ipcRenderer.invoke("collectors:update", id, input),
+    availableUsers: (): Promise<ApiResult<AvailableUserDto[]>> =>
+      ipcRenderer.invoke("collectors:availableUsers"),
   },
 };
 
