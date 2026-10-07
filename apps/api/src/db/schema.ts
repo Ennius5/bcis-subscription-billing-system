@@ -105,3 +105,43 @@ export const auditLogs = pgTable(
     index("audit_logs_action_idx").on(t.action),
   ],
 );
+
+export const serviceTypes = pgTable("service_types", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  code: text("code").notNull().unique(), // internet | cable | combo
+  name: text("name").notNull(),
+});
+
+export const servicePlans = pgTable(
+  "service_plans",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    code: text("code").notNull().unique(),
+    name: text("name").notNull(),
+    serviceTypeId: uuid("service_type_id")
+      .notNull()
+      .references(() => serviceTypes.id),
+    priceCentavos: integer("price_centavos").notNull(),
+    installationFeeCentavos: integer("installation_fee_centavos").notNull().default(0),
+    reconnectionFeeCentavos: integer("reconnection_fee_centavos").notNull().default(0),
+    description: text("description"),
+    speedMbps: integer("speed_mbps"),
+    channelCount: integer("channel_count"),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    check("service_plans_price_nonneg", sql`${t.priceCentavos} >= 0`),
+    check(
+      "service_plans_fees_nonneg",
+      sql`${t.installationFeeCentavos} >= 0 AND ${t.reconnectionFeeCentavos} >= 0`,
+    ),
+    check(
+      "service_plans_attributes_positive",
+      sql`(${t.speedMbps} IS NULL OR ${t.speedMbps} > 0) AND (${t.channelCount} IS NULL OR ${t.channelCount} > 0)`,
+    ),
+    index("service_plans_type_idx").on(t.serviceTypeId),
+    index("service_plans_active_idx").on(t.isActive),
+  ],
+);
