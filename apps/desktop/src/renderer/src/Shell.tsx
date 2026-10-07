@@ -3,6 +3,8 @@ import { PERMISSIONS, visibleNavigation, type PermissionCode } from "@bcis/share
 import type { SessionInfo } from "../../preload/index";
 import { findItem, firstLeaf, Sidebar } from "./Sidebar";
 import { PlansScreen } from "./plans/PlanScreen";
+import { AreasScreen } from "./collection/AreaScreen";
+import { CollectorsScreen } from "./collection/CollectorScreen";
 
 function isPermissionCode(value: string): value is PermissionCode {
   return (PERMISSIONS as readonly string[]).includes(value);
@@ -50,12 +52,18 @@ export function Shell({ session, onSignOut }: ShellProps) {
             </p>
           ) : active.id === "subscribers.plans" ? (
             <PlansScreen permissions={permissions} onSessionExpired={onSignOut} />
+          ) : active.id === "collections.collectors" ? (
+            <CollectorsScreen permissions={permissions} onSessionExpired={onSignOut} />
+          ) : active.id === "collections.areas" ? (
+            <AreasScreen permissions={permissions} onSessionExpired={onSignOut} />
           ) : (
+
             <>
               <h1 className="text-xl font-semibold text-navy">{active.label}</h1>
               <p className="mt-2 text-muted">This screen has not been built yet.</p>
             </>
-          )}
+          )
+          }
         </main>
       </div>
     </div>
