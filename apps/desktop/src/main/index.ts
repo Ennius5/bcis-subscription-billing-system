@@ -1,6 +1,14 @@
 import path from "node:path";
 import { app, BrowserWindow, ipcMain } from "electron";
-import type {ApiFailure,ApiResult,  AuthResult, PlanDto, SessionInfo } from "../preload/index";
+import type {
+  ApiFailure,
+  ApiResult,
+  AreaDto,
+  AuthResult,
+  CollectorDto,
+  PlanDto,
+  SessionInfo,
+} from "../preload/index";
 
 const API_URL = process.env.BCIS_API_URL ?? "http://localhost:3000";
 
@@ -170,6 +178,40 @@ ipcMain.handle("plans:create", (_event, input: unknown) =>
 ipcMain.handle("plans:update", (_event, id: unknown, input: unknown) =>
   typeof id === "string" && isRecord(input)
     ? authedRequest<PlanDto>("PATCH", `/plans/${encodeURIComponent(id)}`, input)
+    : BAD_INPUT,
+);
+
+ipcMain.handle("collectionAreas:list", (_event, includeInactive: unknown) =>
+  authedRequest<AreaDto[]>(
+    "GET",
+    includeInactive === true ? "/collection-areas?includeInactive=true" : "/collection-areas",
+  ),
+);
+
+ipcMain.handle("collectionAreas:create", (_event, input: unknown) =>
+  isRecord(input) ? authedRequest<AreaDto>("POST", "/collection-areas", input) : BAD_INPUT,
+);
+
+ipcMain.handle("collectionAreas:update", (_event, id: unknown, input: unknown) =>
+  typeof id === "string" && isRecord(input)
+    ? authedRequest<AreaDto>("PATCH", `/collection-areas/${encodeURIComponent(id)}`, input)
+    : BAD_INPUT,
+);
+
+ipcMain.handle("collectors:list", (_event, includeInactive: unknown) =>
+  authedRequest<CollectorDto[]>(
+    "GET",
+    includeInactive === true ? "/collectors?includeInactive=true" : "/collectors",
+  ),
+);
+
+ipcMain.handle("collectors:create", (_event, input: unknown) =>
+  isRecord(input) ? authedRequest<CollectorDto>("POST", "/collectors", input) : BAD_INPUT,
+);
+
+ipcMain.handle("collectors:update", (_event, id: unknown, input: unknown) =>
+  typeof id === "string" && isRecord(input)
+    ? authedRequest<CollectorDto>("PATCH", `/collectors/${encodeURIComponent(id)}`, input)
     : BAD_INPUT,
 );
 

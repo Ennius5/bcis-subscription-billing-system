@@ -42,6 +42,24 @@ export interface PlanDto {
   isActive: boolean;
 }
 
+export interface AreaDto {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  isActive: boolean;
+}
+
+export interface CollectorDto {
+  id: string;
+  code: string;
+  fullName: string;
+  contactNumber: string | null;
+  userId: string | null;
+  username: string | null;
+  isActive: boolean;
+}
+
 const bcis = {
   getHealth: (): Promise<HealthResult> => ipcRenderer.invoke("api:health"),
   login: (username: string, password: string): Promise<AuthResult> =>
@@ -55,6 +73,23 @@ const bcis = {
       ipcRenderer.invoke("plans:create", input),
     update: (id: string, input: Record<string, unknown>): Promise<ApiResult<PlanDto>> =>
       ipcRenderer.invoke("plans:update", id, input),
+  },
+
+    collectionAreas: {
+    list: (includeInactive: boolean): Promise<ApiResult<AreaDto[]>> =>
+      ipcRenderer.invoke("collectionAreas:list", includeInactive),
+    create: (input: Record<string, unknown>): Promise<ApiResult<AreaDto>> =>
+      ipcRenderer.invoke("collectionAreas:create", input),
+    update: (id: string, input: Record<string, unknown>): Promise<ApiResult<AreaDto>> =>
+      ipcRenderer.invoke("collectionAreas:update", id, input),
+  },
+  collectors: {
+    list: (includeInactive: boolean): Promise<ApiResult<CollectorDto[]>> =>
+      ipcRenderer.invoke("collectors:list", includeInactive),
+    create: (input: Record<string, unknown>): Promise<ApiResult<CollectorDto>> =>
+      ipcRenderer.invoke("collectors:create", input),
+    update: (id: string, input: Record<string, unknown>): Promise<ApiResult<CollectorDto>> =>
+      ipcRenderer.invoke("collectors:update", id, input),
   },
 };
 
