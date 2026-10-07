@@ -173,3 +173,30 @@ export const subscriberAssignmentSchema = z.strictObject({
   reason,
 });
 export type SubscriberAssignmentInput = z.infer<typeof subscriberAssignmentSchema>;
+
+/* ----------------------------- List query ----------------------------- */
+
+export const SUBSCRIBER_PAGE_SIZE_DEFAULT = 25;
+export const SUBSCRIBER_PAGE_SIZE_MAX = 100;
+
+// Query-string values arrive as text, so numbers are coerced.
+// A blank search box is treated the same as no search.
+export const subscriberListQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(SUBSCRIBER_PAGE_SIZE_MAX)
+    .default(SUBSCRIBER_PAGE_SIZE_DEFAULT),
+  status: z.enum(SUBSCRIBER_STATUSES).optional(),
+  collectionAreaId: z.uuid().optional(),
+  assignedCollectorId: z.uuid().optional(),
+  search: z
+    .string()
+    .trim()
+    .max(100)
+    .optional()
+    .transform((value) => (value === "" ? undefined : value)),
+});
+export type SubscriberListQuery = z.infer<typeof subscriberListQuerySchema>;

@@ -8,6 +8,7 @@ import {
   SUBSCRIBER_STATUSES,
   subscriberAssignmentSchema,
   subscriberCreateSchema,
+  subscriberListQuerySchema,
   subscriberStatusChangeSchema,
   subscriberUpdateSchema,
 } from "./subscribers";
@@ -179,5 +180,33 @@ describe("update schemas", () => {
       assignedCollectorId: null,
     });
     expect(r.success).toBe(false);
+  });
+  
+});
+
+describe("subscriberListQuerySchema", () => {
+  it("applies the default page and page size", () => {
+    expect(subscriberListQuerySchema.parse({})).toEqual({ page: 1, pageSize: 25 });
+  });
+
+  it("coerces query-string values and trims the search", () => {
+    const query = subscriberListQuerySchema.parse({
+      page: "2",
+      pageSize: "50",
+      status: "active",
+      search: "  juan ",
+    });
+    expect(query).toEqual({ page: 2, pageSize: 50, status: "active", search: "juan" });
+  });
+
+  it("treats a blank search as no search", () => {
+    expect(subscriberListQuerySchema.parse({ search: "   " }).search).toBeUndefined();
+  });
+
+  it("rejects out-of-range or invalid values", () => {
+    expect(subscriberListQuerySchema.safeParse({ page: "0" }).success).toBe(false);
+    expect(subscriberListQuerySchema.safeParse({ pageSize: "500" }).success).toBe(false);
+    expect(subscriberListQuerySchema.safeParse({ status: "deleted" }).success).toBe(false);
+    expect(subscriberListQuerySchema.safeParse({ collectionAreaId: "abc" }).success).toBe(false);
   });
 });
