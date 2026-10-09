@@ -9,7 +9,9 @@ import {
   invoiceListQuerySchema,
   invoiceVoidSchema,
   isBillableInPeriod,
+  ledgerQuerySchema,
   periodBounds,
+  periodLabel,
   periodOf,
 } from "./billing";
 
@@ -26,6 +28,11 @@ describe("billing periods", () => {
     expect(periodBounds("2026-02")).toEqual({ start: "2026-02-01", end: "2026-02-28" });
     expect(periodBounds("2028-02")).toEqual({ start: "2028-02-01", end: "2028-02-29" });
     expect(periodBounds("2026-12")).toEqual({ start: "2026-12-01", end: "2026-12-31" });
+  });
+
+  it("names a month for invoice lines", () => {
+    expect(periodLabel("2026-09")).toBe("September 2026");
+    expect(periodLabel("2027-01")).toBe("January 2027");
   });
 
   it("moves between months across year ends", () => {
@@ -90,6 +97,16 @@ describe("billing schemas", () => {
   it("requires a reason to void", () => {
     expect(invoiceVoidSchema.safeParse({ reason: "" }).success).toBe(false);
     expect(invoiceVoidSchema.parse({ reason: " Billed in error " }).reason).toBe("Billed in error");
+  });
+
+  it("accepts an open or closed ledger date range, in order", () => {
+    expect(ledgerQuerySchema.parse({})).toEqual({});
+    expect(ledgerQuerySchema.parse({ from: "2026-09-01", to: "2026-09-30" })).toEqual({
+      from: "2026-09-01",
+      to: "2026-09-30",
+    });
+    expect(ledgerQuerySchema.safeParse({ from: "2026-10-01", to: "2026-09-30" }).success).toBe(false);
+    expect(ledgerQuerySchema.safeParse({ from: "2026-02-30" }).success).toBe(false);
   });
 
   it("parses list filters, overdue included", () => {

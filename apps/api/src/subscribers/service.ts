@@ -1,6 +1,7 @@
 import { and, asc, count, desc, eq, ilike, isNull, ne, or, sql } from "drizzle-orm";
 import {
   contactValueProblem,
+  formatPesos,
   statusChangeProblem,
   SUBSCRIBER_CONTACTS_MAX,
   type AddressCreateInput,
@@ -16,6 +17,7 @@ import {
   type SubscriberStatusChangeInput,
 } from "@bcis/shared";
 import { writeAudit, type DbOrTx } from "../audit/audit";
+import { getSubscriberBalance } from "../billing/ledger";
 import type { Db } from "../db/client";
 import { changedFields, likePattern, type Tx } from "../db/query_helpers";
 import {
@@ -46,7 +48,8 @@ export class SubscriberError extends Error {
       | "INACTIVE_CANNOT_BE_PRIMARY"
       | "CONTACT_LIMIT"
       | "INVALID_CONTACT_VALUE"
-      | "ADDRESS_IN_USE",
+      | "ADDRESS_IN_USE"
+      | "OUTSTANDING_BALANCE",
     public readonly status: number,
     message: string,
   ) {
@@ -417,7 +420,20 @@ export async function changeSubscriberStatus(
     const problem = statusChangeProblem(existing.status as SubscriberStatus, input.status);
     if (problem) throw new SubscriberError("INVALID_STATUS_CHANGE", 409, problem);
 
-    // Phase 4: decide whether "terminated" must be blocked while a balance is outstanding.
+    // Decided in Phase 4: terminating with a balance is allowed (the debt stays on the ledger
+    // and in receivables), but archiving needs a zero balance, debts and credits alike.
+    if (input.status === "archived") {
+      const balance = await getSubscriberBalance(tx, subscriberId);
+      if (balance !== 0) {
+        throw new SubscriberError(
+          "OUTSTANDING_BALANCE",
+          409,
+          balance > 0
+            ? `The subscriber still owes ${formatPesos(balance)}. Only a zero balance can be archived.`
+            : `The subscriber has a credit of ${formatPesos(-balance)}. Only a zero balance can be archived.`,
+        );
+      }
+    }
 
     await tx
       .update(subscribers)

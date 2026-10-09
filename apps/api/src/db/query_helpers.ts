@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import type { Db } from "./client";
 
 /** The handle passed to db.transaction callbacks. */
@@ -31,4 +32,12 @@ export function changedFields(existing: Record<string, unknown>, fields: Record<
     }
   }
   return { oldValues, newValues };
+}
+
+/** Today by the database clock, as "YYYY-MM-DD", so every date rule uses one clock for all PCs. */
+export async function dbToday(executor: Db | Tx): Promise<string> {
+  const result = await executor.execute<{ today: string }>(sql`SELECT CURRENT_DATE::text AS today`);
+  const today = result.rows[0]?.today;
+  if (!today) throw new Error("Could not read the database date");
+  return today;
 }

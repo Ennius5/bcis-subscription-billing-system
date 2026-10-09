@@ -38,6 +38,17 @@ export function periodBounds(period: BillingPeriod): { start: string; end: strin
   return { start: `${year}-${pad(month)}-01`, end: `${year}-${pad(month)}-${pad(lastDay)}` };
 }
 
+const MONTH_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
+/** "2026-09" -> "September 2026", the wording used on invoice lines and the ledger. */
+export function periodLabel(period: BillingPeriod): string {
+  const { year, month } = parsePeriod(period);
+  return `${MONTH_NAMES[month - 1]} ${year}`;
+}
+
 /** The period a calendar date ("YYYY-MM-DD") falls in. */
 export function periodOf(date: string): BillingPeriod {
   return date.slice(0, 7);
@@ -88,6 +99,17 @@ export const invoiceVoidSchema = z.strictObject({
   reason: z.string().trim().min(3, "A reason is required.").max(200),
 });
 export type InvoiceVoidInput = z.infer<typeof invoiceVoidSchema>;
+
+const isoDate = z.iso.date({ message: "Enter a valid date (YYYY-MM-DD)." });
+
+/** Ledger or Statement of Account date range. Both ends are optional and inclusive. */
+export const ledgerQuerySchema = z
+  .object({ from: isoDate.optional(), to: isoDate.optional() })
+  .refine((r) => !r.from || !r.to || r.from <= r.to, {
+    message: "The start date must be on or before the end date.",
+    path: ["to"],
+  });
+export type LedgerQuery = z.infer<typeof ledgerQuerySchema>;
 
 export const INVOICE_PAGE_SIZE_DEFAULT = 25;
 export const INVOICE_PAGE_SIZE_MAX = 100;

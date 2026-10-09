@@ -13,7 +13,7 @@ import {
 } from "@bcis/shared";
 import { writeAudit, type DbOrTx } from "../audit/audit";
 import type { Db } from "../db/client";
-import { changedFields, likePattern, type Tx } from "../db/query_helpers";
+import { changedFields, dbToday, likePattern, type Tx } from "../db/query_helpers";
 import {
   collectors,
   serviceAccounts,
@@ -188,13 +188,6 @@ export async function getServiceAccount(db: Db, id: string): Promise<ServiceAcco
 /* ------------------------------- Helpers ------------------------------- */
 
 /** Today's date by the database clock, the same clock the date CHECK constraints use. */
-async function dbToday(tx: Tx): Promise<string> {
-  const result = await tx.execute<{ today: string }>(sql`SELECT CURRENT_DATE::text AS today`);
-  const today = result.rows[0]?.today;
-  if (!today) throw new Error("Could not read the database date");
-  return today;
-}
-
 async function lockAccount(tx: Tx, id: string) {
   const [account] = await tx.select().from(serviceAccounts).where(eq(serviceAccounts.id, id)).for("update");
   if (!account) throw new ServiceAccountError("NOT_FOUND", 404, "Service account not found.");
