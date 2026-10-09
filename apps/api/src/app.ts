@@ -6,6 +6,7 @@ import { registerAuthRoutes } from "./auth/routes";
 import { registerAdminRoutes } from "./admin/routes";
 import { registerPlanRoutes } from "./plans/routes";
 import { registerBillingRoutes } from "./billing/routes";
+import { registerBatchRoutes } from "./collection/batch-routes";
 import { registerCollectionRoutes } from "./collection/routes";
 import { registerSubscriberRoutes } from "./subscribers/routes";
 import { registerServiceAccountRoutes } from "./service-accounts/routes";
@@ -51,6 +52,7 @@ export function buildApp(config: Config, deps: AppDeps = {}): FastifyInstance {
     registerAdminRoutes(app, deps.db);
     registerPlanRoutes(app, deps.db);
     registerCollectionRoutes(app, deps.db);
+    registerBatchRoutes(app, deps.db);
     registerSubscriberRoutes(app, deps.db);
     registerBillingRoutes(app, deps.db);
     registerServiceAccountRoutes(app, deps.db);

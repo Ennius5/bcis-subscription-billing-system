@@ -7,6 +7,9 @@ import type {
   AreaDto,
   AuthResult,
   AvailableUserDto,
+  BatchDetailDto,
+  BatchPageDto,
+  CreateBatchResultDto,
   BillingSummaryDto,
   FinalizeResultDto,
   InvoiceDetailDto,
@@ -155,7 +158,7 @@ ipcMain.handle("auth:logout", async (): Promise<void> => {
 /** Adds the token, clears it on 401, maps failures; `read` turns a successful response into data. */
 async function authedFetch<T>(
   urlPath: string,
-  init: { method: "GET" | "POST" | "PATCH"; headers?: Record<string, string>; body?: string | Uint8Array<ArrayBuffer> },
+  init: { method: "GET" | "POST" | "PATCH" | "DELETE"; headers?: Record<string, string>; body?: string | Uint8Array<ArrayBuffer> },
   read: (res: Response) => Promise<T>,
 ): Promise<ApiResult<T>> {
   if (!currentToken) {
@@ -176,7 +179,7 @@ async function authedFetch<T>(
 }
 
 function authedRequest<T>(
-  method: "GET" | "POST" | "PATCH",
+  method: "GET" | "POST" | "PATCH" | "DELETE",
   urlPath: string,
   body?: Record<string, unknown>,
 ): Promise<ApiResult<T>> {
@@ -577,6 +580,49 @@ ipcMain.handle("gcash:verify", (_event, id: unknown) =>
 ipcMain.handle("gcash:reject", (_event, id: unknown, reason: unknown) =>
   typeof id === "string" && typeof reason === "string"
     ? authedRequest<GcashSubmissionDto>("POST", `${gcashPath(id)}/reject`, { reason })
+    : BAD_INPUT,
+);
+
+/* -------------------------- Collection batches -------------------------- */
+
+const BATCH_LIST_KEYS = ["page", "pageSize", "status", "collectorId", "from", "to"] as const;
+const batchPath = (id: string) => `/collection-batches/${encodeURIComponent(id)}`;
+
+ipcMain.handle("batches:list", (_event, query: unknown) =>
+  isRecord(query) ? authedRequest<BatchPageDto>("GET", listPath("/collection-batches", BATCH_LIST_KEYS, query)) : BAD_INPUT,
+);
+
+ipcMain.handle("batches:get", (_event, id: unknown) =>
+  typeof id === "string" ? authedRequest<BatchDetailDto>("GET", batchPath(id)) : BAD_INPUT,
+);
+
+ipcMain.handle("batches:create", (_event, input: unknown) =>
+  isRecord(input) ? authedRequest<CreateBatchResultDto>("POST", "/collection-batches", input) : BAD_INPUT,
+);
+
+ipcMain.handle("batches:addAccount", (_event, id: unknown, subscriberId: unknown) =>
+  typeof id === "string" && typeof subscriberId === "string"
+    ? authedRequest<BatchDetailDto>("POST", `${batchPath(id)}/accounts`, { subscriberId })
+    : BAD_INPUT,
+);
+
+ipcMain.handle("batches:removeAccount", (_event, id: unknown, subscriberId: unknown) =>
+  typeof id === "string" && typeof subscriberId === "string"
+    ? authedRequest<BatchDetailDto>("DELETE", `${batchPath(id)}/accounts/${encodeURIComponent(subscriberId)}`)
+    : BAD_INPUT,
+);
+
+ipcMain.handle("batches:dispatch", (_event, id: unknown) =>
+  typeof id === "string" ? authedRequest<BatchDetailDto>("POST", `${batchPath(id)}/dispatch`) : BAD_INPUT,
+);
+
+ipcMain.handle("batches:submit", (_event, id: unknown) =>
+  typeof id === "string" ? authedRequest<BatchDetailDto>("POST", `${batchPath(id)}/submit`) : BAD_INPUT,
+);
+
+ipcMain.handle("batches:cancel", (_event, id: unknown, reason: unknown) =>
+  typeof id === "string" && typeof reason === "string"
+    ? authedRequest<BatchDetailDto>("POST", `${batchPath(id)}/cancel`, { reason })
     : BAD_INPUT,
 );
 

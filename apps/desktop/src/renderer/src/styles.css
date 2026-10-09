@@ -50,3 +50,27 @@
     border: none;
   }
 }
+
+/* The route sheet (collection/RouteSheet.tsx) is a portal straight under <body> and only
+   exists on paper. While it is on the page, printing drops the app entirely and lays the
+   sheet out normally, so it can run over several landscape pages. */
+.print-sheet {
+  display: none;
+}
+@media print {
+  @page route-sheet {
+    size: A4 landscape;
+    margin: 10mm;
+  }
+  body:has(> .print-sheet) > :not(.print-sheet) {
+    display: none;
+  }
+  .print-sheet {
+    display: block;
+    page: route-sheet;
+  }
+  .print-sheet,
+  .print-sheet * {
+    visibility: visible;
+  }
+}

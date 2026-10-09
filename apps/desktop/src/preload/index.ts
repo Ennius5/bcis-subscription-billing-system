@@ -481,6 +481,134 @@ export interface GcashSubmissionDto extends GcashSubmissionListItemDto {
   proofs: { id: string; mimeType: string; sizeBytes: number; originalFilename: string | null; uploadedAt: string }[];
 }
 
+/* -------------------------- Collection batches -------------------------- */
+
+export interface BatchListQuery {
+  page?: number;
+  pageSize?: number;
+  status?: string;
+  collectorId?: string;
+  from?: string; // "YYYY-MM-DD", inclusive collection dates
+  to?: string;
+}
+
+export interface BatchListItemDto {
+  id: string;
+  batchNumber: string;
+  status: string; // open | in_progress | submitted | remitted | reconciled | closed | cancelled
+  collectionDate: string;
+  collectorCode: string;
+  collectorName: string;
+  areaCode: string | null;
+  accountCount: number;
+  totalDueCentavos: number;
+}
+
+export interface BatchPageDto {
+  items: BatchListItemDto[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+/** Who did a lifecycle step, and when. */
+export interface BatchStepDto {
+  at: string;
+  byName: string;
+}
+
+/** One route sheet line. The amounts are the snapshot taken when the account was added. */
+export interface BatchAccountDto {
+  subscriberId: string;
+  accountNumber: string;
+  fullName: string;
+  subscriberStatus: string;
+  areaCode: string | null;
+  addressLine: string | null;
+  barangay: string | null;
+  city: string | null;
+  landmark: string | null;
+  currentCentavos: number;
+  arrearsCentavos: number;
+  creditCentavos: number;
+  totalDueCentavos: number;
+  addedAt: string;
+  addedLate: boolean;
+  collectedCentavos: number;
+  paidElsewhereCentavos: number;
+}
+
+export interface BatchCollectionDto {
+  paymentId: string;
+  receiptNumber: string;
+  status: string; // posted | reversed
+  subscriberId: string;
+  accountNumber: string;
+  fullName: string;
+  method: string; // cash | cheque
+  amountCentavos: number;
+  paymentDate: string;
+  referenceNumber: string | null;
+  postedAt: string;
+  receivedByName: string;
+  reversedAt: string | null;
+  reversalReason: string | null;
+}
+
+export interface BatchRemittanceDto {
+  id: string;
+  amountCentavos: number;
+  notes: string | null;
+  received: BatchStepDto;
+  voided: (BatchStepDto & { reason: string }) | null;
+}
+
+export interface BatchMoneyDto {
+  expectedTotalDueCentavos: number;
+  cashCollectedCentavos: number;
+  chequeCollectedCentavos: number;
+  paidElsewhereCentavos: number;
+  nonCashCentavos: number;
+  uncollectedCentavos: number;
+  remittedCentavos: number;
+  collectionCount: number;
+}
+
+export interface BatchDetailDto {
+  id: string;
+  batchNumber: string;
+  status: string;
+  collectionDate: string;
+  notes: string | null;
+  collector: { id: string; code: string; fullName: string };
+  area: { id: string; code: string; name: string } | null;
+  created: BatchStepDto;
+  dispatched: BatchStepDto | null;
+  submitted: BatchStepDto | null;
+  reconciled: BatchStepDto | null;
+  closed: BatchStepDto | null;
+  cancelled: (BatchStepDto & { reason: string }) | null;
+  accounts: BatchAccountDto[];
+  totals: { accountCount: number; currentCentavos: number; arrearsCentavos: number; totalDueCentavos: number };
+  collections: BatchCollectionDto[];
+  remittances: BatchRemittanceDto[];
+  money: BatchMoneyDto;
+  reconciliation: {
+    expectedCashCentavos: number;
+    remittedCashCentavos: number;
+    differenceCentavos: number;
+    varianceKind: string; // balanced | shortage | overage
+    varianceReason: string | null;
+  } | null;
+  reversedAfterReconciliation: BatchCollectionDto[];
+}
+
+export interface CreateBatchResultDto {
+  batch: BatchDetailDto;
+  /** Owing subscribers left out because they are already on another open or in-progress batch. */
+  skipped: { subscriberId: string; accountNumber: string; fullName: string; batchNumber: string }[];
+}
+
 const bcis = {
   getHealth: (): Promise<HealthResult> => ipcRenderer.invoke("api:health"),
   login: (username: string, password: string): Promise<AuthResult> =>
@@ -604,6 +732,20 @@ const bcis = {
     verify: (id: string): Promise<ApiResult<GcashSubmissionDto>> => ipcRenderer.invoke("gcash:verify", id),
     reject: (id: string, reason: string): Promise<ApiResult<GcashSubmissionDto>> =>
       ipcRenderer.invoke("gcash:reject", id, reason),
+  },
+  batches: {
+    list: (query: BatchListQuery): Promise<ApiResult<BatchPageDto>> => ipcRenderer.invoke("batches:list", query),
+    get: (id: string): Promise<ApiResult<BatchDetailDto>> => ipcRenderer.invoke("batches:get", id),
+    create: (input: Record<string, unknown>): Promise<ApiResult<CreateBatchResultDto>> =>
+      ipcRenderer.invoke("batches:create", input),
+    addAccount: (id: string, subscriberId: string): Promise<ApiResult<BatchDetailDto>> =>
+      ipcRenderer.invoke("batches:addAccount", id, subscriberId),
+    removeAccount: (id: string, subscriberId: string): Promise<ApiResult<BatchDetailDto>> =>
+      ipcRenderer.invoke("batches:removeAccount", id, subscriberId),
+    dispatch: (id: string): Promise<ApiResult<BatchDetailDto>> => ipcRenderer.invoke("batches:dispatch", id),
+    submit: (id: string): Promise<ApiResult<BatchDetailDto>> => ipcRenderer.invoke("batches:submit", id),
+    cancel: (id: string, reason: string): Promise<ApiResult<BatchDetailDto>> =>
+      ipcRenderer.invoke("batches:cancel", id, reason),
   },
 };
 
