@@ -3,6 +3,7 @@ export * from "./permissions";
 export * from "./navigation";
 export * from "./plans";
 export * from "./collection";
+export * from "./collection-batches";
 export * from "./subscribers";
 export * from "./service-accounts";
 export * from "./billing";

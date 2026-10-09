@@ -643,6 +643,174 @@ export const adjustments = pgTable(
   ],
 );
 
+/* ------------------------------ Collections ------------------------------ */
+
+/**
+ * One collector's house-to-house round on one date (spec 3.8). Batches are never deleted.
+ * open -> in_progress -> submitted -> remitted -> reconciled -> closed, with
+ * submitted -> reconciled when nothing was remitted, and open/in_progress -> cancelled
+ * while no collection is recorded. The reconcile columns freeze the figures the batch was
+ * reconciled on; a payment reversed later shows as an exception against them.
+ */
+export const collectionBatches = pgTable(
+  "collection_batches",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    batchNumber: text("batch_number").notNull().unique(),
+    collectorId: uuid("collector_id")
+      .notNull()
+      .references(() => collectors.id),
+    /** Optional filter used when the account list was built. */
+    collectionAreaId: uuid("collection_area_id").references(() => collectionAreas.id),
+    collectionDate: date("collection_date").notNull(),
+    status: text("status").notNull().default("open"),
+    notes: text("notes"),
+    createdByUserId: uuid("created_by_user_id")
+      .notNull()
+      .references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    dispatchedByUserId: uuid("dispatched_by_user_id").references(() => users.id),
+    dispatchedAt: timestamp("dispatched_at", { withTimezone: true }),
+    submittedByUserId: uuid("submitted_by_user_id").references(() => users.id),
+    submittedAt: timestamp("submitted_at", { withTimezone: true }),
+    /** Cash the collector should hand over: posted cash collections at reconcile time. */
+    expectedCashCentavos: integer("expected_cash_centavos"),
+    /** Sum of remittances not voided, at reconcile time. */
+    remittedCashCentavos: integer("remitted_cash_centavos"),
+    /** remitted - expected: negative is a shortage, positive an overage. */
+    differenceCentavos: integer("difference_centavos"),
+    varianceKind: text("variance_kind"),
+    /** Required whenever the difference is not zero (AT-08: never closed silently as balanced). */
+    varianceReason: text("variance_reason"),
+    reconciledByUserId: uuid("reconciled_by_user_id").references(() => users.id),
+    reconciledAt: timestamp("reconciled_at", { withTimezone: true }),
+    closedByUserId: uuid("closed_by_user_id").references(() => users.id),
+    closedAt: timestamp("closed_at", { withTimezone: true }),
+    cancelledByUserId: uuid("cancelled_by_user_id").references(() => users.id),
+    cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+    cancelReason: text("cancel_reason"),
+  },
+  (t) => [
+    check(
+      "collection_batches_status_valid",
+      sql`${t.status} IN ('open', 'in_progress', 'submitted', 'remitted', 'reconciled', 'closed', 'cancelled')`,
+    ),
+    check(
+      "collection_batches_dispatch_shape",
+      sql`(${t.dispatchedAt} IS NULL) = (${t.dispatchedByUserId} IS NULL)
+        AND (${t.status} IN ('open', 'cancelled') OR ${t.dispatchedAt} IS NOT NULL)`,
+    ),
+    check(
+      "collection_batches_submit_shape",
+      sql`(${t.submittedAt} IS NULL) = (${t.submittedByUserId} IS NULL)
+        AND (${t.status} IN ('open', 'in_progress', 'cancelled')) = (${t.submittedAt} IS NULL)`,
+    ),
+    check(
+      "collection_batches_reconcile_shape",
+      sql`(${t.status} IN ('reconciled', 'closed')) = (${t.reconciledAt} IS NOT NULL)
+        AND num_nonnulls(${t.reconciledAt}, ${t.reconciledByUserId}, ${t.expectedCashCentavos},
+          ${t.remittedCashCentavos}, ${t.differenceCentavos}, ${t.varianceKind}) IN (0, 6)`,
+    ),
+    check(
+      "collection_batches_variance_consistent",
+      sql`${t.reconciledAt} IS NULL OR (
+        ${t.expectedCashCentavos} >= 0 AND ${t.remittedCashCentavos} >= 0
+        AND ${t.differenceCentavos} = ${t.remittedCashCentavos} - ${t.expectedCashCentavos}
+        AND ${t.varianceKind} = CASE WHEN ${t.differenceCentavos} = 0 THEN 'balanced'
+          WHEN ${t.differenceCentavos} < 0 THEN 'shortage' ELSE 'overage' END
+        AND (${t.differenceCentavos} = 0 OR length(trim(coalesce(${t.varianceReason}, ''))) >= 3))`,
+    ),
+    check(
+      "collection_batches_close_shape",
+      sql`(${t.status} = 'closed') = (${t.closedAt} IS NOT NULL) AND (${t.closedAt} IS NULL) = (${t.closedByUserId} IS NULL)`,
+    ),
+    check(
+      "collection_batches_cancel_shape",
+      sql`(${t.status} = 'cancelled') = (${t.cancelledAt} IS NOT NULL)
+        AND num_nonnulls(${t.cancelledAt}, ${t.cancelledByUserId}, ${t.cancelReason}) IN (0, 3)`,
+    ),
+    // Payments and remittances use (id, collector_id) so they always name the batch's collector.
+    uniqueIndex("collection_batches_id_collector_idx").on(t.id, t.collectorId),
+    index("collection_batches_collector_idx").on(t.collectorId, t.collectionDate),
+    index("collection_batches_status_idx").on(t.status, t.collectionDate),
+  ],
+);
+
+/**
+ * A subscriber on a batch's route sheet. The amounts are a snapshot taken when the account
+ * was added: they are what the sheet prints and what "expected" means for the batch.
+ * current = open balance not yet past due, arrears = past due, total due = both less credit.
+ * Rows can be added while the batch is open or in progress and removed only while open.
+ */
+export const batchAccounts = pgTable(
+  "batch_accounts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    batchId: uuid("batch_id")
+      .notNull()
+      .references(() => collectionBatches.id),
+    subscriberId: uuid("subscriber_id")
+      .notNull()
+      .references(() => subscribers.id),
+    currentCentavos: integer("current_centavos").notNull(),
+    arrearsCentavos: integer("arrears_centavos").notNull(),
+    creditCentavos: integer("credit_centavos").notNull(),
+    totalDueCentavos: integer("total_due_centavos").notNull(),
+    addedByUserId: uuid("added_by_user_id")
+      .notNull()
+      .references(() => users.id),
+    addedAt: timestamp("added_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    check(
+      "batch_accounts_amounts_valid",
+      sql`${t.currentCentavos} >= 0 AND ${t.arrearsCentavos} >= 0 AND ${t.creditCentavos} >= 0
+        AND ${t.totalDueCentavos} = greatest(0, ${t.currentCentavos} + ${t.arrearsCentavos} - ${t.creditCentavos})`,
+    ),
+    // Also the target of payments' (collection_batch_id, subscriber_id): a field collection
+    // can only be recorded for a subscriber on that batch.
+    uniqueIndex("batch_accounts_batch_subscriber_idx").on(t.batchId, t.subscriberId),
+    index("batch_accounts_subscriber_idx").on(t.subscriberId),
+  ],
+);
+
+/**
+ * Cash a collector handed over for a batch. Append-only except for voiding: a wrong entry is
+ * voided with a reason, never edited or deleted. Remitted cash = entries not voided.
+ */
+export const collectorRemittances = pgTable(
+  "collector_remittances",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    batchId: uuid("batch_id").notNull(),
+    collectorId: uuid("collector_id").notNull(),
+    amountCentavos: integer("amount_centavos").notNull(),
+    notes: text("notes"),
+    receivedByUserId: uuid("received_by_user_id")
+      .notNull()
+      .references(() => users.id),
+    receivedAt: timestamp("received_at", { withTimezone: true }).notNull().defaultNow(),
+    voidedByUserId: uuid("voided_by_user_id").references(() => users.id),
+    voidedAt: timestamp("voided_at", { withTimezone: true }),
+    voidReason: text("void_reason"),
+  },
+  (t) => [
+    foreignKey({
+      name: "collector_remittances_batch_fk",
+      columns: [t.batchId, t.collectorId],
+      foreignColumns: [collectionBatches.id, collectionBatches.collectorId],
+    }),
+    check("collector_remittances_amount_positive", sql`${t.amountCentavos} > 0`),
+    check(
+      "collector_remittances_void_shape",
+      sql`num_nonnulls(${t.voidedAt}, ${t.voidedByUserId}, ${t.voidReason}) IN (0, 3)
+        AND (${t.voidReason} IS NULL OR length(trim(${t.voidReason})) >= 3)`,
+    ),
+    index("collector_remittances_batch_idx").on(t.batchId),
+    index("collector_remittances_collector_idx").on(t.collectorId, t.receivedAt),
+  ],
+);
+
 /* ------------------------------ Payments ------------------------------ */
 
 /**
@@ -678,8 +846,28 @@ export const payments = pgTable(
       .notNull()
       .references(() => users.id),
     postedAt: timestamp("posted_at", { withTimezone: true }).notNull().defaultNow(),
+    /** Set for a field collection: the batch and collector it came in through (spec 3.8). */
+    collectionBatchId: uuid("collection_batch_id"),
+    collectorId: uuid("collector_id"),
   },
   (t) => [
+    foreignKey({
+      name: "payments_batch_account_fk",
+      columns: [t.collectionBatchId, t.subscriberId],
+      foreignColumns: [batchAccounts.batchId, batchAccounts.subscriberId],
+    }),
+    foreignKey({
+      name: "payments_batch_collector_fk",
+      columns: [t.collectionBatchId, t.collectorId],
+      foreignColumns: [collectionBatches.id, collectionBatches.collectorId],
+    }),
+    // Field collections are cash or cheque, and always name both the batch and its collector.
+    check(
+      "payments_field_collection_shape",
+      sql`(${t.collectionBatchId} IS NULL) = (${t.collectorId} IS NULL)
+        AND (${t.collectionBatchId} IS NULL OR ${t.method} IN ('cash', 'cheque'))`,
+    ),
+    index("payments_batch_idx").on(t.collectionBatchId),
     check(
       "payments_method_valid",
       sql`${t.method} IN ('cash', 'gcash', 'bank_transfer', 'cheque', 'other')`,
