@@ -9,6 +9,9 @@ import type {
   CollectorDto,
   PlanDto,
   SessionInfo,
+  SubscriberDto,
+  SubscriberHistoryDto,
+  SubscriberPageDto,
 } from "../preload/index";
 
 const API_URL = process.env.BCIS_API_URL ?? "http://localhost:3000";
@@ -218,6 +221,99 @@ ipcMain.handle("collectors:update", (_event, id: unknown, input: unknown) =>
 
 ipcMain.handle("collectors:availableUsers", () =>
   authedRequest<AvailableUserDto[]>("GET", "/collectors/available-users"),
+);
+
+/* ----------------------------- Subscribers ----------------------------- */
+
+const SUBSCRIBER_LIST_KEYS = [
+  "page",
+  "pageSize",
+  "status",
+  "collectionAreaId",
+  "assignedCollectorId",
+  "search",
+] as const;
+
+/** Builds the list query string from known keys only; the API validates the values. */
+function subscriberListPath(query: Record<string, unknown>): string {
+  const params = new URLSearchParams();
+  for (const key of SUBSCRIBER_LIST_KEYS) {
+    const value = query[key];
+    if (typeof value === "string" && value !== "") params.set(key, value);
+    if (typeof value === "number") params.set(key, String(value));
+  }
+  const qs = params.toString();
+  return qs ? `/subscribers?${qs}` : "/subscribers";
+}
+
+const subscriberPath = (id: string) => `/subscribers/${encodeURIComponent(id)}`;
+
+ipcMain.handle("subscribers:list", (_event, query: unknown) =>
+  isRecord(query) ? authedRequest<SubscriberPageDto>("GET", subscriberListPath(query)) : BAD_INPUT,
+);
+
+ipcMain.handle("subscribers:get", (_event, id: unknown) =>
+  typeof id === "string" ? authedRequest<SubscriberDto>("GET", subscriberPath(id)) : BAD_INPUT,
+);
+
+ipcMain.handle("subscribers:history", (_event, id: unknown) =>
+  typeof id === "string"
+    ? authedRequest<SubscriberHistoryDto[]>("GET", `${subscriberPath(id)}/history`)
+    : BAD_INPUT,
+);
+
+ipcMain.handle("subscribers:create", (_event, input: unknown) =>
+  isRecord(input) ? authedRequest<SubscriberDto>("POST", "/subscribers", input) : BAD_INPUT,
+);
+
+ipcMain.handle("subscribers:update", (_event, id: unknown, input: unknown) =>
+  typeof id === "string" && isRecord(input)
+    ? authedRequest<SubscriberDto>("PATCH", subscriberPath(id), input)
+    : BAD_INPUT,
+);
+
+ipcMain.handle("subscribers:changeStatus", (_event, id: unknown, input: unknown) =>
+  typeof id === "string" && isRecord(input)
+    ? authedRequest<SubscriberDto>("POST", `${subscriberPath(id)}/status`, input)
+    : BAD_INPUT,
+);
+
+ipcMain.handle("subscribers:changeAssignment", (_event, id: unknown, input: unknown) =>
+  typeof id === "string" && isRecord(input)
+    ? authedRequest<SubscriberDto>("POST", `${subscriberPath(id)}/assignment`, input)
+    : BAD_INPUT,
+);
+
+ipcMain.handle("subscribers:addAddress", (_event, id: unknown, input: unknown) =>
+  typeof id === "string" && isRecord(input)
+    ? authedRequest<SubscriberDto>("POST", `${subscriberPath(id)}/addresses`, input)
+    : BAD_INPUT,
+);
+
+ipcMain.handle("subscribers:updateAddress", (_event, id: unknown, addressId: unknown, input: unknown) =>
+  typeof id === "string" && typeof addressId === "string" && isRecord(input)
+    ? authedRequest<SubscriberDto>(
+        "PATCH",
+        `${subscriberPath(id)}/addresses/${encodeURIComponent(addressId)}`,
+        input,
+      )
+    : BAD_INPUT,
+);
+
+ipcMain.handle("subscribers:addContact", (_event, id: unknown, input: unknown) =>
+  typeof id === "string" && isRecord(input)
+    ? authedRequest<SubscriberDto>("POST", `${subscriberPath(id)}/contacts`, input)
+    : BAD_INPUT,
+);
+
+ipcMain.handle("subscribers:updateContact", (_event, id: unknown, contactId: unknown, input: unknown) =>
+  typeof id === "string" && typeof contactId === "string" && isRecord(input)
+    ? authedRequest<SubscriberDto>(
+        "PATCH",
+        `${subscriberPath(id)}/contacts/${encodeURIComponent(contactId)}`,
+        input,
+      )
+    : BAD_INPUT,
 );
 
 void app.whenReady().then(() => {

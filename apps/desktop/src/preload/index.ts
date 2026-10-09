@@ -66,6 +66,89 @@ export interface AvailableUserDto {
   fullName: string;
 }
 
+export interface SubscriberListQuery {
+  page?: number;
+  pageSize?: number;
+  status?: string;
+  collectionAreaId?: string;
+  assignedCollectorId?: string;
+  search?: string;
+}
+
+export interface SubscriberListItemDto {
+  id: string;
+  accountNumber: string;
+  fullName: string;
+  status: string;
+  billingDay: number;
+  collectionAreaId: string | null;
+  areaCode: string | null;
+  areaName: string | null;
+  assignedCollectorId: string | null;
+  collectorCode: string | null;
+  collectorName: string | null;
+  primaryContact: string | null;
+  primaryAddress: string | null;
+}
+
+export interface SubscriberPageDto {
+  items: SubscriberListItemDto[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export interface SubscriberAddressDto {
+  id: string;
+  label: string | null;
+  line1: string;
+  barangay: string;
+  city: string;
+  province: string | null;
+  landmark: string | null;
+  isPrimary: boolean;
+  isActive: boolean;
+}
+
+export interface SubscriberContactDto {
+  id: string;
+  type: string;
+  value: string;
+  contactName: string | null;
+  isPrimary: boolean;
+  isActive: boolean;
+}
+
+export interface SubscriberDto {
+  id: string;
+  accountNumber: string;
+  fullName: string;
+  status: string;
+  billingDay: number;
+  notes: string | null;
+  collectionAreaId: string | null;
+  areaCode: string | null;
+  areaName: string | null;
+  assignedCollectorId: string | null;
+  collectorCode: string | null;
+  collectorName: string | null;
+  createdAt: string; // ISO timestamps: dates arrive as JSON strings
+  updatedAt: string;
+  addresses: SubscriberAddressDto[];
+  contacts: SubscriberContactDto[];
+}
+
+export interface SubscriberHistoryDto {
+  id: string;
+  occurredAt: string;
+  action: string;
+  actorUsername: string | null;
+  actorName: string | null;
+  reason: string | null;
+  oldValues: Record<string, unknown> | null;
+  newValues: Record<string, unknown> | null;
+}
+
 const bcis = {
   getHealth: (): Promise<HealthResult> => ipcRenderer.invoke("api:health"),
   login: (username: string, password: string): Promise<AuthResult> =>
@@ -98,6 +181,37 @@ const bcis = {
       ipcRenderer.invoke("collectors:update", id, input),
     availableUsers: (): Promise<ApiResult<AvailableUserDto[]>> =>
       ipcRenderer.invoke("collectors:availableUsers"),
+  },
+  subscribers: {
+    list: (query: SubscriberListQuery): Promise<ApiResult<SubscriberPageDto>> =>
+      ipcRenderer.invoke("subscribers:list", query),
+    get: (id: string): Promise<ApiResult<SubscriberDto>> => ipcRenderer.invoke("subscribers:get", id),
+    history: (id: string): Promise<ApiResult<SubscriberHistoryDto[]>> =>
+      ipcRenderer.invoke("subscribers:history", id),
+    create: (input: Record<string, unknown>): Promise<ApiResult<SubscriberDto>> =>
+      ipcRenderer.invoke("subscribers:create", input),
+    update: (id: string, input: Record<string, unknown>): Promise<ApiResult<SubscriberDto>> =>
+      ipcRenderer.invoke("subscribers:update", id, input),
+    changeStatus: (id: string, input: Record<string, unknown>): Promise<ApiResult<SubscriberDto>> =>
+      ipcRenderer.invoke("subscribers:changeStatus", id, input),
+    changeAssignment: (id: string, input: Record<string, unknown>): Promise<ApiResult<SubscriberDto>> =>
+      ipcRenderer.invoke("subscribers:changeAssignment", id, input),
+    addAddress: (id: string, input: Record<string, unknown>): Promise<ApiResult<SubscriberDto>> =>
+      ipcRenderer.invoke("subscribers:addAddress", id, input),
+    updateAddress: (
+      id: string,
+      addressId: string,
+      input: Record<string, unknown>,
+    ): Promise<ApiResult<SubscriberDto>> =>
+      ipcRenderer.invoke("subscribers:updateAddress", id, addressId, input),
+    addContact: (id: string, input: Record<string, unknown>): Promise<ApiResult<SubscriberDto>> =>
+      ipcRenderer.invoke("subscribers:addContact", id, input),
+    updateContact: (
+      id: string,
+      contactId: string,
+      input: Record<string, unknown>,
+    ): Promise<ApiResult<SubscriberDto>> =>
+      ipcRenderer.invoke("subscribers:updateContact", id, contactId, input),
   },
 };
 
