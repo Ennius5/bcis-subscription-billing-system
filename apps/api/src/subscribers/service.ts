@@ -19,12 +19,14 @@ import { writeAudit, type DbOrTx } from "../audit/audit";
 import type { Db } from "../db/client";
 import { changedFields, type Tx } from "../db/query_helpers";
 import {
+  auditLogs,
   collectionAreas,
   collectorAssignments,
   collectors,
   subscriberAddresses,
   subscriberContacts,
   subscribers,
+  users,
 } from "../db/schema";
 
 export class SubscriberError extends Error {
@@ -255,6 +257,45 @@ async function fetchSubscriber(executor: DbOrTx, id: string): Promise<Subscriber
 
 export async function getSubscriber(db: Db, id: string): Promise<SubscriberDetail> {
   return fetchSubscriber(db, id);
+}
+
+/* ------------------------------ History ------------------------------ */
+
+export type SubscriberHistoryRow = {
+  id: string;
+  occurredAt: Date;
+  action: string;
+  actorUsername: string | null;
+  actorName: string | null;
+  reason: string | null;
+  oldValues: unknown;
+  newValues: unknown;
+};
+
+/** The subscriber's audit trail, newest first. Address and contact changes are included. */
+export async function listSubscriberHistory(db: Db, id: string): Promise<SubscriberHistoryRow[]> {
+  const [exists] = await db
+    .select({ id: subscribers.id })
+    .from(subscribers)
+    .where(eq(subscribers.id, id))
+    .limit(1);
+  if (!exists) throw new SubscriberError("NOT_FOUND", 404, "Subscriber not found.");
+
+  return db
+    .select({
+      id: auditLogs.id,
+      occurredAt: auditLogs.occurredAt,
+      action: auditLogs.action,
+      actorUsername: users.username,
+      actorName: users.fullName,
+      reason: auditLogs.reason,
+      oldValues: auditLogs.oldValues,
+      newValues: auditLogs.newValues,
+    })
+    .from(auditLogs)
+    .leftJoin(users, eq(auditLogs.actorUserId, users.id))
+    .where(and(eq(auditLogs.entityType, "subscriber"), eq(auditLogs.entityId, id)))
+    .orderBy(desc(auditLogs.occurredAt), desc(auditLogs.id));
 }
 
 /* ------------------------------ Create ------------------------------ */

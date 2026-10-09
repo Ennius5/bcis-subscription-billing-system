@@ -6,6 +6,7 @@ import { registerAuthRoutes } from "./auth/routes";
 import { registerAdminRoutes } from "./admin/routes";
 import { registerPlanRoutes } from "./plans/routes";
 import { registerCollectionRoutes } from "./collection/routes";
+import { registerSubscriberRoutes } from "./subscribers/routes";
 
 export interface AppDeps {
   pool?: Pool;
@@ -46,6 +47,7 @@ export function buildApp(config: Config, deps: AppDeps = {}): FastifyInstance {
     registerAdminRoutes(app, deps.db);
     registerPlanRoutes(app, deps.db);
     registerCollectionRoutes(app, deps.db);
+    registerSubscriberRoutes(app, deps.db);
   }
 
   return app;
