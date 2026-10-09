@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+  bigint,
   boolean,
   check,
   date,
@@ -361,6 +362,8 @@ export const serviceAccounts = pgTable(
     index("service_accounts_plan_idx").on(t.planId),
     index("service_accounts_status_idx").on(t.status),
     index("service_accounts_collector_idx").on(t.assignedCollectorId),
+    // Lets invoices and ledger entries prove their service account belongs to their subscriber.
+    uniqueIndex("service_accounts_id_subscriber_idx").on(t.id, t.subscriberId),
   ],
 );
 
@@ -390,5 +393,183 @@ export const serviceEvents = pgTable(
       sql`${t.eventType} IN ('created', 'status_change', 'rate_change', 'plan_change', 'collector_change', 'update')`,
     ),
     index("service_events_account_idx").on(t.serviceAccountId, t.occurredAt),
+  ],
+);
+
+/* ------------------------------ Billing ------------------------------ */
+
+/**
+ * Gapless document numbers (invoices now, receipts in Phase 5). The row is locked with
+ * SELECT ... FOR UPDATE while numbers are taken, so finalizing on three PCs at once can
+ * neither share nor skip a number, and a rolled-back transaction gives its numbers back.
+ */
+export const documentSequences = pgTable(
+  "document_sequences",
+  {
+    name: text("name").primaryKey(), // "invoice"
+    prefix: text("prefix").notNull(), // "INV-"
+    nextValue: bigint("next_value", { mode: "number" }).notNull().default(1),
+  },
+  (t) => [check("document_sequences_next_positive", sql`${t.nextValue} >= 1`)],
+);
+
+/** One row per billing month. period_start is always the 1st of the month. */
+export const billingCycles = pgTable(
+  "billing_cycles",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    periodStart: date("period_start").notNull().unique(),
+    periodEnd: date("period_end").notNull(),
+    createdByUserId: uuid("created_by_user_id")
+      .notNull()
+      .references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    check("billing_cycles_first_of_month", sql`extract(day from ${t.periodStart}) = 1`),
+    check(
+      "billing_cycles_whole_month",
+      sql`${t.periodEnd} = (${t.periodStart} + interval '1 month' - interval '1 day')::date`,
+    ),
+  ],
+);
+
+export const invoices = pgTable(
+  "invoices",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    /** Assigned when the invoice is finalized; drafts have none. Never reused: voids keep theirs. */
+    invoiceNumber: text("invoice_number").unique(),
+    billingCycleId: uuid("billing_cycle_id")
+      .notNull()
+      .references(() => billingCycles.id),
+    subscriberId: uuid("subscriber_id")
+      .notNull()
+      .references(() => subscribers.id),
+    serviceAccountId: uuid("service_account_id").notNull(),
+    periodStart: date("period_start").notNull(),
+    periodEnd: date("period_end").notNull(),
+    invoiceDate: date("invoice_date").notNull(),
+    dueDate: date("due_date").notNull(),
+    // OVERDUE is not stored: it is derived from due_date and the unpaid balance.
+    status: text("status").notNull().default("draft"),
+    totalCentavos: integer("total_centavos").notNull(),
+    /** Maintained by payment allocation (Phase 5). */
+    paidCentavos: integer("paid_centavos").notNull().default(0),
+    createdByUserId: uuid("created_by_user_id")
+      .notNull()
+      .references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    finalizedByUserId: uuid("finalized_by_user_id").references(() => users.id),
+    finalizedAt: timestamp("finalized_at", { withTimezone: true }),
+    voidedByUserId: uuid("voided_by_user_id").references(() => users.id),
+    voidedAt: timestamp("voided_at", { withTimezone: true }),
+    voidReason: text("void_reason"),
+  },
+  (t) => [
+    foreignKey({
+      name: "invoices_service_account_fk",
+      columns: [t.serviceAccountId, t.subscriberId],
+      foreignColumns: [serviceAccounts.id, serviceAccounts.subscriberId],
+    }),
+    check(
+      "invoices_status_valid",
+      sql`${t.status} IN ('draft', 'unpaid', 'partially_paid', 'paid', 'void', 'credited')`,
+    ),
+    check("invoices_total_nonneg", sql`${t.totalCentavos} >= 0`),
+    check("invoices_paid_range", sql`${t.paidCentavos} >= 0 AND ${t.paidCentavos} <= ${t.totalCentavos}`),
+    check("invoices_period_valid", sql`${t.periodEnd} >= ${t.periodStart}`),
+    check("invoices_due_after_issue", sql`${t.dueDate} >= ${t.invoiceDate}`),
+    // Drafts have no number and were never finalized; every other status has both.
+    check(
+      "invoices_draft_shape",
+      sql`(${t.status} = 'draft') = (${t.invoiceNumber} IS NULL) AND (${t.status} = 'draft') = (${t.finalizedAt} IS NULL)`,
+    ),
+    check(
+      "invoices_void_shape",
+      sql`(${t.status} = 'void') = (${t.voidedAt} IS NOT NULL) AND (${t.status} <> 'void' OR ${t.voidReason} IS NOT NULL)`,
+    ),
+    // AT-11: one live invoice per service account and month. A void frees the month for rebilling.
+    uniqueIndex("invoices_one_per_period_idx")
+      .on(t.serviceAccountId, t.periodStart)
+      .where(sql`${t.status} <> 'void'`),
+    index("invoices_subscriber_idx").on(t.subscriberId, t.periodStart),
+    index("invoices_cycle_idx").on(t.billingCycleId),
+    index("invoices_due_date_idx").on(t.dueDate),
+    index("invoices_status_idx").on(t.status),
+  ],
+);
+
+export const invoiceItems = pgTable(
+  "invoice_items",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    invoiceId: uuid("invoice_id")
+      .notNull()
+      .references(() => invoices.id, { onDelete: "cascade" }), // a trigger allows deleting drafts only
+    lineNo: integer("line_no").notNull(),
+    itemType: text("item_type").notNull(),
+    description: text("description").notNull(),
+    /** Negative for discounts and credits. */
+    amountCentavos: integer("amount_centavos").notNull(),
+    /** Snapshot of what was billed, so later plan or rate changes never alter this line. */
+    planId: uuid("plan_id").references(() => servicePlans.id),
+    rateCentavos: integer("rate_centavos"),
+  },
+  (t) => [
+    check(
+      "invoice_items_type_valid",
+      sql`${t.itemType} IN ('subscription', 'installation_fee', 'reconnection_fee', 'discount', 'penalty', 'adjustment')`,
+    ),
+    check("invoice_items_line_positive", sql`${t.lineNo} >= 1`),
+    uniqueIndex("invoice_items_line_idx").on(t.invoiceId, t.lineNo),
+  ],
+);
+
+/**
+ * The subscriber ledger (spec 3.5). Append-only: a correction is a new entry (a void
+ * credits back the invoice's debit), never an edit. The running balance is computed
+ * from these rows in (entry_date, seq) order, so it can always be reproduced.
+ */
+export const ledgerEntries = pgTable(
+  "ledger_entries",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    /** Posting order; breaks ties between entries on the same date. */
+    seq: bigint("seq", { mode: "number" }).generatedAlwaysAsIdentity(),
+    subscriberId: uuid("subscriber_id")
+      .notNull()
+      .references(() => subscribers.id),
+    serviceAccountId: uuid("service_account_id"),
+    entryDate: date("entry_date").notNull(),
+    entryType: text("entry_type").notNull(),
+    reference: text("reference").notNull(), // INV-000123, later RCPT-000045
+    description: text("description").notNull(),
+    debitCentavos: integer("debit_centavos").notNull().default(0),
+    creditCentavos: integer("credit_centavos").notNull().default(0),
+    invoiceId: uuid("invoice_id").references(() => invoices.id),
+    createdByUserId: uuid("created_by_user_id")
+      .notNull()
+      .references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    foreignKey({
+      name: "ledger_entries_service_account_fk",
+      columns: [t.serviceAccountId, t.subscriberId],
+      foreignColumns: [serviceAccounts.id, serviceAccounts.subscriberId],
+    }),
+    check(
+      "ledger_entries_type_valid",
+      sql`${t.entryType} IN ('invoice', 'invoice_void', 'payment', 'payment_reversal', 'adjustment')`,
+    ),
+    // Exactly one side carries the amount.
+    check(
+      "ledger_entries_one_side",
+      sql`${t.debitCentavos} >= 0 AND ${t.creditCentavos} >= 0 AND (${t.debitCentavos} = 0) <> (${t.creditCentavos} = 0)`,
+    ),
+    uniqueIndex("ledger_entries_seq_idx").on(t.seq),
+    index("ledger_entries_subscriber_idx").on(t.subscriberId, t.entryDate, t.seq),
+    index("ledger_entries_invoice_idx").on(t.invoiceId),
   ],
 );

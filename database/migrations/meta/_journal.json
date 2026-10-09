@@ -85,6 +85,20 @@
       "when": 1791534493499,
       "tag": "0011_search_trigram_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1791536399299,
+      "tag": "0012_empty_living_tribunal",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1791536436500,
+      "tag": "0013_billing_integrity_triggers",
+      "breakpoints": true
     }
   ]
 }
