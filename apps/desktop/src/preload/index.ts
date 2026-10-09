@@ -746,6 +746,19 @@ const bcis = {
     submit: (id: string): Promise<ApiResult<BatchDetailDto>> => ipcRenderer.invoke("batches:submit", id),
     cancel: (id: string, reason: string): Promise<ApiResult<BatchDetailDto>> =>
       ipcRenderer.invoke("batches:cancel", id, reason),
+    /** A field collection from the collector's tally; posts a real payment and returns its receipt. */
+    recordCollection: (id: string, input: Record<string, unknown>): Promise<ApiResult<PaymentDetailDto>> =>
+      ipcRenderer.invoke("batches:recordCollection", id, input),
+    recordRemittance: (id: string, input: Record<string, unknown>): Promise<ApiResult<BatchDetailDto>> =>
+      ipcRenderer.invoke("batches:recordRemittance", id, input),
+    voidRemittance: (id: string, remittanceId: string, reason: string): Promise<ApiResult<BatchDetailDto>> =>
+      ipcRenderer.invoke("batches:voidRemittance", id, remittanceId, reason),
+    /** `differenceCentavos` is the difference the user was shown; the server refuses if it changed. */
+    reconcile: (id: string, input: Record<string, unknown>): Promise<ApiResult<BatchDetailDto>> =>
+      ipcRenderer.invoke("batches:reconcile", id, input),
+    /** Confirms the recorded difference again (AT-08: never closed silently as balanced). */
+    close: (id: string, differenceCentavos: number): Promise<ApiResult<BatchDetailDto>> =>
+      ipcRenderer.invoke("batches:close", id, differenceCentavos),
   },
 };
 

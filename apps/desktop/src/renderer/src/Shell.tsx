@@ -6,6 +6,7 @@ import { PlansScreen } from "./plans/PlanScreen";
 import { AreasScreen } from "./collection/AreaScreen";
 import { CollectorsScreen } from "./collection/CollectorScreen";
 import { BatchesScreen } from "./collection/BatchesScreen";
+import { RemittanceScreen } from "./collection/RemittanceScreen";
 import { NewSubscriberScreen } from "./subscribers/NewSubscriberScreen";
 import { SearchResults } from "./subscribers/SearchResults";
 import { SubscribersScreen } from "./subscribers/SubscribersScreen";
@@ -170,6 +171,8 @@ export function Shell({ session, onSignOut }: ShellProps) {
               <AreasScreen permissions={permissions} onSessionExpired={onSignOut} />
             ) : active.id === "collections.batches" ? (
               <BatchesScreen permissions={permissions} onSessionExpired={onSignOut} />
+            ) : active.id === "collections.remittance" ? (
+              <RemittanceScreen permissions={permissions} onSessionExpired={onSignOut} />
             ) : (
               <>
                 <h1 className="text-xl font-semibold text-navy">{active.label}</h1>

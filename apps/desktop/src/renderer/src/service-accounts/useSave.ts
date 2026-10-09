@@ -23,12 +23,13 @@ export function useSave<T>(onSaved: (data: T) => void, onExpired: () => void) {
     setErrors({});
     setFormError(null);
     const result = await call();
+    // Reset first: some forms stay open after saving (Record collection, ready for the next one).
+    setSaving(false);
     if (result.ok) return onSaved(result.data);
     if (result.code === "UNAUTHENTICATED") return onExpired();
     const mapped = failureToErrors(result);
     setErrors(mapped.fields);
     setFormError(mapped.form);
-    setSaving(false);
   }
 
   return { errors, formError, saving, reject, save };

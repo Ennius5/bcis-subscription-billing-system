@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState } from "react";
 import { batchCancelSchema, formatPesos, type PermissionCode } from "@bcis/shared";
 import type { ApiResult, BatchAccountDto, BatchDetailDto, BatchStepDto, CreateBatchResultDto } from "../../../preload/index";
 import { SubscriberPicker } from "../payments/SubscriberPicker";
@@ -9,15 +9,19 @@ import { Badge } from "../ui/Badge";
 import { DataTable, type Column } from "../ui/DataTable";
 import { TextField } from "../ui/TextField";
 import { addressText, BatchStatusBadge } from "./batchLabels";
+import { ReconcilePanel, ReconciliationSummary, RemittancesSection } from "./BatchCash";
+import { CollectionsSection } from "./BatchCollections";
+import { Confirm } from "./Confirm";
 import { RouteSheet } from "./RouteSheet";
 
-type Panel = "dispatch" | "submit" | "cancel" | "add" | null;
+type Panel = "dispatch" | "submit" | "cancel" | "add" | "reconcile" | null;
 
 interface BatchViewProps {
   batchId: string;
   /** From building the batch: owing subscribers left out because they are on another live batch. */
   skipped: CreateBatchResultDto["skipped"];
   permissions: readonly PermissionCode[];
+  backLabel?: string;
   onBack: () => void;
   onSessionExpired: () => void;
 }
@@ -42,8 +46,18 @@ function Step({ label, step }: { label: string; step: BatchStepDto | null }) {
 }
 
 /** One collection batch: route sheet, account list, lifecycle actions. */
-export function BatchView({ batchId, skipped, permissions, onBack, onSessionExpired }: BatchViewProps) {
+export function BatchView({
+  batchId,
+  skipped,
+  permissions,
+  backLabel = "Back to collection batches",
+  onBack,
+  onSessionExpired,
+}: BatchViewProps) {
   const canManage = permissions.includes("collection.manage");
+  const canReconcile = permissions.includes("collection.reconcile");
+  const canClose = permissions.includes("collection.close");
+  const [reloadKey, setReloadKey] = useState(0);
   const [batch, setBatch] = useState<BatchDetailDto | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [panel, setPanel] = useState<Panel>(null);
@@ -62,7 +76,9 @@ export function BatchView({ batchId, skipped, permissions, onBack, onSessionExpi
     return () => {
       cancelled = true;
     };
-  }, [batchId, onSessionExpired]);
+  }, [batchId, reloadKey, onSessionExpired]);
+
+  const reload = () => setReloadKey((k) => k + 1);
 
   /** Runs one action; the server's answer replaces the batch, or its message is shown. */
   async function act(call: () => Promise<ApiResult<BatchDetailDto>>, done: (updated: BatchDetailDto) => string) {
@@ -89,7 +105,7 @@ export function BatchView({ batchId, skipped, permissions, onBack, onSessionExpi
     return (
       <div>
         <button className="mb-4 text-sm text-accent hover:underline" onClick={onBack}>
-          ← Back to collection batches
+          ← {backLabel}
         </button>
         {loadError ? <RowError message={`Could not load the batch. ${loadError}`} /> : <p className="text-muted">Loading…</p>}
       </div>
@@ -177,7 +193,7 @@ export function BatchView({ batchId, skipped, permissions, onBack, onSessionExpi
   return (
     <div className="space-y-4">
       <button className="text-sm text-accent hover:underline" onClick={onBack}>
-        ← Back to collection batches
+        ← {backLabel}
       </button>
 
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -200,6 +216,9 @@ export function BatchView({ batchId, skipped, permissions, onBack, onSessionExpi
               {inProgress && <ActionButton label="Submit…" onClick={() => openPanel("submit")} />}
               <ActionButton label="Cancel batch…" onClick={() => openPanel("cancel")} />
             </>
+          )}
+          {canReconcile && (batch.status === "submitted" || batch.status === "remitted") && panel === null && (
+            <ActionButton label="Reconcile…" onClick={() => openPanel("reconcile")} />
           )}
         </div>
       </div>
@@ -299,6 +318,49 @@ export function BatchView({ batchId, skipped, permissions, onBack, onSessionExpi
         <Tile label="Uncollected" centavos={batch.money.uncollectedCentavos} />
       </div>
 
+      {panel === "reconcile" && (
+        <ReconcilePanel
+          batch={batch}
+          onSaved={(b) => {
+            setBatch(b);
+            setPanel(null);
+            setNotice(
+              b.reconciliation?.varianceKind === "balanced"
+                ? `${b.batchNumber} is reconciled: the cash balanced.`
+                : `${b.batchNumber} is reconciled with the ${b.reconciliation?.varianceKind} recorded.`,
+            );
+          }}
+          onReload={reload}
+          onCancel={() => setPanel(null)}
+          onExpired={onSessionExpired}
+        />
+      )}
+      {batch.reconciliation && (
+        <ReconciliationSummary
+          batch={batch}
+          canClose={canClose}
+          onClosed={(b) => {
+            setBatch(b);
+            setNotice(`${b.batchNumber} is closed.`);
+          }}
+          onExpired={onSessionExpired}
+        />
+      )}
+      {batch.dispatched && (
+        <CollectionsSection batch={batch} canRecord={canManage} onReload={reload} onSessionExpired={onSessionExpired} />
+      )}
+      {batch.submitted && (
+        <RemittancesSection
+          batch={batch}
+          canRecord={canManage}
+          onChanged={(b) => {
+            setBatch(b);
+            setNotice(null);
+          }}
+          onSessionExpired={onSessionExpired}
+        />
+      )}
+
       <Section title="Route sheet">
         <DataTable
           columns={columns}
@@ -320,40 +382,6 @@ export function BatchView({ batchId, skipped, permissions, onBack, onSessionExpi
       </Section>
 
       {live && <RouteSheet batch={batch} />}
-    </div>
-  );
-}
-
-interface ConfirmProps {
-  title: string;
-  confirmLabel: string;
-  busy: boolean;
-  onConfirm: () => void;
-  onCancel: () => void;
-  children: ReactNode;
-}
-
-function Confirm({ title, confirmLabel, busy, onConfirm, onCancel, children }: ConfirmProps) {
-  return (
-    <div className="rounded-lg border border-warning/30 bg-warning/5 p-4">
-      <h3 className="text-sm font-semibold text-navy">{title}</h3>
-      <p className="mt-1 text-sm text-ink">{children}</p>
-      <div className="mt-3 flex gap-3">
-        <button
-          className="rounded bg-navy px-4 py-2 text-sm font-medium text-white hover:bg-navy/90 disabled:opacity-60"
-          disabled={busy}
-          onClick={onConfirm}
-        >
-          {busy ? "Working…" : confirmLabel}
-        </button>
-        <button
-          className="rounded border border-slate-300 px-4 py-2 text-sm text-ink hover:bg-white disabled:opacity-60"
-          disabled={busy}
-          onClick={onCancel}
-        >
-          Not now
-        </button>
-      </div>
     </div>
   );
 }

@@ -70,13 +70,18 @@ export function BatchesScreen({ permissions, onSessionExpired }: BatchesScreenPr
 }
 
 interface BatchListProps {
+  /** Shows only this status and hides the status filter (the Remittance work queues). */
+  fixedStatus?: string;
+  /** Shown when there is nothing to list and no filter is set. */
+  emptyMessage?: string;
   reloadKey: number;
   onOpen: (id: string) => void;
   onSessionExpired: () => void;
 }
 
-function BatchList({ reloadKey, onOpen, onSessionExpired }: BatchListProps) {
-  const [status, setStatus] = useState("");
+export function BatchList({ fixedStatus, emptyMessage, reloadKey, onOpen, onSessionExpired }: BatchListProps) {
+  const [chosenStatus, setStatus] = useState("");
+  const status = fixedStatus ?? chosenStatus;
   const [collectorId, setCollectorId] = useState("");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
@@ -158,12 +163,14 @@ function BatchList({ reloadKey, onOpen, onSessionExpired }: BatchListProps) {
   const lastPage = Math.max(1, Math.ceil(total / pageSize));
   const first = total === 0 ? 0 : (page - 1) * pageSize + 1;
   const last = Math.min(page * pageSize, total);
-  const filtered = status !== "" || collectorId !== "" || from !== "" || to !== "";
+  const filtered = chosenStatus !== "" || collectorId !== "" || from !== "" || to !== "";
 
   return (
     <div>
       <div className="mb-4 grid grid-cols-4 gap-3">
-        <SelectField label="Status" value={status} onChange={changeFilter(setStatus)} options={BATCH_STATUS_OPTIONS} />
+        {fixedStatus === undefined && (
+          <SelectField label="Status" value={status} onChange={changeFilter(setStatus)} options={BATCH_STATUS_OPTIONS} />
+        )}
         <SelectField
           label="Collector"
           value={collectorId}
@@ -188,7 +195,7 @@ function BatchList({ reloadKey, onOpen, onSessionExpired }: BatchListProps) {
             columns={columns}
             rows={result?.items ?? []}
             getRowKey={(b) => b.id}
-            emptyMessage={filtered ? "No batches match these filters." : "No collection batches yet."}
+            emptyMessage={filtered ? "No batches match these filters." : (emptyMessage ?? "No collection batches yet.")}
           />
           <div className="mt-3 flex items-center justify-between text-sm text-muted">
             <span aria-live="polite">{total === 0 ? "No results" : `Showing ${first}–${last} of ${total}`}</span>

@@ -626,6 +626,40 @@ ipcMain.handle("batches:cancel", (_event, id: unknown, reason: unknown) =>
     : BAD_INPUT,
 );
 
+ipcMain.handle("batches:recordCollection", (_event, id: unknown, input: unknown) =>
+  typeof id === "string" && isRecord(input)
+    ? authedRequest<PaymentDetailDto>("POST", `${batchPath(id)}/collections`, input)
+    : BAD_INPUT,
+);
+
+ipcMain.handle("batches:recordRemittance", (_event, id: unknown, input: unknown) =>
+  typeof id === "string" && isRecord(input)
+    ? authedRequest<BatchDetailDto>("POST", `${batchPath(id)}/remittances`, input)
+    : BAD_INPUT,
+);
+
+ipcMain.handle("batches:voidRemittance", (_event, id: unknown, remittanceId: unknown, reason: unknown) =>
+  typeof id === "string" && typeof remittanceId === "string" && typeof reason === "string"
+    ? authedRequest<BatchDetailDto>(
+        "POST",
+        `${batchPath(id)}/remittances/${encodeURIComponent(remittanceId)}/void`,
+        { reason },
+      )
+    : BAD_INPUT,
+);
+
+ipcMain.handle("batches:reconcile", (_event, id: unknown, input: unknown) =>
+  typeof id === "string" && isRecord(input)
+    ? authedRequest<BatchDetailDto>("POST", `${batchPath(id)}/reconcile`, input)
+    : BAD_INPUT,
+);
+
+ipcMain.handle("batches:close", (_event, id: unknown, differenceCentavos: unknown) =>
+  typeof id === "string" && typeof differenceCentavos === "number"
+    ? authedRequest<BatchDetailDto>("POST", `${batchPath(id)}/close`, { differenceCentavos })
+    : BAD_INPUT,
+);
+
 void app.whenReady().then(() => {
   createWindow();
   app.on("activate", () => {
