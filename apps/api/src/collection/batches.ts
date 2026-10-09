@@ -1,7 +1,8 @@
-import { and, asc, count, desc, eq, gte, inArray, lte, ne, sql, type SQL } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, inArray, isNull, lte, ne, sql, type SQL } from "drizzle-orm";
 import {
   batchTransitionProblem,
   dueSnapshot,
+  uncollectedCentavos,
   type BatchAccountAddInput,
   type BatchCancelInput,
   type BatchCreateInput,
@@ -17,6 +18,7 @@ import {
   batchAccounts,
   collectionAreas,
   collectionBatches,
+  collectorRemittances,
   collectors,
   invoices,
   payments,
@@ -42,7 +44,11 @@ export class BatchError extends Error {
       | "BATCH_NOT_EDITABLE"
       | "BATCH_EMPTY"
       | "INVALID_TRANSITION"
-      | "HAS_COLLECTIONS",
+      | "HAS_COLLECTIONS"
+      | "BATCH_NOT_COLLECTING"
+      | "BATCH_NOT_REMITTING"
+      | "REMITTANCE_NOT_FOUND"
+      | "REMITTANCE_VOIDED",
     public readonly status: number,
     message: string,
   ) {
@@ -64,9 +70,9 @@ async function lockLiveBatchMembership(tx: Tx) {
   await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext('bcis.batch_accounts'))`);
 }
 
-type BatchRow = typeof collectionBatches.$inferSelect;
+export type BatchRow = typeof collectionBatches.$inferSelect;
 
-async function lockBatch(tx: Tx, batchId: string): Promise<BatchRow> {
+export async function lockBatch(tx: Tx, batchId: string): Promise<BatchRow> {
   const [row] = await tx.select().from(collectionBatches).where(eq(collectionBatches.id, batchId)).for("update");
   if (!row) throw new BatchError("BATCH_NOT_FOUND", 404, "Collection batch not found.");
   return row;
@@ -409,6 +415,51 @@ export interface BatchAccountRow {
   addedAt: Date;
   /** Added after the collector was dispatched. */
   addedLate: boolean;
+  /** Posted field collections on this batch. */
+  collectedCentavos: number;
+  /** Posted payments through other channels (office, GCash, bank) while the collector was out. */
+  paidElsewhereCentavos: number;
+}
+
+export interface BatchCollection {
+  paymentId: string;
+  receiptNumber: string;
+  status: string;
+  subscriberId: string;
+  accountNumber: string;
+  fullName: string;
+  method: string;
+  amountCentavos: number;
+  paymentDate: string;
+  referenceNumber: string | null;
+  postedAt: Date;
+  receivedByName: string;
+}
+
+export interface BatchRemittance {
+  id: string;
+  amountCentavos: number;
+  notes: string | null;
+  received: BatchStep;
+  voided: (BatchStep & { reason: string }) | null;
+}
+
+/**
+ * The batch's money (spec 3.8), from posted payments only, so a reversed collection no
+ * longer counts. Expected cash, what the collector must hand over, is cashCollected.
+ */
+export interface BatchMoney {
+  expectedTotalDueCentavos: number;
+  cashCollectedCentavos: number;
+  chequeCollectedCentavos: number;
+  /** Paid by batch subscribers through other channels between dispatch and submission. */
+  paidElsewhereCentavos: number;
+  /** Cheques plus paid elsewhere: collected, but not cash the collector holds. */
+  nonCashCentavos: number;
+  uncollectedCentavos: number;
+  /** Remittances not voided. */
+  remittedCentavos: number;
+  collectionCount: number;
 }
 
 /** Who did a lifecycle step, and when. */
@@ -434,7 +485,13 @@ export interface BatchDetail {
   /** Route sheet order: area, barangay, street, name. */
   accounts: BatchAccountRow[];
   totals: { accountCount: number; currentCentavos: number; arrearsCentavos: number; totalDueCentavos: number };
+  /** Every field collection on the batch, reversed ones included, in the order recorded. */
+  collections: BatchCollection[];
+  remittances: BatchRemittance[];
+  money: BatchMoney;
 }
+
+const sum = <T>(rows: readonly T[], pick: (row: T) => number) => rows.reduce((total, row) => total + pick(row), 0);
 
 export async function getBatch(executor: DbOrTx, batchId: string): Promise<BatchDetail> {
   const [row] = await executor
@@ -450,6 +507,12 @@ export async function getBatch(executor: DbOrTx, batchId: string): Promise<Batch
   if (!row) throw new BatchError("BATCH_NOT_FOUND", 404, "Collection batch not found.");
   const b = row.batch;
 
+  const remittanceRows = await executor
+    .select()
+    .from(collectorRemittances)
+    .where(eq(collectorRemittances.batchId, batchId))
+    .orderBy(asc(collectorRemittances.receivedAt));
+
   const userIds = [
     b.createdByUserId,
     b.dispatchedByUserId,
@@ -457,6 +520,7 @@ export async function getBatch(executor: DbOrTx, batchId: string): Promise<Batch
     b.reconciledByUserId,
     b.closedByUserId,
     b.cancelledByUserId,
+    ...remittanceRows.flatMap((r) => [r.receivedByUserId, r.voidedByUserId]),
   ].filter((id): id is string => id !== null);
   const names = new Map(
     (await executor.select({ id: users.id, fullName: users.fullName }).from(users).where(inArray(users.id, userIds))).map(
@@ -498,11 +562,61 @@ export async function getBatch(executor: DbOrTx, batchId: string): Promise<Batch
       asc(subscribers.fullName),
     );
 
+  const collections = await executor
+    .select({
+      paymentId: payments.id,
+      receiptNumber: payments.receiptNumber,
+      status: payments.status,
+      subscriberId: payments.subscriberId,
+      accountNumber: subscribers.accountNumber,
+      fullName: subscribers.fullName,
+      method: payments.method,
+      amountCentavos: payments.amountCentavos,
+      paymentDate: payments.paymentDate,
+      referenceNumber: payments.referenceNumber,
+      postedAt: payments.postedAt,
+      receivedByName: users.fullName,
+    })
+    .from(payments)
+    .innerJoin(subscribers, eq(subscribers.id, payments.subscriberId))
+    .innerJoin(users, eq(users.id, payments.receivedByUserId))
+    .where(eq(payments.collectionBatchId, batchId))
+    .orderBy(asc(payments.postedAt), asc(payments.receiptNumber));
+
+  // What the batch's subscribers paid some other way (office, GCash, bank) while the collector was out.
+  const elsewhere = b.dispatchedAt
+    ? await executor
+        .select({
+          subscriberId: payments.subscriberId,
+          amountCentavos: sql<number>`sum(${payments.amountCentavos})::int`,
+        })
+        .from(payments)
+        .innerJoin(batchAccounts, and(eq(batchAccounts.subscriberId, payments.subscriberId), eq(batchAccounts.batchId, batchId)))
+        .where(
+          and(
+            eq(payments.status, "posted"),
+            isNull(payments.collectionBatchId),
+            gte(payments.postedAt, b.dispatchedAt),
+            b.submittedAt ? lte(payments.postedAt, b.submittedAt) : undefined,
+          ),
+        )
+        .groupBy(payments.subscriberId)
+    : [];
+  const elsewhereBySubscriber = new Map(elsewhere.map((e) => [e.subscriberId, e.amountCentavos]));
+
+  const posted = collections.filter((c) => c.status === "posted");
   const accounts = accountRows.map((a) => ({
     ...a,
     addedLate: b.dispatchedAt !== null && a.addedAt > b.dispatchedAt,
+    collectedCentavos: sum(posted.filter((c) => c.subscriberId === a.subscriberId), (c) => c.amountCentavos),
+    paidElsewhereCentavos: elsewhereBySubscriber.get(a.subscriberId) ?? 0,
   }));
-  const sum = (pick: (a: BatchAccountRow) => number) => accounts.reduce((total, a) => total + pick(a), 0);
+
+  const expectedTotalDueCentavos = sum(accounts, (a) => a.totalDueCentavos);
+  const cashCollectedCentavos = sum(posted.filter((c) => c.method === "cash"), (c) => c.amountCentavos);
+  const chequeCollectedCentavos = sum(posted.filter((c) => c.method === "cheque"), (c) => c.amountCentavos);
+  const paidElsewhereCentavos = sum(accounts, (a) => a.paidElsewhereCentavos);
+  const nonCashCentavos = chequeCollectedCentavos + paidElsewhereCentavos;
 
   return {
     id: b.id,
@@ -524,9 +638,27 @@ export async function getBatch(executor: DbOrTx, batchId: string): Promise<Batch
     accounts,
     totals: {
       accountCount: accounts.length,
-      currentCentavos: sum((a) => a.currentCentavos),
-      arrearsCentavos: sum((a) => a.arrearsCentavos),
-      totalDueCentavos: sum((a) => a.totalDueCentavos),
+      currentCentavos: sum(accounts, (a) => a.currentCentavos),
+      arrearsCentavos: sum(accounts, (a) => a.arrearsCentavos),
+      totalDueCentavos: expectedTotalDueCentavos,
+    },
+    collections,
+    remittances: remittanceRows.map((r) => ({
+      id: r.id,
+      amountCentavos: r.amountCentavos,
+      notes: r.notes,
+      received: step(r.receivedAt, r.receivedByUserId)!,
+      voided: r.voidedAt ? { ...step(r.voidedAt, r.voidedByUserId)!, reason: r.voidReason ?? "" } : null,
+    })),
+    money: {
+      expectedTotalDueCentavos,
+      cashCollectedCentavos,
+      chequeCollectedCentavos,
+      paidElsewhereCentavos,
+      nonCashCentavos,
+      uncollectedCentavos: uncollectedCentavos(expectedTotalDueCentavos, cashCollectedCentavos, nonCashCentavos),
+      remittedCentavos: sum(remittanceRows.filter((r) => !r.voidedAt), (r) => r.amountCentavos),
+      collectionCount: posted.length,
     },
   };
 }

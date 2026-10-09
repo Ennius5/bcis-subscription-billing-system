@@ -157,6 +157,8 @@ export interface PostPaymentData {
   notes?: string | null;
   allocations?: ManualAllocationRequest[];
   gcashSubmissionId?: string;
+  /** A field collection: the batch and collector it came in through (spec 3.8). */
+  fieldCollection?: { batchId: string; batchNumber: string; collectorId: string };
 }
 
 /**
@@ -202,6 +204,8 @@ export async function postPaymentInTx(tx: Tx, actorUserId: string, data: PostPay
       notes: data.notes || null,
       gcashSubmissionId: data.gcashSubmissionId ?? null,
       receivedByUserId: actorUserId,
+      collectionBatchId: data.fieldCollection?.batchId ?? null,
+      collectorId: data.fieldCollection?.collectorId ?? null,
     })
     .returning({ id: payments.id });
   const paymentId = payment!.id;
@@ -216,13 +220,15 @@ export async function postPaymentInTx(tx: Tx, actorUserId: string, data: PostPay
     new Map(open.map((i) => [i.id, i])),
   );
 
-  const label = METHOD_LABELS[data.method];
+  const label = data.fieldCollection
+    ? `${METHOD_LABELS[data.method]} field collection, ${data.fieldCollection.batchNumber}`
+    : `${METHOD_LABELS[data.method]} payment`;
   await tx.insert(ledgerEntries).values({
     subscriberId: data.subscriberId,
     entryDate: paymentDate,
     entryType: "payment",
     reference: receiptNumber!,
-    description: data.referenceNumber ? `${label} payment (ref ${data.referenceNumber})` : `${label} payment`,
+    description: data.referenceNumber ? `${label} (ref ${data.referenceNumber})` : label,
     creditCentavos: data.amountCentavos,
     paymentId,
     createdByUserId: actorUserId,
@@ -242,6 +248,7 @@ export async function postPaymentInTx(tx: Tx, actorUserId: string, data: PostPay
       allocation: data.allocations ? "manual" : "auto",
       allocations: planSummary(plan),
       creditCentavos: plan.creditCentavos,
+      ...(data.fieldCollection && { collectionBatchNumber: data.fieldCollection.batchNumber }),
     },
   });
 
