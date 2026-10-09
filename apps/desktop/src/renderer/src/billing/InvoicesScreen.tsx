@@ -32,6 +32,7 @@ export function InvoicesScreen({ title, initialPeriod, permissions, onSessionExp
           key={openId}
           invoiceId={openId}
           canVoid={permissions.includes("billing.void")}
+          canAdjust={permissions.includes("billing.adjust")}
           backLabel={`Back to ${title.toLowerCase()}`}
           onBack={() => {
             setOpenId(null);

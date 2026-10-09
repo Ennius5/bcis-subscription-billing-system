@@ -111,6 +111,7 @@ export function GenerateBillingScreen({ permissions, onSessionExpired }: Generat
         key={openInvoiceId}
         invoiceId={openInvoiceId}
         canVoid={permissions.includes("billing.void")}
+        canAdjust={permissions.includes("billing.adjust")}
         backLabel="Back to Generate Billing"
         onBack={() => setOpenInvoiceId(null)}
         onSessionExpired={onSessionExpired}

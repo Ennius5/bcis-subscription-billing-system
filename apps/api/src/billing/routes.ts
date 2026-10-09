@@ -1,12 +1,19 @@
 import { eq } from "drizzle-orm";
 import type { FastifyInstance, FastifyReply } from "fastify";
 import { z } from "zod";
-import { billingRunSchema, invoiceListQuerySchema, invoiceVoidSchema, ledgerQuerySchema } from "@bcis/shared";
+import {
+  adjustmentCreateSchema,
+  billingRunSchema,
+  invoiceListQuerySchema,
+  invoiceVoidSchema,
+  ledgerQuerySchema,
+} from "@bcis/shared";
 import { createAuthenticate } from "../auth/authenticate";
 import { requirePermission } from "../auth/guard";
 import type { Db } from "../db/client";
 import { subscribers } from "../db/schema";
 import { sendValidationError } from "../http/errors";
+import { createAdjustment } from "./adjustments";
 import { getSubscriberLedger } from "./ledger";
 import {
   BillingError,
@@ -34,6 +41,7 @@ export function registerBillingRoutes(app: FastifyInstance, db: Db): void {
   const canGenerate = { preHandler: [authenticate, requirePermission("billing.generate")] };
   // Voiding reverses a posted invoice, so it has its own permission (spec 4.4).
   const canVoid = { preHandler: [authenticate, requirePermission("billing.void")] };
+  const canAdjust = { preHandler: [authenticate, requirePermission("billing.adjust")] };
 
   /* ---------------------------- Billing runs ---------------------------- */
 
@@ -98,6 +106,18 @@ export function registerBillingRoutes(app: FastifyInstance, db: Db): void {
     if (!body.success) return sendValidationError(reply, body.error);
     try {
       return await voidInvoice(db, request.auth!.userId, params.data.id, body.data);
+    } catch (err) {
+      return sendBillingError(reply, err);
+    }
+  });
+
+  app.post("/invoices/:id/adjustments", canAdjust, async (request, reply) => {
+    const params = idParams.safeParse(request.params);
+    if (!params.success) return sendValidationError(reply, params.error);
+    const body = adjustmentCreateSchema.safeParse(request.body);
+    if (!body.success) return sendValidationError(reply, body.error);
+    try {
+      return await createAdjustment(db, request.auth!.userId, params.data.id, body.data);
     } catch (err) {
       return sendBillingError(reply, err);
     }

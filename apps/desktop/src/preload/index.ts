@@ -254,6 +254,8 @@ export interface InvoiceDto {
   dueDate: string;
   totalCentavos: number;
   paidCentavos: number;
+  /** Net of adjustments: debits minus credits. Effective total = totalCentavos + adjustedCentavos. */
+  adjustedCentavos: number;
   balanceCentavos: number;
   subscriberId: string;
   accountNumber: string;
@@ -275,6 +277,18 @@ export interface InvoiceDetailDto extends InvoiceDto {
   finalizedAt: string | null;
   voidedAt: string | null;
   voidReason: string | null;
+  adjustments: InvoiceAdjustmentDto[];
+}
+
+export interface InvoiceAdjustmentDto {
+  id: string;
+  adjustmentNumber: string;
+  kind: string; // credit | debit
+  category: string;
+  amountCentavos: number;
+  reason: string;
+  createdByName: string;
+  createdAt: string;
 }
 
 export interface LedgerRange {
@@ -346,6 +360,7 @@ export interface OpenInvoiceDto {
   dueDate: string;
   totalCentavos: number;
   paidCentavos: number;
+  adjustedCentavos: number;
   balanceCentavos: number;
   displayStatus: string;
 }
@@ -561,6 +576,8 @@ const bcis = {
     getInvoice: (id: string): Promise<ApiResult<InvoiceDetailDto>> => ipcRenderer.invoke("billing:getInvoice", id),
     voidInvoice: (id: string, reason: string): Promise<ApiResult<InvoiceDetailDto>> =>
       ipcRenderer.invoke("billing:voidInvoice", id, reason),
+    adjustInvoice: (id: string, input: Record<string, unknown>): Promise<ApiResult<InvoiceDetailDto>> =>
+      ipcRenderer.invoke("billing:adjustInvoice", id, input),
     ledger: (subscriberId: string, range: LedgerRange): Promise<ApiResult<SubscriberLedgerDto>> =>
       ipcRenderer.invoke("billing:ledger", subscriberId, range),
   },

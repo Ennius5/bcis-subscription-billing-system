@@ -452,6 +452,12 @@ ipcMain.handle("billing:voidInvoice", (_event, id: unknown, reason: unknown) =>
     : BAD_INPUT,
 );
 
+ipcMain.handle("billing:adjustInvoice", (_event, id: unknown, input: unknown) =>
+  typeof id === "string" && isRecord(input)
+    ? authedRequest<InvoiceDetailDto>("POST", `${invoicePath(id)}/adjustments`, input)
+    : BAD_INPUT,
+);
+
 ipcMain.handle("billing:ledger", (_event, subscriberId: unknown, range: unknown) =>
   typeof subscriberId === "string" && isRecord(range)
     ? authedRequest<SubscriberLedgerDto>("GET", listPath(`${subscriberPath(subscriberId)}/ledger`, LEDGER_KEYS, range))

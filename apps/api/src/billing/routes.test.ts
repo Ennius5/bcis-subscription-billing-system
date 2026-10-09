@@ -99,6 +99,11 @@ const writes = () =>
     { method: "POST", url: "/billing/discard-drafts", payload: { period: lastMonth } },
     { method: "POST", url: "/billing/finalize", payload: { period: lastMonth } },
     { method: "POST", url: `/invoices/${NIL_ID}/void`, payload: { reason: "Testing access" } },
+    {
+      method: "POST",
+      url: `/invoices/${NIL_ID}/adjustments`,
+      payload: { kind: "credit", category: "goodwill", amountCentavos: 100, reason: "Testing access" },
+    },
   ] as const;
 
 describe("billing routes: authorization", () => {
@@ -115,7 +120,7 @@ describe("billing routes: authorization", () => {
     }
   });
 
-  it("lets a cashier and an auditor read but never generate, finalize or void", async () => {
+  it("lets a cashier and an auditor read but never generate, finalize, void or adjust", async () => {
     for (const username of ["bill_cashier", "bill_auditor"]) {
       const headers = bearer(await tokenFor(username));
       const summary = await app.inject({ ...reads()[0], headers });
@@ -232,5 +237,41 @@ describe("billing routes: administrator", () => {
     expect(credits).toHaveLength(1);
     const audit = (await billingAudit()).find((a) => a.action === "invoice.void");
     expect(audit?.reason).toBe("Billed to the wrong account");
+  });
+
+  it("adjusts with billing.adjust: validates, posts and refuses void invoices", async () => {
+    // The void above freed the month, so billing it again gives a fresh invoice to adjust.
+    await app.inject({ method: "POST", url: "/billing/generate", headers, payload: { period: lastMonth } });
+    await app.inject({ method: "POST", url: "/billing/finalize", headers, payload: { period: lastMonth } });
+    const list = await app.inject({ method: "GET", url: `/invoices?period=${lastMonth}&status=overdue`, headers });
+    const freshId = list.json().items[0].id as string;
+    const url = `/invoices/${freshId}/adjustments`;
+    const credit = { kind: "credit", category: "service_outage", amountCentavos: 20_000, reason: "Outage" };
+
+    const wrongCategory = await app.inject({ method: "POST", url, headers, payload: { ...credit, category: "penalty" } });
+    expect(wrongCategory.statusCode).toBe(400);
+    expect(wrongCategory.json().issues[0].path).toBe("category");
+
+    const tooMuch = await app.inject({ method: "POST", url, headers, payload: { ...credit, amountCentavos: 100_000 } });
+    expect(tooMuch.statusCode).toBe(422);
+    expect(tooMuch.json().error).toBe("ADJUSTMENT_NOT_ALLOWED");
+
+    const ok = await app.inject({ method: "POST", url, headers, payload: credit });
+    expect(ok.statusCode).toBe(200);
+    expect(ok.json()).toMatchObject({ adjustedCentavos: -20_000, balanceCentavos: 79_900 });
+    expect(ok.json().adjustments[0].adjustmentNumber).toMatch(/^ADJ-\d{6}$/);
+
+    const onVoid = await app.inject({ method: "POST", url: `/invoices/${invoiceId}/adjustments`, headers, payload: credit });
+    expect(onVoid.statusCode).toBe(409);
+    expect(onVoid.json().error).toBe("INVOICE_IS_VOID");
+
+    const voidAdjusted = await app.inject({
+      method: "POST",
+      url: `/invoices/${freshId}/void`,
+      headers,
+      payload: { reason: "Try voiding" },
+    });
+    expect(voidAdjusted.statusCode).toBe(409);
+    expect(voidAdjusted.json().error).toBe("INVOICE_HAS_ADJUSTMENTS");
   });
 });
