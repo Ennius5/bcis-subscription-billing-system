@@ -5,6 +5,7 @@ import { findItem, firstLeaf, Sidebar } from "./Sidebar";
 import { PlansScreen } from "./plans/PlanScreen";
 import { AreasScreen } from "./collection/AreaScreen";
 import { CollectorsScreen } from "./collection/CollectorScreen";
+import { SubscribersScreen } from "./subscribers/SubscribersScreen";
 
 function isPermissionCode(value: string): value is PermissionCode {
   return (PERMISSIONS as readonly string[]).includes(value);
@@ -50,6 +51,8 @@ export function Shell({ session, onSignOut }: ShellProps) {
             <p className="text-muted">
               Your account has no assigned permissions. Please contact the administrator.
             </p>
+          ) : active.id === "subscribers.all" ? (
+            <SubscribersScreen onSessionExpired={onSignOut} />
           ) : active.id === "subscribers.plans" ? (
             <PlansScreen permissions={permissions} onSessionExpired={onSignOut} />
           ) : active.id === "collections.collectors" ? (
