@@ -739,6 +739,90 @@ export interface ReceivableFilterOptionsDto {
   plans: Array<{ id: string; code: string; name: string; serviceType: string; isActive: boolean }>;
 }
 
+/* --------------------------- Service control --------------------------- */
+
+export interface SuspensionCandidateQuery {
+  collectorId?: string;
+  areaId?: string;
+  planId?: string;
+  serviceType?: string;
+  search?: string;
+}
+
+export interface SuspensionCandidateDto extends ReceivableRowDto {
+  pastGraceCount: number;
+  pastGraceCentavos: number;
+}
+
+export interface SuspensionCandidateListDto {
+  asOf: string;
+  settings: { gracePeriodDays: number; suspensionThresholdInvoices: number };
+  items: SuspensionCandidateDto[];
+}
+
+export interface SuspensionRecordDto {
+  id: string;
+  effectiveDate: string;
+  reason: string;
+  approvedBy: string;
+  notes: string | null;
+  pastDueInvoiceCount: number;
+  pastDueCentavos: number;
+  suspendedByName: string;
+  createdAt: string;
+}
+
+export interface ReconnectionDto {
+  id: string;
+  serviceAccountId: string;
+  serviceNumber: string;
+  subscriberId: string;
+  accountNumber: string;
+  subscriberName: string;
+  suspensionRecordId: string;
+  status: string; // requested | assigned | completed | cancelled
+  requestDate: string;
+  requestedByName: string;
+  requestedAt: string;
+  feeCentavos: number;
+  feeWaived: boolean;
+  feeWaiverReason: string | null;
+  notes: string | null;
+  technicianUserId: string | null;
+  technicianName: string | null;
+  assignedAt: string | null;
+  completionDate: string | null;
+  completedByName: string | null;
+  completedAt: string | null;
+  cancelReason: string | null;
+  cancelledByName: string | null;
+  cancelledAt: string | null;
+}
+
+export interface ServiceControlHistoryDto {
+  suspensions: SuspensionRecordDto[];
+  reconnections: ReconnectionDto[];
+}
+
+export interface ReconnectionListQuery {
+  status?: string; // requested | assigned | completed | cancelled | open
+  page?: number;
+  pageSize?: number;
+}
+
+export interface ReconnectionPageDto {
+  items: ReconnectionDto[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export interface TechnicianDto {
+  id: string;
+  fullName: string;
+  username: string;
+}
+
 const bcis = {
   getHealth: (): Promise<HealthResult> => ipcRenderer.invoke("api:health"),
   login: (username: string, password: string): Promise<AuthResult> =>
@@ -898,6 +982,25 @@ const bcis = {
       ipcRenderer.invoke("receivables:list", query),
     aging: (query: AgingQuery): Promise<ApiResult<AgingReportDto>> => ipcRenderer.invoke("receivables:aging", query),
     filterOptions: (): Promise<ApiResult<ReceivableFilterOptionsDto>> => ipcRenderer.invoke("receivables:filterOptions"),
+  },
+  serviceControl: {
+    candidates: (query: SuspensionCandidateQuery): Promise<ApiResult<SuspensionCandidateListDto>> =>
+      ipcRenderer.invoke("serviceControl:candidates", query),
+    suspend: (serviceAccountId: string, input: Record<string, unknown>): Promise<ApiResult<ServiceAccountDetailDto>> =>
+      ipcRenderer.invoke("serviceControl:suspend", serviceAccountId, input),
+    history: (serviceAccountId: string): Promise<ApiResult<ServiceControlHistoryDto>> =>
+      ipcRenderer.invoke("serviceControl:history", serviceAccountId),
+    requestReconnection: (serviceAccountId: string, input: Record<string, unknown>): Promise<ApiResult<ReconnectionDto>> =>
+      ipcRenderer.invoke("serviceControl:requestReconnection", serviceAccountId, input),
+    listReconnections: (query: ReconnectionListQuery): Promise<ApiResult<ReconnectionPageDto>> =>
+      ipcRenderer.invoke("serviceControl:listReconnections", query),
+    assign: (reconnectionId: string, technicianUserId: string): Promise<ApiResult<ReconnectionDto>> =>
+      ipcRenderer.invoke("serviceControl:assign", reconnectionId, technicianUserId),
+    complete: (reconnectionId: string, input: Record<string, unknown>): Promise<ApiResult<ReconnectionDto>> =>
+      ipcRenderer.invoke("serviceControl:complete", reconnectionId, input),
+    cancel: (reconnectionId: string, reason: string): Promise<ApiResult<ReconnectionDto>> =>
+      ipcRenderer.invoke("serviceControl:cancel", reconnectionId, reason),
+    technicians: (): Promise<ApiResult<TechnicianDto[]>> => ipcRenderer.invoke("serviceControl:technicians"),
   },
 };
 

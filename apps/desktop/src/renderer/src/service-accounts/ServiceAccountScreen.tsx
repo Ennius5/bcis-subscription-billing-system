@@ -3,6 +3,7 @@ import { formatPesos } from "@bcis/shared";
 import type { ServiceAccountDetailDto } from "../../../preload/index";
 import { ActionButton, Field, formatDateTime, Section } from "../subscribers/ProfileParts";
 import { serviceTypeLabel, StatusBadge } from "../subscribers/status";
+import { RequestReconnectionForm, ServiceControlSection, SuspendForm } from "./ServiceControl";
 import { ServiceCollectorForm } from "./ServiceCollectorForm";
 import { ServiceEditForm } from "./ServiceEditForm";
 import { describeServiceEvent, type ServiceHistoryLookups } from "./serviceHistory";
@@ -10,11 +11,13 @@ import { ServicePlanForm } from "./ServicePlanForm";
 import { ServiceRateForm } from "./ServiceRateForm";
 import { ServiceStatusForm, serviceStatusOptions } from "./ServiceStatusForm";
 
-type Editing = "status" | "edit" | "rate" | "plan" | "collector" | null;
+type Editing = "status" | "edit" | "rate" | "plan" | "collector" | "suspend" | "reconnect" | null;
 
 interface ServiceAccountScreenProps {
   serviceAccountId: string;
   canManage: boolean;
+  /** suspension.manage: suspend, request and work reconnections. */
+  canControl?: boolean;
   /** Where Back goes, e.g. "Back to Ben Cruz" or "Back to service accounts". */
   backLabel: string;
   onBack: () => void;
@@ -24,6 +27,7 @@ interface ServiceAccountScreenProps {
 export function ServiceAccountScreen({
   serviceAccountId,
   canManage,
+  canControl = false,
   backLabel,
   onBack,
   onSessionExpired,
@@ -33,6 +37,8 @@ export function ServiceAccountScreen({
   const [editing, setEditing] = useState<Editing>(null);
   const [planNames, setPlanNames] = useState<ReadonlyMap<string, string>>(new Map());
   const [collectorNames, setCollectorNames] = useState<ReadonlyMap<string, string>>(new Map());
+  // Bumped after any suspension or reconnection step: reloads the account and its control history.
+  const [controlKey, setControlKey] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -45,7 +51,7 @@ export function ServiceAccountScreen({
     return () => {
       cancelled = true;
     };
-  }, [serviceAccountId, onSessionExpired]);
+  }, [serviceAccountId, controlKey, onSessionExpired]);
 
   // Only used to name plans and collectors in the history. Without plan.view or
   // collection.view the history falls back to "a plan" / "a collector".
@@ -69,6 +75,11 @@ export function ServiceAccountScreen({
     setEditing(null);
   }
 
+  function handleControlChanged() {
+    setEditing(null);
+    setControlKey((k) => k + 1);
+  }
+
   return (
     <div>
       <button className="mb-4 text-sm text-accent hover:underline" onClick={onBack}>
@@ -86,10 +97,13 @@ export function ServiceAccountScreen({
         <ServiceAccountDetail
           account={account}
           canManage={canManage}
+          canControl={canControl}
+          controlKey={controlKey}
           editing={editing}
           lookups={lookups}
           onEdit={setEditing}
           onSaved={handleSaved}
+          onControlChanged={handleControlChanged}
           onSessionExpired={onSessionExpired}
         />
       )}
@@ -100,28 +114,38 @@ export function ServiceAccountScreen({
 interface ServiceAccountDetailProps {
   account: ServiceAccountDetailDto;
   canManage: boolean;
+  canControl: boolean;
+  controlKey: number;
   editing: Editing;
   lookups: ServiceHistoryLookups;
   onEdit: (editing: Editing) => void;
   onSaved: (updated: ServiceAccountDetailDto) => void;
+  onControlChanged: () => void;
   onSessionExpired: () => void;
 }
 
 function ServiceAccountDetail({
   account,
   canManage,
+  canControl,
+  controlKey,
   editing,
   lookups,
   onEdit,
   onSaved,
+  onControlChanged,
   onSessionExpired,
 }: ServiceAccountDetailProps) {
+  const [hasOpenReconnection, setHasOpenReconnection] = useState(false);
   // Hiding controls is cosmetic: the server enforces service.manage and the terminated rule.
   const terminated = account.status === "terminated";
   const editable = canManage && !terminated && editing === null;
   const canChangeStatus = canManage && editing === null && serviceStatusOptions(account).length > 0;
   const formProps = { account, onSaved, onCancel: () => onEdit(null), onExpired: onSessionExpired };
   const rateDiffers = account.currentRateCentavos !== account.planPriceCentavos;
+  // Hiding is cosmetic here too: the server enforces suspension.manage and the rules.
+  const canSuspend = canControl && editing === null && account.status === "active";
+  const canRequest = canControl && editing === null && account.status === "suspended" && !hasOpenReconnection;
 
   return (
     <div className="space-y-4">
@@ -139,7 +163,11 @@ function ServiceAccountDetail({
             {account.subscriberStatus !== "active" && <StatusBadge status={account.subscriberStatus} />}
           </p>
         </div>
-        {canChangeStatus && <ActionButton label="Change status" onClick={() => onEdit("status")} />}
+        <span className="flex gap-1">
+          {canSuspend && <ActionButton label="Suspend…" onClick={() => onEdit("suspend")} />}
+          {canRequest && <ActionButton label="Request reconnection…" onClick={() => onEdit("reconnect")} />}
+          {canChangeStatus && <ActionButton label="Change status" onClick={() => onEdit("status")} />}
+        </span>
       </div>
 
       {terminated && (
@@ -149,6 +177,8 @@ function ServiceAccountDetail({
       )}
 
       {editing === "status" && <ServiceStatusForm {...formProps} />}
+      {editing === "suspend" && <SuspendForm {...formProps} onSaved={() => onControlChanged()} />}
+      {editing === "reconnect" && <RequestReconnectionForm {...formProps} onSaved={() => onControlChanged()} />}
 
       <div className="grid grid-cols-2 gap-4">
         <Section
@@ -220,6 +250,15 @@ function ServiceAccountDetail({
           </Field>
         </dl>
       </Section>
+
+      <ServiceControlSection
+        account={account}
+        canControl={canControl}
+        reloadKey={controlKey}
+        onChanged={onControlChanged}
+        onOpenReconnection={setHasOpenReconnection}
+        onExpired={onSessionExpired}
+      />
 
       <Section title="Service history">
         {account.events.length === 0 ? (

@@ -70,6 +70,7 @@ export function ReceivablesScreen({ view, permissions, onOpenSubscriber, onSessi
           key={openServiceId}
           serviceAccountId={openServiceId}
           canManage={permissions.includes("service.manage")}
+          canControl={permissions.includes("suspension.manage")}
           backLabel={`Back to ${title.toLowerCase()}`}
           onBack={() => {
             setOpenServiceId(null);

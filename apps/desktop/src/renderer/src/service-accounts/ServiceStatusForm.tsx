@@ -19,15 +19,16 @@ export function serviceStatusOptions(account: ServiceAccountDetailDto): readonly
   );
 }
 
-/** The action as a person would say it, which depends on where the service is now. */
+/**
+ * The action as a person would say it. Suspending and reconnecting are not here: they have
+ * their own actions with a suspension record and a reconnection workflow.
+ */
 function actionLabel(from: string, to: ServiceAccountStatus): string {
-  if (to === "active") return from === "pending" ? "Activate (installed)" : "Reconnect";
-  if (to === "suspended") return "Suspend";
+  if (to === "active") return "Activate (installed)";
   return from === "pending" ? "Cancel (terminate before installation)" : "Terminate";
 }
 
 const WARNINGS: Partial<Record<ServiceAccountStatus, string>> = {
-  suspended: "A suspended service is not billed until it is reconnected.",
   terminated: "Terminating is final. The service cannot be reactivated and its record becomes read-only.",
 };
 

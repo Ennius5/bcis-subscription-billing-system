@@ -23,6 +23,7 @@ export function ServiceAccountsScreen({ permissions, onSessionExpired }: Service
           key={openId}
           serviceAccountId={openId}
           canManage={permissions.includes("service.manage")}
+          canControl={permissions.includes("suspension.manage")}
           backLabel="Back to service accounts"
           onBack={() => {
             setOpenId(null);

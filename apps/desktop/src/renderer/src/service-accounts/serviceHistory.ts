@@ -41,6 +41,25 @@ export function describeServiceEvent(event: ServiceEventDto, lookups: ServiceHis
       };
 
     case "status_change": {
+      // Phase 7: suspending and reconnecting are status changes that point at their records.
+      if (typeof newValues.suspensionId === "string") {
+        const count = Number(newValues.pastDueInvoiceCount ?? 0);
+        return {
+          title: "Suspended",
+          details: [
+            effective,
+            `Approved by ${String(newValues.approvedBy)}`,
+            `${count} past-due invoice${count === 1 ? "" : "s"} at the time`,
+          ],
+        };
+      }
+      if (typeof newValues.reconnectionId === "string") {
+        const fee = Number(newValues.feeCentavos ?? 0);
+        return {
+          title: "Reconnected (suspension lifted)",
+          details: [effective, fee > 0 ? `Reconnection fee ${formatPesos(fee)} goes on the next bill` : "No reconnection fee"],
+        };
+      }
       const from = statusLabel(event.fromStatus ?? String(oldValues.status));
       const to = statusLabel(event.toStatus ?? String(newValues.status));
       const details = [effective];
@@ -83,6 +102,26 @@ export function describeServiceEvent(event: ServiceEventDto, lookups: ServiceHis
       if ("notes" in newValues) details.push(newValues.notes ? "Notes updated" : "Notes cleared");
       return { title: "Service details updated", details };
     }
+
+    case "reconnection_request":
+      return {
+        title: "Reconnection requested",
+        details: [
+          `Requested ${event.effectiveDate}`,
+          newValues.feeWaived
+            ? `Reconnection fee ${money(newValues.feeCentavos)} waived`
+            : `Reconnection fee ${money(newValues.feeCentavos)}`,
+        ],
+      };
+
+    case "reconnection_assign":
+      return {
+        title: oldValues.technicianUserId ? "Reconnection handed to another technician" : "Reconnection assigned to a technician",
+        details: [],
+      };
+
+    case "reconnection_cancel":
+      return { title: "Reconnection cancelled", details: ["The service stays suspended."] };
 
     default:
       // Unknown event types show what was recorded rather than hiding it.

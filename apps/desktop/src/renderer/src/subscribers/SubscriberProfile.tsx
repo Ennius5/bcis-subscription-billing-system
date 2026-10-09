@@ -72,6 +72,7 @@ interface SubscriberProfileProps {
   canViewServices: boolean;
   canViewBilling: boolean;
   canManageServices: boolean;
+  canControlServices: boolean;
   onBack: () => void;
   onSessionExpired: () => void;
 }
@@ -82,6 +83,7 @@ export function SubscriberProfile({
   canViewServices,
   canViewBilling,
   canManageServices,
+  canControlServices,
   onBack,
   onSessionExpired,
 }: SubscriberProfileProps) {
@@ -210,6 +212,7 @@ export function SubscriberProfile({
           key={openServiceId}
           serviceAccountId={openServiceId}
           canManage={canManageServices}
+          canControl={canControlServices}
           backLabel={subscriber ? `Back to ${subscriber.fullName}` : "Back to subscriber"}
           onBack={() => {
             setOpenServiceId(null);

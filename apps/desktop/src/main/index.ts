@@ -27,6 +27,11 @@ import type {
   AgingReportDto,
   ReceivableFilterOptionsDto,
   ReceivablePageDto,
+  ReconnectionDto,
+  ReconnectionPageDto,
+  ServiceControlHistoryDto,
+  SuspensionCandidateListDto,
+  TechnicianDto,
   ServiceAccountDetailDto,
   ServiceAccountPageDto,
   SessionInfo,
@@ -692,6 +697,66 @@ ipcMain.handle("receivables:aging", (_event, query: unknown) =>
 ipcMain.handle("receivables:filterOptions", () =>
   authedRequest<ReceivableFilterOptionsDto>("GET", "/receivables/filter-options"),
 );
+
+/* --------------------------- Service control --------------------------- */
+
+const CANDIDATE_KEYS = [...AGING_KEYS, "search"] as const;
+const RECONNECTION_LIST_KEYS = ["status", "page", "pageSize"] as const;
+const servicePath = (id: string) => `/service-accounts/${encodeURIComponent(id)}`;
+const reconnectionPath = (id: string) => `/reconnections/${encodeURIComponent(id)}`;
+
+ipcMain.handle("serviceControl:candidates", (_event, query: unknown) =>
+  isRecord(query)
+    ? authedRequest<SuspensionCandidateListDto>(
+        "GET",
+        listPath("/receivables/suspension-candidates", CANDIDATE_KEYS, query),
+      )
+    : BAD_INPUT,
+);
+
+ipcMain.handle("serviceControl:suspend", (_event, id: unknown, input: unknown) =>
+  typeof id === "string" && isRecord(input)
+    ? authedRequest<ServiceAccountDetailDto>("POST", `${servicePath(id)}/suspend`, input)
+    : BAD_INPUT,
+);
+
+ipcMain.handle("serviceControl:history", (_event, id: unknown) =>
+  typeof id === "string"
+    ? authedRequest<ServiceControlHistoryDto>("GET", `${servicePath(id)}/service-control`)
+    : BAD_INPUT,
+);
+
+ipcMain.handle("serviceControl:requestReconnection", (_event, id: unknown, input: unknown) =>
+  typeof id === "string" && isRecord(input)
+    ? authedRequest<ReconnectionDto>("POST", `${servicePath(id)}/reconnections`, input)
+    : BAD_INPUT,
+);
+
+ipcMain.handle("serviceControl:listReconnections", (_event, query: unknown) =>
+  isRecord(query)
+    ? authedRequest<ReconnectionPageDto>("GET", listPath("/reconnections", RECONNECTION_LIST_KEYS, query))
+    : BAD_INPUT,
+);
+
+ipcMain.handle("serviceControl:assign", (_event, id: unknown, technicianUserId: unknown) =>
+  typeof id === "string" && typeof technicianUserId === "string"
+    ? authedRequest<ReconnectionDto>("POST", `${reconnectionPath(id)}/assign`, { technicianUserId })
+    : BAD_INPUT,
+);
+
+ipcMain.handle("serviceControl:complete", (_event, id: unknown, input: unknown) =>
+  typeof id === "string" && isRecord(input)
+    ? authedRequest<ReconnectionDto>("POST", `${reconnectionPath(id)}/complete`, input)
+    : BAD_INPUT,
+);
+
+ipcMain.handle("serviceControl:cancel", (_event, id: unknown, reason: unknown) =>
+  typeof id === "string" && typeof reason === "string"
+    ? authedRequest<ReconnectionDto>("POST", `${reconnectionPath(id)}/cancel`, { reason })
+    : BAD_INPUT,
+);
+
+ipcMain.handle("serviceControl:technicians", () => authedRequest<TechnicianDto[]>("GET", "/technicians"));
 
 void app.whenReady().then(() => {
   createWindow();

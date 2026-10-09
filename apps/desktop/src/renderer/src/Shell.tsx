@@ -19,6 +19,7 @@ import { PaymentHistoryScreen } from "./payments/PaymentHistoryScreen";
 import { GcashScreen } from "./payments/GcashScreen";
 import { AgingScreen } from "./receivables/AgingScreen";
 import { ReceivablesScreen } from "./receivables/ReceivablesScreen";
+import { SuspensionScreen } from "./receivables/SuspensionScreen";
 
 const SEARCH_DELAY_MS = 300;
 
@@ -185,6 +186,8 @@ export function Shell({ session, onSignOut }: ShellProps) {
               />
             ) : active.id === "receivables.aging" ? (
               <AgingScreen onSessionExpired={onSignOut} />
+            ) : active.id === "receivables.suspension" ? (
+              <SuspensionScreen permissions={permissions} onSessionExpired={onSignOut} />
             ) : (
               <>
                 <h1 className="text-xl font-semibold text-navy">{active.label}</h1>
