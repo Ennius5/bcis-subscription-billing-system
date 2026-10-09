@@ -17,12 +17,13 @@ import {
 } from "@bcis/shared";
 import { writeAudit, type DbOrTx } from "../audit/audit";
 import type { Db } from "../db/client";
-import { changedFields, type Tx } from "../db/query_helpers";
+import { changedFields, likePattern, type Tx } from "../db/query_helpers";
 import {
   auditLogs,
   collectionAreas,
   collectorAssignments,
   collectors,
+  serviceAccounts,
   subscriberAddresses,
   subscriberContacts,
   subscribers,
@@ -44,7 +45,8 @@ export class SubscriberError extends Error {
       | "PRIMARY_CANNOT_DEACTIVATE"
       | "INACTIVE_CANNOT_BE_PRIMARY"
       | "CONTACT_LIMIT"
-      | "INVALID_CONTACT_VALUE",
+      | "INVALID_CONTACT_VALUE"
+      | "ADDRESS_IN_USE",
     public readonly status: number,
     message: string,
   ) {
@@ -76,11 +78,6 @@ export type SubscriberListPage = {
   page: number;
   pageSize: number;
 };
-
-/** Contains-match pattern for ILIKE, with %, _ and \ escaped so they match literally. */
-function likePattern(search: string): string {
-  return `%${search.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
-}
 
 export async function listSubscribers(
   db: Db,
@@ -726,6 +723,22 @@ export async function updateSubscriberAddress(
       fields.isPrimary ?? existing.isPrimary,
     );
     if (problem) throw problem;
+
+    // A live service is installed here; it must be moved or terminated first.
+    if (newValues.isActive === false) {
+      const [inUse] = await tx
+        .select({ serviceNumber: serviceAccounts.serviceNumber })
+        .from(serviceAccounts)
+        .where(and(eq(serviceAccounts.installationAddressId, addressId), ne(serviceAccounts.status, "terminated")))
+        .limit(1);
+      if (inUse) {
+        throw new SubscriberError(
+          "ADDRESS_IN_USE",
+          409,
+          `Service account ${inUse.serviceNumber} is installed at this address. Move or terminate it first.`,
+        );
+      }
+    }
 
     if (newValues.isPrimary) {
       const demotedAddressId = await demotePrimaryAddress(tx, subscriberId);

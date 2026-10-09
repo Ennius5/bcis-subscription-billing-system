@@ -15,6 +15,11 @@ export function violatedConstraint(err: unknown): string | null {
   return null;
 }
 
+/** Contains-match pattern for ILIKE, with %, _ and \ escaped so they match literally. */
+export function likePattern(search: string): string {
+  return `%${search.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+}
+
 /** Only the fields whose value actually differs from the stored row. */
 export function changedFields(existing: Record<string, unknown>, fields: Record<string, unknown>) {
   const oldValues: Record<string, unknown> = {};

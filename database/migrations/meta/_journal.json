@@ -64,6 +64,20 @@
       "when": 1791410979610,
       "tag": "0008_calm_maelstrom",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1791530522795,
+      "tag": "0009_known_outlaw_kid",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1791530546823,
+      "tag": "0010_service_events_append_only",
+      "breakpoints": true
     }
   ]
 }

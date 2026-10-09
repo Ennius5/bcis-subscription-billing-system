@@ -2,6 +2,8 @@ import { sql } from "drizzle-orm";
 import {
   boolean,
   check,
+  date,
+  foreignKey,
   integer,
   jsonb,
   pgSequence,
@@ -235,6 +237,8 @@ export const subscriberAddresses = pgTable(
     uniqueIndex("subscriber_addresses_one_primary_idx")
       .on(t.subscriberId)
       .where(sql`${t.isPrimary}`),
+    // Target of the service_accounts composite foreign key (address must belong to the subscriber).
+    uniqueIndex("subscriber_addresses_id_subscriber_idx").on(t.id, t.subscriberId),
   ],
 );
 
@@ -293,5 +297,98 @@ export const collectorAssignments = pgTable(
     uniqueIndex("collector_assignments_one_open_idx")
       .on(t.subscriberId)
       .where(sql`${t.effectiveTo} IS NULL`),
+  ],
+);
+
+/* --------------------------- Service accounts --------------------------- */
+
+export const serviceAccountSeq = pgSequence("service_account_seq", {
+  startWith: 1,
+  increment: 1,
+});
+
+export const serviceAccounts = pgTable(
+  "service_accounts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    serviceNumber: text("service_number")
+      .notNull()
+      .unique()
+      .default(sql`('SVC-' || lpad(nextval('service_account_seq')::text, 6, '0'))`),
+    subscriberId: uuid("subscriber_id")
+      .notNull()
+      .references(() => subscribers.id),
+    planId: uuid("plan_id")
+      .notNull()
+      .references(() => servicePlans.id),
+    installationAddressId: uuid("installation_address_id").notNull(),
+    status: text("status").notNull().default("pending"),
+    // Calendar dates without a time zone, kept as "YYYY-MM-DD" strings.
+    activationDate: date("activation_date"),
+    billingStartDate: date("billing_start_date"),
+    billingDay: integer("billing_day").notNull(),
+    // The account's own rate. A plan price change does not touch it; only an explicit rate change does.
+    currentRateCentavos: integer("current_rate_centavos").notNull(),
+    // Optional override; when null the subscriber's assigned collector applies.
+    assignedCollectorId: uuid("assigned_collector_id").references(() => collectors.id),
+    notes: text("notes"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    foreignKey({
+      name: "service_accounts_installation_address_fk",
+      columns: [t.installationAddressId, t.subscriberId],
+      foreignColumns: [subscriberAddresses.id, subscriberAddresses.subscriberId],
+    }),
+    check(
+      "service_accounts_status_valid",
+      sql`${t.status} IN ('pending', 'active', 'suspended', 'terminated')`,
+    ),
+    check("service_accounts_billing_day_valid", sql`${t.billingDay} BETWEEN 1 AND 28`),
+    check("service_accounts_rate_nonneg", sql`${t.currentRateCentavos} >= 0`),
+    // Activation and billing start are set together, and billing cannot start before activation.
+    check(
+      "service_accounts_dates_valid",
+      sql`(${t.activationDate} IS NULL) = (${t.billingStartDate} IS NULL) AND (${t.billingStartDate} IS NULL OR ${t.billingStartDate} >= ${t.activationDate})`,
+    ),
+    // Only pending (and pending-then-cancelled) accounts may lack an activation date.
+    check(
+      "service_accounts_activated_valid",
+      sql`${t.status} IN ('pending', 'terminated') OR ${t.activationDate} IS NOT NULL`,
+    ),
+    index("service_accounts_subscriber_idx").on(t.subscriberId),
+    index("service_accounts_plan_idx").on(t.planId),
+    index("service_accounts_status_idx").on(t.status),
+    index("service_accounts_collector_idx").on(t.assignedCollectorId),
+  ],
+);
+
+/** Append-only service history (DB trigger blocks UPDATE and DELETE). */
+export const serviceEvents = pgTable(
+  "service_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    serviceAccountId: uuid("service_account_id")
+      .notNull()
+      .references(() => serviceAccounts.id),
+    eventType: text("event_type").notNull(),
+    fromStatus: text("from_status"),
+    toStatus: text("to_status"),
+    oldValues: jsonb("old_values"),
+    newValues: jsonb("new_values"),
+    effectiveDate: date("effective_date").notNull().default(sql`CURRENT_DATE`),
+    reason: text("reason"),
+    actorUserId: uuid("actor_user_id")
+      .notNull()
+      .references(() => users.id),
+    occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    check(
+      "service_events_type_valid",
+      sql`${t.eventType} IN ('created', 'status_change', 'rate_change', 'plan_change', 'collector_change', 'update')`,
+    ),
+    index("service_events_account_idx").on(t.serviceAccountId, t.occurredAt),
   ],
 );
