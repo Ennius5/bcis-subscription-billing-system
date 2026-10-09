@@ -63,8 +63,8 @@ async function newAccount(subscriber: { id: string; addresses: { id: string }[] 
   );
 }
 
-const status = (status: string, extra: Record<string, unknown> = {}) =>
-  serviceStatusChangeSchema.parse({ status, reason: "Field work", ...extra });
+const status = (to: string, extra: Record<string, unknown> = {}) =>
+  serviceStatusChangeSchema.parse({ status: to, reason: "Field work", ...extra });
 
 async function auditFor(action: string, entityId: string) {
   return db

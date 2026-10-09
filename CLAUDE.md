@@ -27,6 +27,10 @@ Drizzle ORM + drizzle-kit, Zod 4, Vitest 5, pino, argon2id
 - Tests: `pnpm --filter @bcis/api test` and
   `pnpm --filter @bcis/shared test`. Vitest does not typecheck, so run
   both typecheck and tests before calling anything done.
+- Lint: `pnpm lint` (whole repo). It is oxlint, not ESLint: TypeScript 7
+  has no JS API, so typescript-eslint cannot run. Type-aware rules (e.g.
+  no-floating-promises) run through tsgolint. Config and the reason for
+  every disabled rule are in `.oxlintrc.json`. Warnings fail the run.
 - Migrations: `pnpm --filter ./apps/api db:generate`, then
   `pnpm --filter ./apps/api db:migrate`. Tests migrate `bcis_test`
   automatically through `prepareTestDatabase`.

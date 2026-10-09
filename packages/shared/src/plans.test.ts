@@ -40,9 +40,7 @@ describe("planCreateSchema", () => {
   it("rejects a channel count on an internet plan", () => {
     const result = planCreateSchema.safeParse({ ...internet, channelCount: 50 });
     expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(result.error.issues.some((i) => i.path.includes("channelCount"))).toBe(true);
-    }
+    expect(result.error?.issues.some((i) => i.path.includes("channelCount"))).toBe(true);
   });
 
   it("rejects a speed on a cable plan", () => {

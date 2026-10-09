@@ -115,11 +115,9 @@ describe("subscriber create schema", () => {
       address: { line1: "Purok 3", barangay: "", city: "" },
     });
     expect(r.success).toBe(false);
-    if (!r.success) {
-      const paths = r.error.issues.map((i) => i.path.join("."));
-      expect(paths).toContain("address.barangay");
-      expect(paths).toContain("address.city");
-    }
+    const paths = (r.error?.issues ?? []).map((i) => i.path.join("."));
+    expect(paths).toContain("address.barangay");
+    expect(paths).toContain("address.city");
   });
 
   it("rejects more than one primary contact", () => {
@@ -139,9 +137,7 @@ describe("subscriber create schema", () => {
       contacts: [{ type: "mobile", value: "abc" }],
     });
     expect(r.success).toBe(false);
-    if (!r.success) {
-      expect(r.error.issues[0]?.path).toEqual(["contacts", 0, "value"]);
-    }
+    expect(r.error?.issues[0]?.path).toEqual(["contacts", 0, "value"]);
   });
 });
 

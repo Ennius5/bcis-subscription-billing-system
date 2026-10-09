@@ -142,7 +142,7 @@ ipcMain.handle("auth:logout", async (): Promise<void> => {
 // Private helper: the renderer can only reach it through the handlers below.
 async function authedRequest<T>(
   method: "GET" | "POST" | "PATCH",
-  path: string,
+  urlPath: string,
   body?: Record<string, unknown>,
 ): Promise<ApiResult<T>> {
   if (!currentToken) {
@@ -151,7 +151,7 @@ async function authedRequest<T>(
   try {
     const headers: Record<string, string> = { Authorization: `Bearer ${currentToken}` };
     if (body) headers["Content-Type"] = "application/json";
-    const res = await fetch(`${API_URL}${path}`, {
+    const res = await fetch(`${API_URL}${urlPath}`, {
       method,
       headers,
       ...(body ? { body: JSON.stringify(body) } : {}),

@@ -5,7 +5,8 @@
   "description": "BCIS Subscription Billing and Collection System",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "lint": "oxlint --type-aware --deny-warnings ."
   },
   "keywords": [],
   "author": "",
@@ -22,6 +23,8 @@
   },
   "type": "module",
   "devDependencies": {
+    "oxlint": "1.85.0",
+    "oxlint-tsgolint": "7.0.2003",
     "typescript": "^7.0.2"
   }
 }

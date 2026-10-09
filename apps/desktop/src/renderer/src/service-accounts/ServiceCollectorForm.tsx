@@ -37,7 +37,7 @@ export function ServiceCollectorForm({ account, onSaved, onCancel, onExpired }: 
         reject({}, `Could not load collectors. ${r.message}`);
       }
     });
-  }, [account.assignedCollectorId, onExpired]);
+  }, [account.assignedCollectorId, onExpired, reject]);
 
   function submit() {
     const assignedCollectorId = collectorId === SUBSCRIBERS_COLLECTOR ? null : collectorId;

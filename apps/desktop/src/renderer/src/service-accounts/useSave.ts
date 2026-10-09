@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import type { ApiResult } from "../../../preload/index";
 import { failureToErrors } from "../subscribers/ProfileForm";
 
@@ -11,11 +11,12 @@ export function useSave<T>(onSaved: (data: T) => void, onExpired: () => void) {
   const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  function reject(fields: Record<string, string>, message: string | null = null) {
+  // Stable, so forms can call it from effects and list it as a dependency.
+  const reject = useCallback((fields: Record<string, string>, message: string | null = null) => {
     const { form, ...rest } = fields;
     setErrors(rest);
     setFormError(message ?? form ?? null);
-  }
+  }, []);
 
   async function save(call: () => Promise<ApiResult<T>>) {
     setSaving(true);

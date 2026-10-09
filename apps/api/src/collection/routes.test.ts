@@ -408,7 +408,7 @@ describe("collector login picker", () => {
 
     const rows = res.json() as { id: string; username: string; fullName: string }[];
     expect(rows.map((u) => u.username)).toEqual(["admin1", "auditor1", "cashier1", "collector_login"]);
-    expect(Object.keys(rows[0] ?? {}).sort()).toEqual(["fullName", "id", "username"]);
+    expect(Object.keys(rows[0] ?? {}).toSorted()).toEqual(["fullName", "id", "username"]);
   });
 
   it("excludes users who are linked to a collector or are inactive", async () => {

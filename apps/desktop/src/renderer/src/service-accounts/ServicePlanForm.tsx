@@ -31,7 +31,7 @@ export function ServicePlanForm({ account, onSaved, onCancel, onExpired }: Servi
       else if (r.code === "UNAUTHENTICATED") onExpired();
       else reject({}, `Could not load plans. ${r.message}`);
     });
-  }, [account.planId, onExpired]);
+  }, [account.planId, onExpired, reject]);
 
   // Choosing a plan fills in its price; the rate can still be changed for a special rate.
   function choosePlan(id: string) {

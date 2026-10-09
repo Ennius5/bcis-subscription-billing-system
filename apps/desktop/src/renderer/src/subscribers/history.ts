@@ -34,7 +34,9 @@ const FIELD_LABELS: Record<string, string> = {
 
 function show(value: unknown): string {
   if (value === null || value === undefined || value === "") return "(blank)";
-  return `“${String(value)}”`;
+  // Audit values are plain JSON; anything structured is shown as JSON, never "[object Object]".
+  const scalar = typeof value === "string" || typeof value === "number" || typeof value === "boolean";
+  return `“${scalar ? String(value) : JSON.stringify(value)}”`;
 }
 
 /** One phrase per changed field; flag changes get plain words instead of from/to. */
@@ -59,7 +61,7 @@ function addressText(a: { line1?: unknown; barangay?: unknown; city?: unknown })
 
 function contactText(c: { type?: unknown; value?: unknown }): string {
   const type = typeof c.type === "string" ? contactTypeLabel(c.type) : "Contact";
-  return `${type} ${String(c.value ?? "")}`.trim();
+  return `${type} ${typeof c.value === "string" ? c.value : ""}`.trim();
 }
 
 function nameOf(map: ReadonlyMap<string, string>, id: unknown, fallback: string): string {

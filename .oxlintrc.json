@@ -1,0 +1,44 @@
+{
+  // oxlint, not ESLint: the repo uses TypeScript 7, which has no JS API for typescript-eslint.
+  // Type-aware rules run through tsgolint, built on the same TypeScript 7 engine as tsc.
+  // Run with: pnpm lint
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "react", "oxc", "unicorn", "import", "vitest"],
+  "categories": {
+    "correctness": "error",
+    "suspicious": "warn"
+  },
+  "rules": {
+    // Money and data code must not drop promises or misuse them.
+    "typescript/no-floating-promises": "error",
+    "typescript/no-misused-promises": "error",
+    "typescript/await-thenable": "error",
+    "typescript/no-explicit-any": "error",
+    "react/rules-of-hooks": "error",
+    "react/exhaustive-deps": "warn",
+
+    // Off, with reasons:
+    // React 19's JSX transform does not need React in scope.
+    "react/react-in-jsx-scope": "off",
+    // Duplicates react/exhaustive-deps, and flags reload counters that are listed on purpose.
+    "react/exhaustive-effect-dependencies": "off",
+    // Data-fetching effects set their loading flag before the request; that is intended.
+    "react/set-state-in-effect": "off",
+    // Effects return a cleanup on some paths and nothing on others; React expects exactly that.
+    "typescript/consistent-return": "off",
+    // Status strings read from the database are narrowed with `as` after CHECK constraints guarantee them.
+    "typescript/no-unsafe-type-assertion": "off",
+    // Express-specific; Fastify awaits async handlers.
+    "oxc/no-async-endpoint-handlers": "off",
+    // Side-effect imports are deliberate: dotenv/config, CSS and fonts.
+    "import/no-unassigned-import": "off",
+    // `export {}` is what makes env.d.ts a module for global type augmentation.
+    "unicorn/require-module-specifiers": "off",
+    // Style only.
+    "unicorn/consistent-function-scoping": "off",
+    "vitest/require-to-throw-message": "off",
+    // Jest rule; Vitest's expect(value, message) takes a second argument.
+    "vitest/valid-expect": "off"
+  },
+  "ignorePatterns": ["**/node_modules/**", "**/dist/**", "**/out/**", "database/migrations/**"]
+}

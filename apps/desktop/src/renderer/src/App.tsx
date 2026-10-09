@@ -23,9 +23,10 @@ export function App() {
   }, []);
 
   // Stable identity so screens can safely list it as an effect dependency.
-  const handleSignOut = useCallback(async () => {
-    await window.bcis.logout();
-    setState({ kind: "signedOut" });
+  // Stable and void-returning: screens pass it on as onSessionExpired and list it in effect deps.
+  // logout() never rejects (the main process signs out locally even if the server call fails).
+  const handleSignOut = useCallback(() => {
+    void window.bcis.logout().then(() => setState({ kind: "signedOut" }));
   }, []);
 
   if (state.kind === "loading") return null;

@@ -49,8 +49,8 @@ describe("AT-10: server-side authorization", () => {
   it("rejects a cashier calling admin-only endpoints directly", async () => {
     const headers = bearer(await tokenFor("cashier1"));
 
-    const users = await app.inject({ method: "GET", url: "/admin/users", headers });
-    expect(users.statusCode).toBe(403);
+    const userList = await app.inject({ method: "GET", url: "/admin/users", headers });
+    expect(userList.statusCode).toBe(403);
 
     const backup = await app.inject({ method: "POST", url: "/admin/backups", headers });
     expect(backup.statusCode).toBe(403);
