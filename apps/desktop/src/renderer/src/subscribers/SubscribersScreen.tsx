@@ -1,12 +1,14 @@
 import { useState } from "react";
+import type { PermissionCode } from "@bcis/shared";
 import { SubscriberList } from "./SubscriberList";
 import { SubscriberProfile } from "./SubscriberProfile";
 
 interface SubscribersScreenProps {
+  permissions: readonly PermissionCode[];
   onSessionExpired: () => void;
 }
 
-export function SubscribersScreen({ onSessionExpired }: SubscribersScreenProps) {
+export function SubscribersScreen({ permissions, onSessionExpired }: SubscribersScreenProps) {
   const [openId, setOpenId] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
 
@@ -20,6 +22,7 @@ export function SubscribersScreen({ onSessionExpired }: SubscribersScreenProps) 
         <SubscriberProfile
           key={openId}
           subscriberId={openId}
+          canManage={permissions.includes("subscriber.manage")}
           onBack={() => {
             setOpenId(null);
             setReloadKey((k) => k + 1); // the profile may have changed what the list shows

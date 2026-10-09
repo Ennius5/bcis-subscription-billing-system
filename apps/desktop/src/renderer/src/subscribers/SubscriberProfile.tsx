@@ -2,20 +2,36 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import type { SubscriberDto, SubscriberHistoryDto } from "../../../preload/index";
 import { Badge } from "../ui/Badge";
 import { DataTable } from "../ui/DataTable";
+import { AssignmentForm } from "./AssignmentForm";
+import { DetailsForm } from "./DetailsForm";
 import { describeHistory, type HistoryLookups } from "./history";
+import { StatusForm } from "./StatusForm";
 import { contactTypeLabel, StatusBadge } from "./status";
 
 const DATE_TIME = new Intl.DateTimeFormat("en-PH", { dateStyle: "medium", timeStyle: "short" });
 const formatDateTime = (iso: string) => DATE_TIME.format(new Date(iso));
 
-function Section({ title, children }: { title: string; children: ReactNode }) {
+function Section({ title, action, children }: { title: string; action?: ReactNode; children: ReactNode }) {
   return (
     <section className="rounded-lg border border-slate-200 bg-surface p-4">
-      <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted">{title}</h2>
+      <div className="mb-3 flex items-center justify-between">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">{title}</h2>
+        {action}
+      </div>
       {children}
     </section>
   );
 }
+
+function ActionButton({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button className="rounded border border-slate-300 px-2 py-1 text-xs hover:bg-slate-100" onClick={onClick}>
+      {label}
+    </button>
+  );
+}
+
+type Editing = "details" | "status" | "assignment" | null;
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -37,14 +53,16 @@ function FlagBadges({ isPrimary, isActive }: { isPrimary: boolean; isActive: boo
 
 interface SubscriberProfileProps {
   subscriberId: string;
+  canManage: boolean;
   onBack: () => void;
   onSessionExpired: () => void;
 }
 
-export function SubscriberProfile({ subscriberId, onBack, onSessionExpired }: SubscriberProfileProps) {
+export function SubscriberProfile({ subscriberId, canManage, onBack, onSessionExpired }: SubscriberProfileProps) {
   const [subscriber, setSubscriber] = useState<SubscriberDto | null>(null);
   const [history, setHistory] = useState<SubscriberHistoryDto[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [editing, setEditing] = useState<Editing>(null);
   const [areaNames, setAreaNames] = useState<ReadonlyMap<string, string>>(new Map());
   const [collectorNames, setCollectorNames] = useState<ReadonlyMap<string, string>>(new Map());
 
@@ -80,6 +98,24 @@ export function SubscriberProfile({ subscriberId, onBack, onSessionExpired }: Su
     });
   }, []);
 
+  // Every change endpoint returns the updated subscriber; only the history needs a refetch.
+  async function handleSaved(updated: SubscriberDto) {
+    setSubscriber(updated);
+    setEditing(null);
+    const events = await window.bcis.subscribers.history(subscriberId);
+    if (events.ok) setHistory(events.data);
+    else if (events.code === "UNAUTHENTICATED") onSessionExpired();
+  }
+
+  // Hiding controls is cosmetic: the server enforces subscriber.manage and the archived rule.
+  const editable = canManage && subscriber !== null && subscriber.status !== "archived";
+  const formProps = subscriber && {
+    subscriber,
+    onSaved: (updated: SubscriberDto) => void handleSaved(updated),
+    onCancel: () => setEditing(null),
+    onExpired: onSessionExpired,
+  };
+
   const lookups: HistoryLookups = useMemo(
     () => ({
       areas: areaNames,
@@ -103,16 +139,34 @@ export function SubscriberProfile({ subscriberId, onBack, onSessionExpired }: Su
       )}
       {!subscriber && !loadError && <p className="text-muted">Loading…</p>}
 
-      {subscriber && (
+      {subscriber && formProps && (
         <div className="space-y-4">
-          <h1 className="flex flex-wrap items-center gap-3 text-xl font-semibold text-navy">
-            {subscriber.fullName}
-            <span className="font-normal text-muted">{subscriber.accountNumber}</span>
-            <StatusBadge status={subscriber.status} />
-          </h1>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h1 className="flex flex-wrap items-center gap-3 text-xl font-semibold text-navy">
+              {subscriber.fullName}
+              <span className="font-normal text-muted">{subscriber.accountNumber}</span>
+              <StatusBadge status={subscriber.status} />
+            </h1>
+            {editable && editing === null && (
+              <ActionButton label="Change status" onClick={() => setEditing("status")} />
+            )}
+          </div>
+
+          {subscriber.status === "archived" && (
+            <p className="rounded border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-muted">
+              This account is archived. Its record is read-only.
+            </p>
+          )}
+
+          {editing === "status" && <StatusForm {...formProps} />}
+          {editing === "details" && <DetailsForm {...formProps} />}
+          {editing === "assignment" && <AssignmentForm {...formProps} />}
 
           <div className="grid grid-cols-2 gap-4">
-            <Section title="Details">
+            <Section
+              title="Details"
+              action={editable && editing === null && <ActionButton label="Edit" onClick={() => setEditing("details")} />}
+            >
               <dl className="grid grid-cols-2 gap-3">
                 <Field label="Billing day">Day {subscriber.billingDay} of each month</Field>
                 <Field label="Customer since">{formatDateTime(subscriber.createdAt)}</Field>
@@ -128,7 +182,12 @@ export function SubscriberProfile({ subscriberId, onBack, onSessionExpired }: Su
               </dl>
             </Section>
 
-            <Section title="Collection assignment">
+            <Section
+              title="Collection assignment"
+              action={
+                editable && editing === null && <ActionButton label="Change" onClick={() => setEditing("assignment")} />
+              }
+            >
               <dl className="grid grid-cols-2 gap-3">
                 <Field label="Area">
                   {subscriber.areaCode ? `${subscriber.areaCode} – ${subscriber.areaName}` : "Not assigned"}

@@ -52,7 +52,7 @@ export function Shell({ session, onSignOut }: ShellProps) {
               Your account has no assigned permissions. Please contact the administrator.
             </p>
           ) : active.id === "subscribers.all" ? (
-            <SubscribersScreen onSessionExpired={onSignOut} />
+            <SubscribersScreen permissions={permissions} onSessionExpired={onSignOut} />
           ) : active.id === "subscribers.plans" ? (
             <PlansScreen permissions={permissions} onSessionExpired={onSignOut} />
           ) : active.id === "collections.collectors" ? (
