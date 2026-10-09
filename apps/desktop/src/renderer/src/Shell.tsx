@@ -9,6 +9,9 @@ import { NewSubscriberScreen } from "./subscribers/NewSubscriberScreen";
 import { SearchResults } from "./subscribers/SearchResults";
 import { SubscribersScreen } from "./subscribers/SubscribersScreen";
 import { ServiceAccountsScreen } from "./service-accounts/ServiceAccountsScreen";
+import { GenerateBillingScreen } from "./billing/GenerateBillingScreen";
+import { currentMonth } from "./billing/invoiceStatus";
+import { InvoicesScreen } from "./billing/InvoicesScreen";
 
 const SEARCH_DELAY_MS = 300;
 
@@ -138,6 +141,17 @@ export function Shell({ session, onSignOut }: ShellProps) {
               <NewSubscriberScreen onCreated={openSubscriber} onSessionExpired={onSignOut} />
             ) : active.id === "subscribers.services" ? (
               <ServiceAccountsScreen permissions={permissions} onSessionExpired={onSignOut} />
+            ) : active.id === "billing.current" ? (
+              <InvoicesScreen
+                title="Current Billing"
+                initialPeriod={currentMonth()}
+                permissions={permissions}
+                onSessionExpired={onSignOut}
+              />
+            ) : active.id === "billing.generate" ? (
+              <GenerateBillingScreen permissions={permissions} onSessionExpired={onSignOut} />
+            ) : active.id === "billing.invoices" ? (
+              <InvoicesScreen title="Invoices" initialPeriod="" permissions={permissions} onSessionExpired={onSignOut} />
             ) : active.id === "subscribers.plans" ? (
               <PlansScreen permissions={permissions} onSessionExpired={onSignOut} />
             ) : active.id === "collections.collectors" ? (

@@ -26,6 +26,7 @@ export function SubscribersScreen({ permissions, initialOpenId = null, onSession
           subscriberId={openId}
           canManage={permissions.includes("subscriber.manage")}
           canViewServices={permissions.includes("service.view")}
+          canViewBilling={permissions.includes("billing.view")}
           canManageServices={permissions.includes("service.manage")}
           onBack={() => {
             setOpenId(null);

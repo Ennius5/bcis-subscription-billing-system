@@ -16,6 +16,7 @@ import { ContactForm } from "./ContactForm";
 import { DetailsForm } from "./DetailsForm";
 import { ActionButton, Field, formatDateTime, RowError, Section } from "./ProfileParts";
 import { describeHistory, type HistoryLookups } from "./history";
+import { LedgerSection } from "../billing/LedgerSection";
 import { ServiceAccountScreen } from "../service-accounts/ServiceAccountScreen";
 import { StatusForm } from "./StatusForm";
 import { contactTypeLabel, serviceTypeLabel, StatusBadge } from "./status";
@@ -69,6 +70,7 @@ interface SubscriberProfileProps {
   subscriberId: string;
   canManage: boolean;
   canViewServices: boolean;
+  canViewBilling: boolean;
   canManageServices: boolean;
   onBack: () => void;
   onSessionExpired: () => void;
@@ -78,6 +80,7 @@ export function SubscriberProfile({
   subscriberId,
   canManage,
   canViewServices,
+  canViewBilling,
   canManageServices,
   onBack,
   onSessionExpired,
@@ -442,6 +445,8 @@ export function SubscriberProfile({
                 emptyMessage="No contacts on file."
               />
             </Section>
+
+            {canViewBilling && <LedgerSection subscriberId={subscriberId} onSessionExpired={onSessionExpired} />}
 
             <Section title="History">
               {history.length === 0 ? (

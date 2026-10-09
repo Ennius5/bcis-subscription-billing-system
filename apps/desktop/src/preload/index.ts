@@ -204,6 +204,108 @@ export interface ServiceAccountDetailDto extends ServiceAccountDto {
   events: ServiceEventDto[];
 }
 
+/* ------------------------------- Billing ------------------------------- */
+
+export interface BillingTotalsDto {
+  count: number;
+  totalCentavos: number;
+}
+
+export interface BillingSummaryDto {
+  period: string; // "YYYY-MM"
+  generated: boolean;
+  drafts: BillingTotalsDto;
+  /** Finalized and not void. */
+  finalized: BillingTotalsDto;
+  voided: BillingTotalsDto;
+  /** Active, billable accounts with no invoice for the month yet. */
+  notYetBilled: number;
+}
+
+export interface FinalizeResultDto extends BillingSummaryDto {
+  finalizedNow: number;
+  firstNumber: string | null;
+  lastNumber: string | null;
+  /** Drafts left as drafts because their account is no longer active. */
+  skipped: { invoiceId: string; serviceNumber: string; accountStatus: string }[];
+}
+
+export interface InvoiceListQuery {
+  page?: number;
+  pageSize?: number;
+  period?: string;
+  status?: string;
+  subscriberId?: string;
+  serviceAccountId?: string;
+  search?: string;
+}
+
+export interface InvoiceDto {
+  id: string;
+  invoiceNumber: string | null; // null while a draft
+  status: string;
+  /** The stored status, or "overdue" for an open invoice past its due date. */
+  displayStatus: string;
+  periodStart: string; // "YYYY-MM-DD"
+  periodEnd: string;
+  invoiceDate: string;
+  dueDate: string;
+  totalCentavos: number;
+  paidCentavos: number;
+  balanceCentavos: number;
+  subscriberId: string;
+  accountNumber: string;
+  subscriberName: string;
+  serviceAccountId: string;
+  serviceNumber: string;
+}
+
+export interface InvoicePageDto {
+  items: InvoiceDto[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export interface InvoiceDetailDto extends InvoiceDto {
+  planName: string;
+  items: { lineNo: number; itemType: string; description: string; amountCentavos: number; rateCentavos: number | null }[];
+  finalizedAt: string | null;
+  voidedAt: string | null;
+  voidReason: string | null;
+}
+
+export interface LedgerRange {
+  from?: string; // "YYYY-MM-DD", inclusive
+  to?: string;
+}
+
+export interface LedgerEntryDto {
+  id: string;
+  seq: number;
+  entryDate: string;
+  entryType: string;
+  reference: string;
+  description: string;
+  serviceAccountId: string | null;
+  invoiceId: string | null;
+  debitCentavos: number;
+  creditCentavos: number;
+  /** Running balance after this entry; positive means the subscriber owes. */
+  balanceCentavos: number;
+}
+
+export interface SubscriberLedgerDto {
+  subscriberId: string;
+  from: string | null;
+  to: string | null;
+  openingBalanceCentavos: number;
+  entries: LedgerEntryDto[];
+  closingBalanceCentavos: number;
+  totalDebitCentavos: number;
+  totalCreditCentavos: number;
+}
+
 export interface GlobalSearchHitDto {
   id: string;
   accountNumber: string;
@@ -315,6 +417,20 @@ const bcis = {
       ipcRenderer.invoke("serviceAccounts:changePlan", id, input),
     changeCollector: (id: string, input: Record<string, unknown>): Promise<ApiResult<ServiceAccountDetailDto>> =>
       ipcRenderer.invoke("serviceAccounts:changeCollector", id, input),
+  },
+  billing: {
+    summary: (period: string): Promise<ApiResult<BillingSummaryDto>> => ipcRenderer.invoke("billing:summary", period),
+    generate: (period: string): Promise<ApiResult<BillingSummaryDto>> => ipcRenderer.invoke("billing:generate", period),
+    discardDrafts: (period: string): Promise<ApiResult<BillingSummaryDto>> =>
+      ipcRenderer.invoke("billing:discardDrafts", period),
+    finalize: (period: string): Promise<ApiResult<FinalizeResultDto>> => ipcRenderer.invoke("billing:finalize", period),
+    listInvoices: (query: InvoiceListQuery): Promise<ApiResult<InvoicePageDto>> =>
+      ipcRenderer.invoke("billing:listInvoices", query),
+    getInvoice: (id: string): Promise<ApiResult<InvoiceDetailDto>> => ipcRenderer.invoke("billing:getInvoice", id),
+    voidInvoice: (id: string, reason: string): Promise<ApiResult<InvoiceDetailDto>> =>
+      ipcRenderer.invoke("billing:voidInvoice", id, reason),
+    ledger: (subscriberId: string, range: LedgerRange): Promise<ApiResult<SubscriberLedgerDto>> =>
+      ipcRenderer.invoke("billing:ledger", subscriberId, range),
   },
 };
 

@@ -6,6 +6,11 @@ import type {
   AreaDto,
   AuthResult,
   AvailableUserDto,
+  BillingSummaryDto,
+  FinalizeResultDto,
+  InvoiceDetailDto,
+  InvoicePageDto,
+  SubscriberLedgerDto,
   GlobalSearchResultDto,
   CollectorDto,
   PlanDto,
@@ -386,6 +391,52 @@ ipcMain.handle("serviceAccounts:changePlan", (_event, id: unknown, input: unknow
 ipcMain.handle("serviceAccounts:changeCollector", (_event, id: unknown, input: unknown) =>
   typeof id === "string" && isRecord(input)
     ? authedRequest<ServiceAccountDetailDto>("POST", `${serviceAccountPath(id)}/collector`, input)
+    : BAD_INPUT,
+);
+
+/* ------------------------------- Billing ------------------------------- */
+
+// Shape checks only; the API validates the values (real months, real dates).
+const isPeriod = (value: unknown): value is string => typeof value === "string" && /^\d{4}-\d{2}$/.test(value);
+const INVOICE_LIST_KEYS = ["page", "pageSize", "period", "status", "subscriberId", "serviceAccountId", "search"] as const;
+const LEDGER_KEYS = ["from", "to"] as const;
+const invoicePath = (id: string) => `/invoices/${encodeURIComponent(id)}`;
+
+ipcMain.handle("billing:summary", (_event, period: unknown) =>
+  isPeriod(period) ? authedRequest<BillingSummaryDto>("GET", `/billing/summary?period=${period}`) : BAD_INPUT,
+);
+
+ipcMain.handle("billing:generate", (_event, period: unknown) =>
+  isPeriod(period) ? authedRequest<BillingSummaryDto>("POST", "/billing/generate", { period }) : BAD_INPUT,
+);
+
+ipcMain.handle("billing:discardDrafts", (_event, period: unknown) =>
+  isPeriod(period) ? authedRequest<BillingSummaryDto>("POST", "/billing/discard-drafts", { period }) : BAD_INPUT,
+);
+
+ipcMain.handle("billing:finalize", (_event, period: unknown) =>
+  isPeriod(period) ? authedRequest<FinalizeResultDto>("POST", "/billing/finalize", { period }) : BAD_INPUT,
+);
+
+ipcMain.handle("billing:listInvoices", (_event, query: unknown) =>
+  isRecord(query)
+    ? authedRequest<InvoicePageDto>("GET", listPath("/invoices", INVOICE_LIST_KEYS, query))
+    : BAD_INPUT,
+);
+
+ipcMain.handle("billing:getInvoice", (_event, id: unknown) =>
+  typeof id === "string" ? authedRequest<InvoiceDetailDto>("GET", invoicePath(id)) : BAD_INPUT,
+);
+
+ipcMain.handle("billing:voidInvoice", (_event, id: unknown, reason: unknown) =>
+  typeof id === "string" && typeof reason === "string"
+    ? authedRequest<InvoiceDetailDto>("POST", `${invoicePath(id)}/void`, { reason })
+    : BAD_INPUT,
+);
+
+ipcMain.handle("billing:ledger", (_event, subscriberId: unknown, range: unknown) =>
+  typeof subscriberId === "string" && isRecord(range)
+    ? authedRequest<SubscriberLedgerDto>("GET", listPath(`${subscriberPath(subscriberId)}/ledger`, LEDGER_KEYS, range))
     : BAD_INPUT,
 );
 
