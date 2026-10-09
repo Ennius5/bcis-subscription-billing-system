@@ -17,6 +17,7 @@ import { takeDocumentNumbers } from "../db/document-numbers";
 import { dbToday, likePattern, type Tx } from "../db/query_helpers";
 import { applyAvailableCredit } from "../payments/service";
 import {
+  adjustments,
   billingCycles,
   invoiceItems,
   invoices,
@@ -25,6 +26,7 @@ import {
   serviceAccounts,
   servicePlans,
   subscribers,
+  users,
 } from "../db/schema";
 
 export class BillingError extends Error {
@@ -36,7 +38,10 @@ export class BillingError extends Error {
       | "INVOICE_NOT_FOUND"
       | "INVOICE_IS_DRAFT"
       | "INVOICE_ALREADY_VOID"
-      | "INVOICE_HAS_PAYMENTS",
+      | "INVOICE_HAS_PAYMENTS"
+      | "INVOICE_HAS_ADJUSTMENTS"
+      | "INVOICE_IS_VOID"
+      | "ADJUSTMENT_NOT_ALLOWED",
     public readonly status: number,
     message: string,
   ) {
@@ -443,6 +448,17 @@ export async function voidInvoice(
         `Invoice ${invoice.invoiceNumber} has payments applied. Reverse those payments before voiding it.`,
       );
     }
+    const [adjusted] = await tx
+      .select({ value: count() })
+      .from(adjustments)
+      .where(eq(adjustments.invoiceId, invoiceId));
+    if ((adjusted?.value ?? 0) > 0) {
+      throw new BillingError(
+        "INVOICE_HAS_ADJUSTMENTS",
+        409,
+        `Invoice ${invoice.invoiceNumber} has adjustments. Offset them with opposite adjustments instead of voiding.`,
+      );
+    }
 
     await tx
       .update(invoices)
@@ -489,6 +505,7 @@ const invoiceColumns = {
   dueDate: invoices.dueDate,
   totalCentavos: invoices.totalCentavos,
   paidCentavos: invoices.paidCentavos,
+  adjustedCentavos: invoices.adjustedCentavos,
   subscriberId: invoices.subscriberId,
   accountNumber: subscribers.accountNumber,
   subscriberName: subscribers.fullName,
@@ -507,6 +524,8 @@ interface InvoiceBase {
   dueDate: string;
   totalCentavos: number;
   paidCentavos: number;
+  /** Net of adjustments: debits minus credits. Effective total = totalCentavos + adjustedCentavos. */
+  adjustedCentavos: number;
   subscriberId: string;
   accountNumber: string;
   subscriberName: string;
@@ -532,17 +551,27 @@ export interface InvoiceDetail extends InvoiceListItem {
   finalizedAt: Date | null;
   voidedAt: Date | null;
   voidReason: string | null;
+  adjustments: Array<{
+    id: string;
+    adjustmentNumber: string;
+    kind: string;
+    category: string;
+    amountCentavos: number;
+    reason: string;
+    createdByName: string;
+    createdAt: Date;
+  }>;
 }
 
 function withDisplay<T extends InvoiceBase>(row: T, today: string): T & Pick<InvoiceListItem, "displayStatus" | "balanceCentavos"> {
   return {
     ...row,
     displayStatus: invoiceDisplayStatus(row, today),
-    balanceCentavos: row.status === "void" ? 0 : row.totalCentavos - row.paidCentavos,
+    balanceCentavos: row.status === "void" ? 0 : row.totalCentavos + row.adjustedCentavos - row.paidCentavos,
   };
 }
 
-async function fetchInvoice(executor: DbOrTx, invoiceId: string): Promise<InvoiceDetail> {
+export async function fetchInvoice(executor: DbOrTx, invoiceId: string): Promise<InvoiceDetail> {
   const [row] = await executor
     .select({
       ...invoiceColumns,
@@ -570,7 +599,23 @@ async function fetchInvoice(executor: DbOrTx, invoiceId: string): Promise<Invoic
     .where(eq(invoiceItems.invoiceId, invoiceId))
     .orderBy(asc(invoiceItems.lineNo));
 
-  return { ...withDisplay(row, await dbToday(executor)), items };
+  const adjustmentRows = await executor
+    .select({
+      id: adjustments.id,
+      adjustmentNumber: adjustments.adjustmentNumber,
+      kind: adjustments.kind,
+      category: adjustments.category,
+      amountCentavos: adjustments.amountCentavos,
+      reason: adjustments.reason,
+      createdByName: users.fullName,
+      createdAt: adjustments.createdAt,
+    })
+    .from(adjustments)
+    .innerJoin(users, eq(users.id, adjustments.createdByUserId))
+    .where(eq(adjustments.invoiceId, invoiceId))
+    .orderBy(asc(adjustments.createdAt), asc(adjustments.adjustmentNumber));
+
+  return { ...withDisplay(row, await dbToday(executor)), items, adjustments: adjustmentRows };
 }
 
 export async function getInvoice(db: Db, invoiceId: string): Promise<InvoiceDetail> {
@@ -594,7 +639,7 @@ export async function listInvoices(db: Db, query: InvoiceListQuery): Promise<Inv
     filters.push(
       inArray(invoices.status, ["unpaid", "partially_paid"]),
       lt(invoices.dueDate, today),
-      lt(invoices.paidCentavos, invoices.totalCentavos),
+      sql`${invoices.paidCentavos} < ${invoices.totalCentavos} + ${invoices.adjustedCentavos}`,
     );
   } else if (query.status) {
     filters.push(eq(invoices.status, query.status));

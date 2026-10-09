@@ -30,16 +30,28 @@ export interface AllocationPlan {
   creditCentavos: Centavos;
 }
 
-export type InvoicePaymentStatus = "unpaid" | "partially_paid" | "paid";
+export type InvoicePaymentStatus = "unpaid" | "partially_paid" | "paid" | "credited";
 
-/** The stored status for a finalized invoice. Mirrors the invoices_paid_status_consistent check. */
-export function invoicePaymentStatus(totalCentavos: Centavos, paidCentavos: Centavos): InvoicePaymentStatus {
+/**
+ * The stored status for a finalized invoice. Mirrors the invoices_paid_status_consistent check.
+ * The effective total is the billed total plus the net of its adjustments (negative for credits).
+ * CREDITED: credit adjustments brought the effective total to zero, so nothing was paid.
+ */
+export function invoicePaymentStatus(
+  totalCentavos: Centavos,
+  paidCentavos: Centavos,
+  adjustedCentavos: Centavos = 0,
+): InvoicePaymentStatus {
   assertCentavos(totalCentavos, "total");
   assertCentavos(paidCentavos, "paid");
-  if (paidCentavos < 0 || paidCentavos > totalCentavos) {
-    throw new RangeError(`paid (${paidCentavos}) must be between 0 and the total (${totalCentavos})`);
+  assertCentavos(adjustedCentavos, "adjusted");
+  const effective = totalCentavos + adjustedCentavos;
+  if (effective < 0) throw new RangeError(`credits (${-adjustedCentavos}) exceed the total (${totalCentavos})`);
+  if (paidCentavos < 0 || paidCentavos > effective) {
+    throw new RangeError(`paid (${paidCentavos}) must be between 0 and the effective total (${effective})`);
   }
-  if (paidCentavos === totalCentavos) return "paid";
+  if (effective === 0 && adjustedCentavos < 0) return "credited";
+  if (paidCentavos === effective) return "paid";
   return paidCentavos === 0 ? "unpaid" : "partially_paid";
 }
 

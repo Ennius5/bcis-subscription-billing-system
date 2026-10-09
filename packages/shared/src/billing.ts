@@ -81,11 +81,12 @@ export function isBillableInPeriod(billingStartDate: string | null, period: Bill
 
 /** Overdue is derived, never stored: an open invoice whose due date has passed. */
 export function invoiceDisplayStatus(
-  invoice: { status: string; dueDate: string; totalCentavos: number; paidCentavos: number },
+  invoice: { status: string; dueDate: string; totalCentavos: number; paidCentavos: number; adjustedCentavos?: number },
   today: string,
 ): InvoiceDisplayStatus {
   const open = invoice.status === "unpaid" || invoice.status === "partially_paid";
-  if (open && invoice.paidCentavos < invoice.totalCentavos && invoice.dueDate < today) return "overdue";
+  const effective = invoice.totalCentavos + (invoice.adjustedCentavos ?? 0);
+  if (open && invoice.paidCentavos < effective && invoice.dueDate < today) return "overdue";
   return invoice.status as InvoiceStatus;
 }
 

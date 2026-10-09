@@ -120,6 +120,20 @@
       "when": 1791547515297,
       "tag": "0016_search_document_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1791548625066,
+      "tag": "0017_adjustments",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1791548637965,
+      "tag": "0018_adjustment_integrity",
+      "breakpoints": true
     }
   ]
 }

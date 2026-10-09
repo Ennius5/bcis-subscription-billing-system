@@ -72,7 +72,16 @@ async function lockSubscriber(tx: Tx, subscriberId: string) {
   return row ?? null;
 }
 
-type LockedInvoice = OpenInvoice & { totalCentavos: number; paidCentavos: number };
+interface InvoiceAmounts {
+  totalCentavos: number;
+  paidCentavos: number;
+  adjustedCentavos: number;
+}
+
+/** What is still owed: the effective total (billed total plus adjustments) minus payments. */
+const balanceOf = (i: InvoiceAmounts) => i.totalCentavos + i.adjustedCentavos - i.paidCentavos;
+
+type LockedInvoice = OpenInvoice & InvoiceAmounts;
 
 /** The subscriber's finalized invoices that still have a balance, oldest first, locked. */
 async function lockOpenInvoices(tx: Tx, subscriberId: string): Promise<LockedInvoice[]> {
@@ -83,6 +92,7 @@ async function lockOpenInvoices(tx: Tx, subscriberId: string): Promise<LockedInv
       dueDate: invoices.dueDate,
       totalCentavos: invoices.totalCentavos,
       paidCentavos: invoices.paidCentavos,
+      adjustedCentavos: invoices.adjustedCentavos,
     })
     .from(invoices)
     .where(
@@ -93,7 +103,7 @@ async function lockOpenInvoices(tx: Tx, subscriberId: string): Promise<LockedInv
   return rows.map((r) => ({
     ...r,
     invoiceNumber: r.invoiceNumber!, // finalized invoices always have a number
-    balanceCentavos: r.totalCentavos - r.paidCentavos,
+    balanceCentavos: balanceOf(r),
   }));
 }
 
@@ -108,7 +118,7 @@ async function applyPlan(
   subscriberId: string,
   plan: AllocationPlan,
   source: AllocationSource,
-  invoicesById: Map<string, { totalCentavos: number; paidCentavos: number }>,
+  invoicesById: Map<string, InvoiceAmounts>,
 ): Promise<void> {
   if (plan.lines.length === 0) return;
   await tx.insert(paymentAllocations).values(
@@ -126,7 +136,7 @@ async function applyPlan(
     const paid = invoice.paidCentavos + line.amountCentavos;
     await tx
       .update(invoices)
-      .set({ paidCentavos: paid, status: invoicePaymentStatus(invoice.totalCentavos, paid) })
+      .set({ paidCentavos: paid, status: invoicePaymentStatus(invoice.totalCentavos, paid, invoice.adjustedCentavos) })
       .where(eq(invoices.id, line.invoiceId));
     invoice.paidCentavos = paid; // later plans in the same transaction see the new balance
   }
@@ -305,8 +315,8 @@ export async function applyAvailableCredit(tx: Tx, actorUserId: string, subscrib
     });
     applied += amount;
     open = [...invoicesById.values()]
-      .filter((i) => i.paidCentavos < i.totalCentavos)
-      .map((i) => ({ ...i, balanceCentavos: i.totalCentavos - i.paidCentavos }));
+      .filter((i) => balanceOf(i) > 0)
+      .map((i) => ({ ...i, balanceCentavos: balanceOf(i) }));
   }
   return applied;
 }
@@ -366,6 +376,7 @@ export async function reversePayment(
           invoiceNumber: invoices.invoiceNumber,
           totalCentavos: invoices.totalCentavos,
           paidCentavos: invoices.paidCentavos,
+          adjustedCentavos: invoices.adjustedCentavos,
         })
         .from(invoices)
         .where(eq(invoices.id, invoiceId))
@@ -373,7 +384,10 @@ export async function reversePayment(
       const remaining = invoice!.paidCentavos - amountCentavos;
       await tx
         .update(invoices)
-        .set({ paidCentavos: remaining, status: invoicePaymentStatus(invoice!.totalCentavos, remaining) })
+        .set({
+          paidCentavos: remaining,
+          status: invoicePaymentStatus(invoice!.totalCentavos, remaining, invoice!.adjustedCentavos),
+        })
         .where(eq(invoices.id, invoiceId));
       undone.push({ invoiceNumber: invoice!.invoiceNumber!, amountCentavos });
     }
@@ -602,6 +616,7 @@ export interface PaymentContext {
     dueDate: string;
     totalCentavos: number;
     paidCentavos: number;
+    adjustedCentavos: number;
     balanceCentavos: number;
     displayStatus: string;
   }>;
@@ -635,6 +650,7 @@ export async function getPaymentContext(db: Db, subscriberId: string): Promise<P
       status: invoices.status,
       totalCentavos: invoices.totalCentavos,
       paidCentavos: invoices.paidCentavos,
+      adjustedCentavos: invoices.adjustedCentavos,
     })
     .from(invoices)
     .innerJoin(serviceAccounts, eq(serviceAccounts.id, invoices.serviceAccountId))
@@ -647,7 +663,7 @@ export async function getPaymentContext(db: Db, subscriberId: string): Promise<P
     creditCentavos: await getSubscriberCredit(db, subscriberId),
     openInvoices: rows.map(({ status, ...r }) => ({
       ...r,
-      balanceCentavos: r.totalCentavos - r.paidCentavos,
+      balanceCentavos: balanceOf(r),
       displayStatus: invoiceDisplayStatus({ ...r, status }, today),
     })),
   };

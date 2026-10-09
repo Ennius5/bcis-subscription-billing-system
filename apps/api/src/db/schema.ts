@@ -456,6 +456,11 @@ export const invoices = pgTable(
     totalCentavos: integer("total_centavos").notNull(),
     /** Maintained by payment allocation (Phase 5). */
     paidCentavos: integer("paid_centavos").notNull().default(0),
+    /**
+     * Net of the invoice's adjustments: debits minus credits (negative when credited).
+     * total_centavos never changes after finalizing; the effective total is total + adjusted.
+     */
+    adjustedCentavos: integer("adjusted_centavos").notNull().default(0),
     createdByUserId: uuid("created_by_user_id")
       .notNull()
       .references(() => users.id),
@@ -477,13 +482,23 @@ export const invoices = pgTable(
       sql`${t.status} IN ('draft', 'unpaid', 'partially_paid', 'paid', 'void', 'credited')`,
     ),
     check("invoices_total_nonneg", sql`${t.totalCentavos} >= 0`),
-    check("invoices_paid_range", sql`${t.paidCentavos} >= 0 AND ${t.paidCentavos} <= ${t.totalCentavos}`),
-    // Payments only go to finalized invoices.
-    check("invoices_draft_unpaid", sql`${t.status} <> 'draft' OR ${t.paidCentavos} = 0`),
-    // The payment statuses always agree with paid_centavos, so allocation can never leave them out of step.
+    // Never more paid than the effective total, and credits can never take the total below zero.
+    check(
+      "invoices_paid_range",
+      sql`${t.paidCentavos} >= 0 AND ${t.paidCentavos} <= ${t.totalCentavos} + ${t.adjustedCentavos}`,
+    ),
+    check("invoices_effective_total_nonneg", sql`${t.totalCentavos} + ${t.adjustedCentavos} >= 0`),
+    // Payments and adjustments only go to finalized invoices.
+    check("invoices_draft_unpaid", sql`${t.status} <> 'draft' OR (${t.paidCentavos} = 0 AND ${t.adjustedCentavos} = 0)`),
+    // The status always agrees with the amounts, so allocation or an adjustment can never leave it out of step.
+    // CREDITED: credit adjustments brought the effective total to zero (so nothing was paid).
     check(
       "invoices_paid_status_consistent",
-      sql`${t.status} NOT IN ('unpaid', 'partially_paid', 'paid') OR ${t.status} = CASE WHEN ${t.paidCentavos} = ${t.totalCentavos} THEN 'paid' WHEN ${t.paidCentavos} = 0 THEN 'unpaid' ELSE 'partially_paid' END`,
+      sql`${t.status} NOT IN ('unpaid', 'partially_paid', 'paid', 'credited') OR ${t.status} = CASE
+        WHEN ${t.totalCentavos} + ${t.adjustedCentavos} = 0 AND ${t.adjustedCentavos} < 0 THEN 'credited'
+        WHEN ${t.paidCentavos} = ${t.totalCentavos} + ${t.adjustedCentavos} THEN 'paid'
+        WHEN ${t.paidCentavos} = 0 THEN 'unpaid'
+        ELSE 'partially_paid' END`,
     ),
     check("invoices_period_valid", sql`${t.periodEnd} >= ${t.periodStart}`),
     check("invoices_due_after_issue", sql`${t.dueDate} >= ${t.invoiceDate}`),
@@ -558,6 +573,7 @@ export const ledgerEntries = pgTable(
     creditCentavos: integer("credit_centavos").notNull().default(0),
     invoiceId: uuid("invoice_id").references(() => invoices.id),
     paymentId: uuid("payment_id").references(() => payments.id),
+    adjustmentId: uuid("adjustment_id").references(() => adjustments.id),
     createdByUserId: uuid("created_by_user_id")
       .notNull()
       .references(() => users.id),
@@ -582,6 +598,48 @@ export const ledgerEntries = pgTable(
     index("ledger_entries_subscriber_idx").on(t.subscriberId, t.entryDate, t.seq),
     index("ledger_entries_invoice_idx").on(t.invoiceId),
     index("ledger_entries_payment_idx").on(t.paymentId),
+    index("ledger_entries_adjustment_idx").on(t.adjustmentId),
+  ],
+);
+
+/**
+ * A debit or credit adjustment to one finalized invoice (spec 3.4: "controlled adjustment").
+ * The invoice's own lines and total never change; its adjusted_centavos carries the net, and
+ * the ledger gets a matching line. Append-only: a wrong adjustment is corrected by posting
+ * the opposite one, so both stay visible.
+ */
+export const adjustments = pgTable(
+  "adjustments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    adjustmentNumber: text("adjustment_number").notNull().unique(),
+    invoiceId: uuid("invoice_id").notNull(),
+    subscriberId: uuid("subscriber_id").notNull(),
+    /** credit lowers what is owed, debit adds to it. */
+    kind: text("kind").notNull(),
+    category: text("category").notNull(),
+    amountCentavos: integer("amount_centavos").notNull(),
+    reason: text("reason").notNull(),
+    createdByUserId: uuid("created_by_user_id")
+      .notNull()
+      .references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    foreignKey({
+      name: "adjustments_invoice_fk",
+      columns: [t.invoiceId, t.subscriberId],
+      foreignColumns: [invoices.id, invoices.subscriberId],
+    }),
+    check("adjustments_amount_positive", sql`${t.amountCentavos} > 0`),
+    check(
+      "adjustments_category_valid",
+      sql`(${t.kind} = 'credit' AND ${t.category} IN ('discount', 'service_outage', 'billing_error', 'goodwill', 'other'))
+        OR (${t.kind} = 'debit' AND ${t.category} IN ('penalty', 'reconnection_fee', 'billing_error', 'other'))`,
+    ),
+    check("adjustments_reason_present", sql`length(trim(${t.reason})) >= 3`),
+    index("adjustments_invoice_idx").on(t.invoiceId),
+    index("adjustments_subscriber_idx").on(t.subscriberId, t.createdAt),
   ],
 );
 
