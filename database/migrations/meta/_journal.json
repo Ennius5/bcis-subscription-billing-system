@@ -113,6 +113,13 @@
       "when": 1791541173714,
       "tag": "0015_payment_integrity_triggers",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1791547515297,
+      "tag": "0016_search_document_indexes",
+      "breakpoints": true
     }
   ]
 }

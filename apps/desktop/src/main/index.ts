@@ -1,5 +1,6 @@
+import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
-import { app, BrowserWindow, ipcMain } from "electron";
+import { app, BrowserWindow, dialog, ipcMain } from "electron";
 import type {
   ApiFailure,
   ApiResult,
@@ -11,9 +12,12 @@ import type {
   InvoiceDetailDto,
   InvoicePageDto,
   SubscriberLedgerDto,
+  GcashSubmissionDto,
+  GcashSubmissionPageDto,
   GlobalSearchResultDto,
   PaymentContextDto,
   PaymentDetailDto,
+  PaymentPageDto,
   CollectorDto,
   PlanDto,
   ServiceAccountDetailDto,
@@ -146,29 +150,41 @@ ipcMain.handle("auth:logout", async (): Promise<void> => {
   }
 });
 
-// Private helper: the renderer can only reach it through the handlers below.
-async function authedRequest<T>(
-  method: "GET" | "POST" | "PATCH",
+// Private helpers: the renderer can only reach them through the handlers below.
+
+/** Adds the token, clears it on 401, maps failures; `read` turns a successful response into data. */
+async function authedFetch<T>(
   urlPath: string,
-  body?: Record<string, unknown>,
+  init: { method: "GET" | "POST" | "PATCH"; headers?: Record<string, string>; body?: string | Uint8Array<ArrayBuffer> },
+  read: (res: Response) => Promise<T>,
 ): Promise<ApiResult<T>> {
   if (!currentToken) {
     return { ok: false, code: "UNAUTHENTICATED", message: "Please sign in." };
   }
   try {
-    const headers: Record<string, string> = { Authorization: `Bearer ${currentToken}` };
-    if (body) headers["Content-Type"] = "application/json";
     const res = await fetch(`${API_URL}${urlPath}`, {
-      method,
-      headers,
-      ...(body ? { body: JSON.stringify(body) } : {}),
+      method: init.method,
+      headers: { ...init.headers, Authorization: `Bearer ${currentToken}` },
+      ...(init.body !== undefined ? { body: init.body } : {}),
     });
     if (res.status === 401) currentToken = null; // session expired or revoked
     if (!res.ok) return await readError(res);
-    return { ok: true, data: (await res.json()) as T };
+    return { ok: true, data: await read(res) };
   } catch {
     return NETWORK_ERROR;
   }
+}
+
+function authedRequest<T>(
+  method: "GET" | "POST" | "PATCH",
+  urlPath: string,
+  body?: Record<string, unknown>,
+): Promise<ApiResult<T>> {
+  return authedFetch(
+    urlPath,
+    body ? { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : { method },
+    async (res) => (await res.json()) as T,
+  );
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -458,6 +474,104 @@ ipcMain.handle("payments:post", (_event, input: unknown) =>
 
 ipcMain.handle("payments:get", (_event, id: unknown) =>
   typeof id === "string" ? authedRequest<PaymentDetailDto>("GET", paymentPath(id)) : BAD_INPUT,
+);
+
+const PAYMENT_LIST_KEYS = ["page", "pageSize", "subscriberId", "method", "status", "from", "to", "search"] as const;
+
+ipcMain.handle("payments:list", (_event, query: unknown) =>
+  isRecord(query) ? authedRequest<PaymentPageDto>("GET", listPath("/payments", PAYMENT_LIST_KEYS, query)) : BAD_INPUT,
+);
+
+ipcMain.handle("payments:reverse", (_event, id: unknown, reason: unknown) =>
+  typeof id === "string" && typeof reason === "string"
+    ? authedRequest<PaymentDetailDto>("POST", `${paymentPath(id)}/reverse`, { reason })
+    : BAD_INPUT,
+);
+
+/* -------------------------------- GCash -------------------------------- */
+
+const GCASH_LIST_KEYS = ["page", "pageSize", "status", "subscriberId"] as const;
+const gcashPath = (id: string) => `/gcash-submissions/${encodeURIComponent(id)}`;
+
+// Only for a quick answer before uploading; the API checks the real type and size again.
+const PROOF_TYPES: Record<string, string> = {
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".webp": "image/webp",
+};
+const PROOF_MAX_BYTES = 5 * 1024 * 1024;
+
+ipcMain.handle("gcash:list", (_event, query: unknown) =>
+  isRecord(query)
+    ? authedRequest<GcashSubmissionPageDto>("GET", listPath("/gcash-submissions", GCASH_LIST_KEYS, query))
+    : BAD_INPUT,
+);
+
+ipcMain.handle("gcash:get", (_event, id: unknown) =>
+  typeof id === "string" ? authedRequest<GcashSubmissionDto>("GET", gcashPath(id)) : BAD_INPUT,
+);
+
+ipcMain.handle("gcash:create", (_event, input: unknown) =>
+  isRecord(input) ? authedRequest<GcashSubmissionDto>("POST", "/gcash-submissions", input) : BAD_INPUT,
+);
+
+// The file is chosen in a native dialog and read here, so the renderer never handles paths.
+ipcMain.handle("gcash:attachProof", async (event, id: unknown): Promise<ApiResult<GcashSubmissionDto>> => {
+  if (typeof id !== "string") return BAD_INPUT;
+  const options: Electron.OpenDialogOptions = {
+    title: "Choose the GCash proof image",
+    properties: ["openFile"],
+    filters: [{ name: "Images (PNG, JPEG, WebP)", extensions: ["png", "jpg", "jpeg", "webp"] }],
+  };
+  const win = BrowserWindow.fromWebContents(event.sender);
+  const picked = win ? await dialog.showOpenDialog(win, options) : await dialog.showOpenDialog(options);
+  const filePath = picked.filePaths[0];
+  if (picked.canceled || !filePath) return { ok: false, code: "CANCELLED", message: "No file was chosen." };
+
+  const contentType = PROOF_TYPES[path.extname(filePath).toLowerCase()];
+  if (!contentType) {
+    return { ok: false, code: "PROOF_INVALID_TYPE", message: "Only PNG, JPEG or WebP images can be attached." };
+  }
+  let bytes: Uint8Array<ArrayBuffer>;
+  try {
+    if ((await stat(filePath)).size > PROOF_MAX_BYTES) {
+      return { ok: false, code: "PROOF_TOO_LARGE", message: "The image is larger than 5 MB." };
+    }
+    bytes = new Uint8Array(await readFile(filePath)); // a plain copy, as fetch's body type requires
+  } catch {
+    return { ok: false, code: "FILE_READ", message: "The file could not be read." };
+  }
+  return authedFetch(
+    `${gcashPath(id)}/proofs`,
+    {
+      method: "POST",
+      headers: { "Content-Type": contentType, "X-Filename": encodeURIComponent(path.basename(filePath)) },
+      body: bytes,
+    },
+    async (res) => (await res.json()) as GcashSubmissionDto,
+  );
+});
+
+// Returned as a data: URL (allowed by the page's CSP), fetched here so the token stays in main.
+ipcMain.handle("gcash:proofImage", (_event, proofId: unknown) =>
+  typeof proofId === "string"
+    ? authedFetch(`/gcash-proofs/${encodeURIComponent(proofId)}`, { method: "GET" }, async (res) => {
+        const type = res.headers.get("content-type") ?? "";
+        if (!Object.values(PROOF_TYPES).includes(type)) throw new Error("Unexpected proof type");
+        return `data:${type};base64,${Buffer.from(await res.arrayBuffer()).toString("base64")}`;
+      })
+    : BAD_INPUT,
+);
+
+ipcMain.handle("gcash:verify", (_event, id: unknown) =>
+  typeof id === "string" ? authedRequest<GcashSubmissionDto>("POST", `${gcashPath(id)}/verify`) : BAD_INPUT,
+);
+
+ipcMain.handle("gcash:reject", (_event, id: unknown, reason: unknown) =>
+  typeof id === "string" && typeof reason === "string"
+    ? authedRequest<GcashSubmissionDto>("POST", `${gcashPath(id)}/reject`, { reason })
+    : BAD_INPUT,
 );
 
 void app.whenReady().then(() => {

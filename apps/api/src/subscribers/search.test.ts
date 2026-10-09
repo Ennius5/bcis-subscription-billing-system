@@ -1,8 +1,10 @@
 import { sql } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import {
+  gcashSubmissionCreateSchema,
   GLOBAL_SEARCH_LIMIT,
   globalSearchQuerySchema,
+  paymentCreateSchema,
   planCreateSchema,
   serviceAccountCreateSchema,
   subscriberCreateSchema,
@@ -10,6 +12,8 @@ import {
 } from "@bcis/shared";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { buildApp } from "../app";
+import { createGcashSubmission } from "../payments/gcash";
+import { postPayment } from "../payments/service";
 import { createPlan } from "../plans/service";
 import { createServiceAccount } from "../service-accounts/service";
 import { createTestDb, createTestUser, prepareTestDatabase, testConfig } from "../test/helpers";
@@ -39,7 +43,7 @@ function newSubscriber(fullName: string, overrides: Record<string, unknown> = {}
 
 beforeAll(async () => {
   await prepareTestDatabase(db);
-  await db.execute(sql`TRUNCATE subscribers, service_plans CASCADE`);
+  await db.execute(sql`TRUNCATE subscribers, service_plans, billing_cycles CASCADE`);
   actorId = await createTestUser(db, "search_admin", PASSWORD, "administrator");
   await createTestUser(db, "search_cashier", PASSWORD, "cashier");
   await createTestUser(db, "search_tech", PASSWORD, "technician");
@@ -256,5 +260,60 @@ describe("GET /search", () => {
     const headers = bearer(await tokenFor("search_cashier"));
     const res = await app.inject({ method: "GET", url: "/search?q=reyes", headers });
     expect(res.json().items.map((i: { id: string }) => i.id)).not.toContain(benId);
+  });
+});
+
+describe("globalSearch by receipt, invoice and GCash reference", () => {
+  let receiptNumber: string;
+  const invoiceNumber = "INV-SRCH01";
+
+  beforeAll(async () => {
+    receiptNumber = (
+      await postPayment(db, actorId, paymentCreateSchema.parse({ subscriberId: benId, method: "cash", amountCentavos: 50_000 }))
+    ).receiptNumber;
+    await createGcashSubmission(
+      db,
+      actorId,
+      gcashSubmissionCreateSchema.parse({
+        subscriberId: anaId,
+        referenceNumber: "8123456789012",
+        senderName: "Demo Sender",
+        senderNumber: "0917 000 0001",
+        amountCentavos: 99_900,
+        transactionDate: "2026-01-15",
+      }),
+    );
+    // A finalized invoice for Ana, inserted directly: only its number matters here.
+    const cycle = await pool.query<{ id: string }>(
+      `INSERT INTO billing_cycles (period_start, period_end, created_by_user_id) VALUES ('2026-01-01', '2026-01-31', $1) RETURNING id`,
+      [actorId],
+    );
+    const service = await pool.query<{ id: string }>(`SELECT id FROM service_accounts WHERE subscriber_id = $1`, [anaId]);
+    await pool.query(
+      `INSERT INTO invoices (billing_cycle_id, subscriber_id, service_account_id, period_start, period_end, invoice_date,
+                             due_date, total_centavos, created_by_user_id, status, invoice_number, finalized_at, finalized_by_user_id)
+       VALUES ($1, $2, $3, '2026-01-01', '2026-01-31', '2026-01-01', '2026-01-05', 99900, $4, 'unpaid', $5, now(), $4)`,
+      [cycle.rows[0]!.id, anaId, service.rows[0]!.id, actorId, invoiceNumber],
+    );
+  });
+
+  it("finds the subscriber a receipt belongs to, exact match first", async () => {
+    const result = await search(receiptNumber.toLowerCase());
+    expect(result.items[0]?.id).toBe(benId);
+    expect(result.items[0]?.matches).toContainEqual({ field: "receiptNumber", value: receiptNumber });
+  });
+
+  it("finds the subscriber an invoice belongs to", async () => {
+    const result = await search(invoiceNumber);
+    expect(names(result)).toEqual(["Ana Reyes"]);
+    expect(result.items[0]?.matches).toEqual([{ field: "invoiceNumber", value: invoiceNumber }]);
+  });
+
+  it("finds a GCash reference however it is spaced", async () => {
+    for (const q of ["8123456789012", "8123 456 789 012", "456789"]) {
+      const result = await search(q);
+      expect(result.items[0]?.id).toBe(anaId);
+      expect(result.items[0]?.matches).toContainEqual({ field: "gcashReference", value: "8123456789012" });
+    }
   });
 });

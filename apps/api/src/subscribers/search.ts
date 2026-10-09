@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
   GLOBAL_SEARCH_LIMIT,
+  normalizeGcashReference,
   phoneSearchDigits,
   type GlobalSearchField,
   type GlobalSearchQuery,
@@ -43,6 +44,9 @@ interface Row extends Record<string, unknown> {
   service_match: string | null;
   contact_match: string | null;
   address_match: string | null;
+  receipt_match: string | null;
+  invoice_match: string | null;
+  gcash_match: string | null;
 }
 
 // These two expressions must stay identical to the trigram indexes in migration 0011,
@@ -53,9 +57,9 @@ const ADDRESS_TEXT = sql.raw(
 );
 
 /**
- * Global search (spec 3.2): account number, service number, name, contact number and address.
- * Receipt, invoice and GCash reference search join here once those records exist.
- * All statuses are searched, archived included: finding any account is the point.
+ * Global search (spec 3.2): account number, service number, name, contact number, address,
+ * receipt number, invoice number and GCash reference. Every hit is the subscriber the record
+ * belongs to. All statuses are searched, archived included: finding any account is the point.
  */
 export async function globalSearch(db: Db, query: GlobalSearchQuery): Promise<GlobalSearchResult> {
   const q = query.q;
@@ -65,6 +69,8 @@ export async function globalSearch(db: Db, query: GlobalSearchQuery): Promise<Gl
   const digitMatch = digits ? sql` OR ${CONTACT_DIGITS} LIKE ${`%${digits}%`}` : sql``;
   const contactCondition = sql`(c.value ILIKE ${pattern}${digitMatch})`;
   const addressCondition = sql`${ADDRESS_TEXT} ILIKE ${pattern}`;
+  // GCash references are stored normalized (no spaces, upper case), so the query is too.
+  const gcashPattern = likePattern(normalizeGcashReference(q));
 
   const result = await db.execute<Row>(sql`
     WITH hits AS (
@@ -76,6 +82,12 @@ export async function globalSearch(db: Db, query: GlobalSearchQuery): Promise<Gl
       SELECT c.subscriber_id FROM subscriber_contacts c WHERE ${contactCondition}
       UNION
       SELECT a.subscriber_id FROM subscriber_addresses a WHERE ${addressCondition}
+      UNION
+      SELECT p.subscriber_id FROM payments p WHERE p.receipt_number ILIKE ${pattern}
+      UNION
+      SELECT i.subscriber_id FROM invoices i WHERE i.invoice_number ILIKE ${pattern}
+      UNION
+      SELECT g.subscriber_id FROM gcash_submissions g WHERE g.reference_number ILIKE ${gcashPattern}
     ),
     found AS (
       SELECT
@@ -97,15 +109,26 @@ export async function globalSearch(db: Db, query: GlobalSearchQuery): Promise<Gl
            ORDER BY c.is_primary DESC, c.is_active DESC LIMIT 1) AS contact_match,
         (SELECT a.line1 || ', ' || a.barangay || ', ' || a.city FROM subscriber_addresses a
            WHERE a.subscriber_id = s.id AND ${addressCondition}
-           ORDER BY a.is_primary DESC, a.is_active DESC LIMIT 1) AS address_match
+           ORDER BY a.is_primary DESC, a.is_active DESC LIMIT 1) AS address_match,
+        (SELECT p.receipt_number FROM payments p
+           WHERE p.subscriber_id = s.id AND p.receipt_number ILIKE ${pattern}
+           ORDER BY p.receipt_number DESC LIMIT 1) AS receipt_match,
+        (SELECT i.invoice_number FROM invoices i
+           WHERE i.subscriber_id = s.id AND i.invoice_number ILIKE ${pattern}
+           ORDER BY i.invoice_number DESC LIMIT 1) AS invoice_match,
+        (SELECT g.reference_number FROM gcash_submissions g
+           WHERE g.subscriber_id = s.id AND g.reference_number ILIKE ${gcashPattern}
+           ORDER BY g.recorded_at DESC LIMIT 1) AS gcash_match
       FROM subscribers s
       JOIN hits h ON h.subscriber_id = s.id
     )
     SELECT * FROM found
     ORDER BY
-      -- Exact account or service number first, then names that start with the query.
+      -- An exact number or reference first, then names that start with the query.
       CASE
-        WHEN lower(account_number) = lower(${q}) OR lower(service_match) = lower(${q}) THEN 0
+        WHEN lower(account_number) = lower(${q}) OR lower(service_match) = lower(${q})
+          OR lower(receipt_match) = lower(${q}) OR lower(invoice_match) = lower(${q})
+          OR gcash_match = ${normalizeGcashReference(q)} THEN 0
         WHEN full_name ILIKE ${pattern.slice(1)} THEN 1 -- "text%": starts with the query
         ELSE 2
       END,
@@ -129,6 +152,9 @@ function toHit(row: Row): GlobalSearchHit {
   if (row.name_match) matches.push({ field: "name", value: row.full_name });
   if (row.contact_match) matches.push({ field: "contact", value: row.contact_match });
   if (row.address_match) matches.push({ field: "address", value: row.address_match });
+  if (row.receipt_match) matches.push({ field: "receiptNumber", value: row.receipt_match });
+  if (row.invoice_match) matches.push({ field: "invoiceNumber", value: row.invoice_match });
+  if (row.gcash_match) matches.push({ field: "gcashReference", value: row.gcash_match });
   return {
     id: row.id,
     accountNumber: row.account_number,

@@ -6,7 +6,7 @@ import { StatusBadge } from "../subscribers/status";
 const SEARCH_DELAY_MS = 300;
 
 interface SubscriberPickerProps {
-  onPick: (subscriberId: string) => void;
+  onPick: (subscriber: GlobalSearchHitDto) => void;
   onSessionExpired: () => void;
 }
 
@@ -58,7 +58,7 @@ export function SubscriberPicker({ onPick, onSessionExpired }: SubscriberPickerP
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => {
             // Enter takes the first match, for speed at the counter.
-            if (e.key === "Enter" && hits[0]) onPick(hits[0].id);
+            if (e.key === "Enter" && hits[0]) onPick(hits[0]);
           }}
         />
       </label>
@@ -74,7 +74,7 @@ export function SubscriberPicker({ onPick, onSessionExpired }: SubscriberPickerP
             <li key={hit.id}>
               <button
                 className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-slate-50"
-                onClick={() => onPick(hit.id)}
+                onClick={() => onPick(hit)}
               >
                 <span>
                   <span className="font-medium text-ink">{hit.fullName}</span>{" "}

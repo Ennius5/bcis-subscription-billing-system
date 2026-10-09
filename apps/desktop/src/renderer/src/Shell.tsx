@@ -13,6 +13,8 @@ import { GenerateBillingScreen } from "./billing/GenerateBillingScreen";
 import { currentMonth } from "./billing/invoiceStatus";
 import { InvoicesScreen } from "./billing/InvoicesScreen";
 import { ReceivePaymentScreen } from "./payments/ReceivePaymentScreen";
+import { PaymentHistoryScreen } from "./payments/PaymentHistoryScreen";
+import { GcashScreen } from "./payments/GcashScreen";
 
 const SEARCH_DELAY_MS = 300;
 
@@ -96,7 +98,7 @@ export function Shell({ session, onSignOut }: ShellProps) {
             ref={searchInput}
             type="search"
             aria-label="Search subscribers"
-            placeholder="Search account, name, phone or address…  (Ctrl+K)"
+            placeholder="Search account, name, phone, address, receipt, invoice or GCash ref…  (Ctrl+K)"
             className="w-full max-w-xl rounded border border-white/20 bg-white/10 px-3 py-1.5 text-sm text-white placeholder:text-white/60 focus:border-white/50 focus:outline-none"
             value={searchText}
             maxLength={100}
@@ -155,6 +157,10 @@ export function Shell({ session, onSignOut }: ShellProps) {
               <InvoicesScreen title="Invoices" initialPeriod="" permissions={permissions} onSessionExpired={onSignOut} />
             ) : active.id === "payments.receive" ? (
               <ReceivePaymentScreen permissions={permissions} onSessionExpired={onSignOut} />
+            ) : active.id === "payments.history" ? (
+              <PaymentHistoryScreen permissions={permissions} onSessionExpired={onSignOut} />
+            ) : active.id === "payments.gcash" ? (
+              <GcashScreen permissions={permissions} onSessionExpired={onSignOut} />
             ) : active.id === "subscribers.plans" ? (
               <PlansScreen permissions={permissions} onSessionExpired={onSignOut} />
             ) : active.id === "collections.collectors" ? (

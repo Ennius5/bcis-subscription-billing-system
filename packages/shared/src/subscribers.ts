@@ -210,7 +210,16 @@ export const GLOBAL_SEARCH_LIMIT = 20;
 /** Fewer digits than this would match far too many phone numbers. */
 export const GLOBAL_SEARCH_MIN_PHONE_DIGITS = 4;
 
-export const GLOBAL_SEARCH_FIELDS = ["accountNumber", "serviceNumber", "name", "contact", "address"] as const;
+export const GLOBAL_SEARCH_FIELDS = [
+  "accountNumber",
+  "serviceNumber",
+  "name",
+  "contact",
+  "address",
+  "receiptNumber",
+  "invoiceNumber",
+  "gcashReference",
+] as const;
 export type GlobalSearchField = (typeof GLOBAL_SEARCH_FIELDS)[number];
 
 export const globalSearchQuerySchema = z.object({

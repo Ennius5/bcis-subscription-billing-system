@@ -315,7 +315,7 @@ export interface GlobalSearchHitDto {
   status: string;
   primaryAddress: string | null;
   primaryContact: string | null;
-  /** What the query matched: accountNumber, serviceNumber, name, contact or address. */
+  /** What the query matched: accountNumber, serviceNumber, name, contact, address, receiptNumber, invoiceNumber or gcashReference. */
   matches: { field: string; value: string }[];
 }
 
@@ -389,6 +389,81 @@ export interface PaymentDetailDto {
   postedAt: string;
   allocations: PaymentAllocationDto[];
   reversal: { reason: string; reversedAt: string; reversedByName: string } | null;
+}
+
+export interface PaymentListQuery {
+  page?: number;
+  pageSize?: number;
+  subscriberId?: string;
+  method?: string;
+  status?: string;
+  from?: string; // "YYYY-MM-DD", inclusive payment dates
+  to?: string;
+  search?: string;
+}
+
+export interface PaymentListItemDto {
+  id: string;
+  receiptNumber: string;
+  status: string;
+  paymentDate: string;
+  postedAt: string;
+  method: string;
+  amountCentavos: number;
+  allocatedCentavos: number;
+  referenceNumber: string | null;
+  subscriberId: string;
+  accountNumber: string;
+  subscriberName: string;
+  receivedByName: string;
+}
+
+export interface PaymentPageDto {
+  items: PaymentListItemDto[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+/* -------------------------------- GCash -------------------------------- */
+
+export interface GcashSubmissionListQuery {
+  page?: number;
+  pageSize?: number;
+  status?: string;
+  subscriberId?: string;
+}
+
+export interface GcashSubmissionListItemDto {
+  id: string;
+  status: string; // pending | verified | rejected | reversed
+  referenceNumber: string;
+  subscriberId: string;
+  accountNumber: string;
+  subscriberName: string;
+  senderName: string;
+  amountCentavos: number;
+  transactionDate: string;
+  recordedAt: string;
+  recordedByName: string;
+  proofCount: number;
+}
+
+export interface GcashSubmissionPageDto {
+  items: GcashSubmissionListItemDto[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export interface GcashSubmissionDto extends GcashSubmissionListItemDto {
+  senderNumber: string;
+  notes: string | null;
+  reviewedByName: string | null;
+  reviewedAt: string | null;
+  rejectionReason: string | null;
+  payment: { id: string; receiptNumber: string; status: string } | null;
+  proofs: { id: string; mimeType: string; sizeBytes: number; originalFilename: string | null; uploadedAt: string }[];
 }
 
 const bcis = {
@@ -495,6 +570,23 @@ const bcis = {
     post: (input: Record<string, unknown>): Promise<ApiResult<PaymentDetailDto>> =>
       ipcRenderer.invoke("payments:post", input),
     get: (id: string): Promise<ApiResult<PaymentDetailDto>> => ipcRenderer.invoke("payments:get", id),
+    list: (query: PaymentListQuery): Promise<ApiResult<PaymentPageDto>> => ipcRenderer.invoke("payments:list", query),
+    reverse: (id: string, reason: string): Promise<ApiResult<PaymentDetailDto>> =>
+      ipcRenderer.invoke("payments:reverse", id, reason),
+  },
+  gcash: {
+    list: (query: GcashSubmissionListQuery): Promise<ApiResult<GcashSubmissionPageDto>> =>
+      ipcRenderer.invoke("gcash:list", query),
+    get: (id: string): Promise<ApiResult<GcashSubmissionDto>> => ipcRenderer.invoke("gcash:get", id),
+    create: (input: Record<string, unknown>): Promise<ApiResult<GcashSubmissionDto>> =>
+      ipcRenderer.invoke("gcash:create", input),
+    /** Opens a file dialog in the main process and uploads the chosen image. */
+    attachProof: (id: string): Promise<ApiResult<GcashSubmissionDto>> => ipcRenderer.invoke("gcash:attachProof", id),
+    /** The proof image as a data: URL for an <img>. */
+    proofImage: (proofId: string): Promise<ApiResult<string>> => ipcRenderer.invoke("gcash:proofImage", proofId),
+    verify: (id: string): Promise<ApiResult<GcashSubmissionDto>> => ipcRenderer.invoke("gcash:verify", id),
+    reject: (id: string, reason: string): Promise<ApiResult<GcashSubmissionDto>> =>
+      ipcRenderer.invoke("gcash:reject", id, reason),
   },
 };
 

@@ -61,7 +61,7 @@ export function ReceivePaymentScreen({ permissions, onSessionExpired }: ReceiveP
           onSessionExpired={onSessionExpired}
         />
       ) : (
-        <SubscriberPicker onPick={setSubscriberId} onSessionExpired={onSessionExpired} />
+        <SubscriberPicker onPick={(s) => setSubscriberId(s.id)} onSessionExpired={onSessionExpired} />
       )}
     </div>
   );

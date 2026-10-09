@@ -9,6 +9,9 @@ const MATCH_LABELS: Record<string, string> = {
   name: "Name",
   contact: "Contact",
   address: "Address",
+  receiptNumber: "Receipt no.",
+  invoiceNumber: "Invoice no.",
+  gcashReference: "GCash ref.",
 };
 
 interface SearchResultsProps {
@@ -50,7 +53,8 @@ export function SearchResults({ query, onOpen, onSessionExpired }: SearchResults
     <div>
       <h1 className="mb-1 text-xl font-semibold text-navy">Search</h1>
       <p className="mb-4 text-sm text-muted">
-        Account or service number, name, contact number or address. Press Esc to go back.
+        Account or service number, name, contact number, address, receipt or invoice number, or GCash reference.
+        Press Esc to go back.
       </p>
 
       {tooShort ? (
