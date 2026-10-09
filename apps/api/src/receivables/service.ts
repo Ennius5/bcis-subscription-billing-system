@@ -423,3 +423,35 @@ export async function listSuspensionCandidates(
   items.sort((a, b) => b.pastGraceCount - a.pastGraceCount || SORTS.oldest(a, b));
   return { asOf: today, settings, items };
 }
+
+/* ---------------------------- Filter options ---------------------------- */
+
+export interface ReceivableFilterOptions {
+  collectors: Array<{ id: string; code: string; fullName: string; isActive: boolean }>;
+  areas: Array<{ id: string; code: string; name: string; isActive: boolean }>;
+  plans: Array<{ id: string; code: string; name: string; serviceType: ServiceTypeCode; isActive: boolean }>;
+}
+
+/**
+ * Choices for the receivables filters. Inactive entries are included (debt can sit under
+ * a collector or plan that is no longer used), active ones first. This exists so cashiers and
+ * technicians can filter without the collection.view or plan.view permissions.
+ */
+export async function getReceivableFilterOptions(db: DbOrTx): Promise<ReceivableFilterOptions> {
+  const collectors = await db.execute<{ id: string; code: string; full_name: string; is_active: boolean }>(sql`
+    SELECT id, code, full_name, is_active FROM collectors ORDER BY is_active DESC, code
+  `);
+  const areas = await db.execute<{ id: string; code: string; name: string; is_active: boolean }>(sql`
+    SELECT id, code, name, is_active FROM collection_areas ORDER BY is_active DESC, code
+  `);
+  const plans = await db.execute<{ id: string; code: string; name: string; service_type: ServiceTypeCode; is_active: boolean }>(sql`
+    SELECT p.id, p.code, p.name, st.code AS service_type, p.is_active
+    FROM service_plans p JOIN service_types st ON st.id = p.service_type_id
+    ORDER BY p.is_active DESC, p.code
+  `);
+  return {
+    collectors: collectors.rows.map((c) => ({ id: c.id, code: c.code, fullName: c.full_name, isActive: c.is_active })),
+    areas: areas.rows.map((a) => ({ id: a.id, code: a.code, name: a.name, isActive: a.is_active })),
+    plans: plans.rows.map((p) => ({ id: p.id, code: p.code, name: p.name, serviceType: p.service_type, isActive: p.is_active })),
+  };
+}

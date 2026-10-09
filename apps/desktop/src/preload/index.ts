@@ -653,6 +653,92 @@ export interface CollectorReportDto {
   totals: CollectorReportTotalsDto;
 }
 
+/* ------------------------------ Receivables ------------------------------ */
+
+export interface ReceivableListQuery {
+  view?: "outstanding" | "overdue";
+  collectorId?: string;
+  areaId?: string;
+  planId?: string;
+  serviceType?: string;
+  bucket?: string;
+  search?: string;
+  sort?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+/** One service account with an open balance, as of the server's today. */
+export interface ReceivableRowDto {
+  serviceAccountId: string;
+  serviceNumber: string;
+  serviceStatus: string;
+  subscriberId: string;
+  accountNumber: string;
+  subscriberName: string;
+  planId: string;
+  planCode: string;
+  planName: string;
+  serviceType: string;
+  areaId: string | null;
+  areaName: string | null;
+  collectorId: string | null;
+  collectorCode: string | null;
+  collectorName: string | null;
+  openInvoiceCount: number;
+  monthsUnpaid: number;
+  oldestInvoiceId: string;
+  oldestInvoiceNumber: string;
+  oldestDueDate: string;
+  daysPastDue: number;
+  bucket: string;
+  lastPaymentDate: string | null;
+  currentCentavos: number;
+  arrearsCentavos: number;
+  totalOpenCentavos: number;
+}
+
+export interface ReceivablePageDto {
+  asOf: string;
+  items: ReceivableRowDto[];
+  total: number;
+  totalOpenCentavos: number;
+  totalArrearsCentavos: number;
+  page: number;
+  pageSize: number;
+}
+
+export interface AgingQuery {
+  collectorId?: string;
+  areaId?: string;
+  planId?: string;
+  serviceType?: string;
+}
+
+export interface AgingBucketDto {
+  bucket: string;
+  amountCentavos: number;
+  invoiceCount: number;
+  accountCount: number;
+}
+
+export interface AgingReportDto {
+  asOf: string;
+  buckets: AgingBucketDto[];
+  totalOpenCentavos: number;
+  overdueCentavos: number;
+  overdueAccountCount: number;
+  overdueSubscriberCount: number;
+  unappliedCreditCentavos: number;
+  netReceivableCentavos: number;
+}
+
+export interface ReceivableFilterOptionsDto {
+  collectors: Array<{ id: string; code: string; fullName: string; isActive: boolean }>;
+  areas: Array<{ id: string; code: string; name: string; isActive: boolean }>;
+  plans: Array<{ id: string; code: string; name: string; serviceType: string; isActive: boolean }>;
+}
+
 const bcis = {
   getHealth: (): Promise<HealthResult> => ipcRenderer.invoke("api:health"),
   login: (username: string, password: string): Promise<AuthResult> =>
@@ -806,6 +892,12 @@ const bcis = {
     /** Per collector, batches with a collection date from `from` to `to` (inclusive). */
     collectorReport: (from: string, to: string): Promise<ApiResult<CollectorReportDto>> =>
       ipcRenderer.invoke("batches:collectorReport", from, to),
+  },
+  receivables: {
+    list: (query: ReceivableListQuery): Promise<ApiResult<ReceivablePageDto>> =>
+      ipcRenderer.invoke("receivables:list", query),
+    aging: (query: AgingQuery): Promise<ApiResult<AgingReportDto>> => ipcRenderer.invoke("receivables:aging", query),
+    filterOptions: (): Promise<ApiResult<ReceivableFilterOptionsDto>> => ipcRenderer.invoke("receivables:filterOptions"),
   },
 };
 

@@ -141,6 +141,16 @@ describe("receivable routes: authorization", () => {
     expect(candidates.statusCode).toBe(200);
   });
 
+  it("serves the filter options to anyone with receivable.view or suspension.manage", async () => {
+    for (const username of ["recv_viewer", "recv_cashier", "recv_tech"]) {
+      const res = await app.inject({ method: "GET", url: "/receivables/filter-options", headers: bearer(await tokenFor(username)) });
+      expect(res.statusCode, username).toBe(200);
+      expect(res.json().plans).toEqual([expect.objectContaining({ code: "RECV-RT", serviceType: "internet", isActive: true })]);
+    }
+    const noToken = await app.inject({ method: "GET", url: "/receivables/filter-options" });
+    expect(noToken.statusCode).toBe(401);
+  });
+
   it("keeps settings to the owner: an administrator is refused", async () => {
     const headers = bearer(await tokenFor("recv_admin"));
     for (const call of settings) expect((await app.inject({ ...call, headers })).statusCode, call.url).toBe(403);

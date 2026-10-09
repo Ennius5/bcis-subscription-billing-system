@@ -13,12 +13,13 @@ import {
   suspensionCandidateQuerySchema,
 } from "@bcis/shared";
 import { createAuthenticate } from "../auth/authenticate";
-import { requirePermission } from "../auth/guard";
+import { requireAnyPermission, requirePermission } from "../auth/guard";
 import type { Db } from "../db/client";
 import { sendValidationError } from "../http/errors";
 import { ServiceAccountError } from "../service-accounts/service";
 import {
   getAgingReport,
+  getReceivableFilterOptions,
   getReceivableSettings,
   listReceivables,
   listSuspensionCandidates,
@@ -58,6 +59,8 @@ export function registerReceivableRoutes(app: FastifyInstance, db: Db): void {
   const canControl = { preHandler: [authenticate, requirePermission("suspension.manage")] };
   const canViewService = { preHandler: [authenticate, requirePermission("service.view")] };
   const canSettings = { preHandler: [authenticate, requirePermission("settings.manage")] };
+  // The lists (receivable.view) and the candidate screen (suspension.manage) share the filters.
+  const canFilter = { preHandler: [authenticate, requireAnyPermission("receivable.view", "suspension.manage")] };
 
   /* ----------------------------- Receivables ----------------------------- */
 
@@ -66,6 +69,8 @@ export function registerReceivableRoutes(app: FastifyInstance, db: Db): void {
     if (!query.success) return sendValidationError(reply, query.error);
     return listReceivables(db, query.data);
   });
+
+  app.get("/receivables/filter-options", canFilter, async () => getReceivableFilterOptions(db));
 
   app.get("/receivables/aging", canView, async (request, reply) => {
     const query = agingQuerySchema.safeParse(request.query);

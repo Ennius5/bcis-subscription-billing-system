@@ -24,6 +24,9 @@ import type {
   PaymentPageDto,
   CollectorDto,
   PlanDto,
+  AgingReportDto,
+  ReceivableFilterOptionsDto,
+  ReceivablePageDto,
   ServiceAccountDetailDto,
   ServiceAccountPageDto,
   SessionInfo,
@@ -667,6 +670,27 @@ ipcMain.handle("batches:collectorReport", (_event, from: unknown, to: unknown) =
   isIsoDate(from) && isIsoDate(to)
     ? authedRequest<CollectorReportDto>("GET", `/collection-reports/collectors?from=${from}&to=${to}`)
     : BAD_INPUT,
+);
+
+/* ------------------------------ Receivables ------------------------------ */
+
+const AGING_KEYS = ["collectorId", "areaId", "planId", "serviceType"] as const;
+const RECEIVABLE_LIST_KEYS = [...AGING_KEYS, "view", "bucket", "search", "sort", "page", "pageSize"] as const;
+
+ipcMain.handle("receivables:list", (_event, query: unknown) =>
+  isRecord(query)
+    ? authedRequest<ReceivablePageDto>("GET", listPath("/receivables", RECEIVABLE_LIST_KEYS, query))
+    : BAD_INPUT,
+);
+
+ipcMain.handle("receivables:aging", (_event, query: unknown) =>
+  isRecord(query)
+    ? authedRequest<AgingReportDto>("GET", listPath("/receivables/aging", AGING_KEYS, query))
+    : BAD_INPUT,
+);
+
+ipcMain.handle("receivables:filterOptions", () =>
+  authedRequest<ReceivableFilterOptionsDto>("GET", "/receivables/filter-options"),
 );
 
 void app.whenReady().then(() => {
