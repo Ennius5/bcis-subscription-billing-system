@@ -15,11 +15,13 @@ import { writeAudit, type DbOrTx } from "../audit/audit";
 import type { Db } from "../db/client";
 import { takeDocumentNumbers } from "../db/document-numbers";
 import { dbToday, likePattern, type Tx } from "../db/query_helpers";
+import { applyAvailableCredit } from "../payments/service";
 import {
   billingCycles,
   invoiceItems,
   invoices,
   ledgerEntries,
+  payments,
   serviceAccounts,
   servicePlans,
   subscribers,
@@ -275,6 +277,8 @@ export interface FinalizeResult extends BillingSummary {
   lastNumber: string | null;
   /** Drafts left as drafts because their account is no longer active. */
   skipped: Array<{ invoiceId: string; serviceNumber: string; accountStatus: string }>;
+  /** Advance credit (earlier payments) applied to the newly finalized invoices. */
+  creditAppliedCentavos: number;
 }
 
 interface DraftRow extends Record<string, unknown> {
@@ -365,6 +369,25 @@ export async function finalizeBilling(db: Db, actorUserId: string, input: Billin
     }
     if (ledgerRows.length > 0) await tx.insert(ledgerEntries).values(ledgerRows);
 
+    // Subscribers who paid in advance: their credit pays the new invoices now (AT-03).
+    // Sorted so concurrent operations always lock subscribers in the same order.
+    const billed = [...new Set(ready.map((d) => d.subscriber_id))];
+    const withCredit = await tx
+      .selectDistinct({ subscriberId: payments.subscriberId })
+      .from(payments)
+      .where(
+        and(
+          inArray(payments.subscriberId, billed),
+          eq(payments.status, "posted"),
+          lt(payments.allocatedCentavos, payments.amountCentavos),
+        ),
+      )
+      .orderBy(asc(payments.subscriberId));
+    let creditApplied = 0;
+    for (const { subscriberId } of withCredit) {
+      creditApplied += await applyAvailableCredit(tx, actorUserId, subscriberId);
+    }
+
     await writeAudit(tx, {
       actorUserId,
       action: "billing.finalize",
@@ -377,6 +400,7 @@ export async function finalizeBilling(db: Db, actorUserId: string, input: Billin
         lastNumber: numbers[numbers.length - 1],
         totalCentavos: total,
         skipped: skipped.length,
+        creditAppliedCentavos: creditApplied,
       },
     });
 
@@ -386,6 +410,7 @@ export async function finalizeBilling(db: Db, actorUserId: string, input: Billin
       firstNumber: numbers[0] ?? null,
       lastNumber: numbers[numbers.length - 1] ?? null,
       skipped,
+      creditAppliedCentavos: creditApplied,
     };
   });
 }
