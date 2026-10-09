@@ -9,6 +9,9 @@ export type ContactType = (typeof CONTACT_TYPES)[number];
 export const BILLING_DAY_MIN = 1;
 export const BILLING_DAY_MAX = 28;
 
+/** Most active contacts a subscriber can have. Deactivated contacts do not count. */
+export const SUBSCRIBER_CONTACTS_MAX = 5;
+
 const ALLOWED_TRANSITIONS: Record<SubscriberStatus, readonly SubscriberStatus[]> = {
   active: ["inactive", "terminated"],
   inactive: ["active", "terminated"],
@@ -135,7 +138,7 @@ export const subscriberCreateSchema = z
     assignedCollectorId: z.uuid().nullish(),
     notes: z.string().trim().max(1000).nullish(),
     address: addressInputSchema,
-    contacts: z.array(contactInputSchema).max(5).default([]),
+    contacts: z.array(contactInputSchema).max(SUBSCRIBER_CONTACTS_MAX).default([]),
   })
   .superRefine((subscriber, ctx) => {
     const primaries = subscriber.contacts.filter((c) => c.isPrimary === true).length;

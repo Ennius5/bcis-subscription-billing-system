@@ -1,6 +1,13 @@
 import { and, asc, count, desc, eq, ilike, isNull, ne, or, sql } from "drizzle-orm";
 import {
+  contactValueProblem,
   statusChangeProblem,
+  SUBSCRIBER_CONTACTS_MAX,
+  type AddressCreateInput,
+  type AddressUpdateInput,
+  type ContactInput,
+  type ContactType,
+  type ContactUpdateInput,
   type SubscriberAssignmentInput,
   type SubscriberUpdateInput,
   type SubscriberCreateInput,
@@ -29,7 +36,13 @@ export class SubscriberError extends Error {
       | "COLLECTOR_NOT_FOUND"
       | "COLLECTOR_INACTIVE"
       | "INVALID_STATUS_CHANGE"
-      | "SUBSCRIBER_ARCHIVED",
+      | "SUBSCRIBER_ARCHIVED"
+      | "ADDRESS_NOT_FOUND"
+      | "CONTACT_NOT_FOUND"
+      | "PRIMARY_CANNOT_DEACTIVATE"
+      | "INACTIVE_CANNOT_BE_PRIMARY"
+      | "CONTACT_LIMIT"
+      | "INVALID_CONTACT_VALUE",
     public readonly status: number,
     message: string,
   ) {
@@ -519,6 +532,278 @@ export async function changeSubscriberAssignment(
         collectionAreaId: input.collectionAreaId,
         assignedCollectorId: input.assignedCollectorId,
       },
+    });
+
+    return fetchSubscriber(tx, subscriberId);
+  });
+}
+
+/* ----------------------- Addresses and contacts ----------------------- */
+
+// Address and contact changes are audited against the subscriber so they show
+// in the subscriber's history; the address or contact id is in the values.
+
+/** Locks the subscriber so changes to its addresses and contacts run one at a time. */
+async function lockEditableSubscriber(tx: Tx, subscriberId: string): Promise<void> {
+  const [row] = await tx
+    .select({ status: subscribers.status })
+    .from(subscribers)
+    .where(eq(subscribers.id, subscriberId))
+    .for("update");
+  if (!row) throw new SubscriberError("NOT_FOUND", 404, "Subscriber not found.");
+  if (row.status === "archived") {
+    throw new SubscriberError(
+      "SUBSCRIBER_ARCHIVED",
+      409,
+      "An archived subscriber can no longer be edited.",
+    );
+  }
+}
+
+/** The primary must stay active: promote another one before deactivating it. */
+function primaryProblem(
+  kind: "address" | "contact",
+  wasPrimary: boolean,
+  willBeActive: boolean,
+  willBePrimary: boolean,
+): SubscriberError | null {
+  if (!willBePrimary || willBeActive) return null;
+  return wasPrimary
+    ? new SubscriberError(
+        "PRIMARY_CANNOT_DEACTIVATE",
+        409,
+        `The primary ${kind} cannot be deactivated. Make another ${kind} primary first.`,
+      )
+    : new SubscriberError(
+        "INACTIVE_CANNOT_BE_PRIMARY",
+        409,
+        `An inactive ${kind} cannot be made primary.`,
+      );
+}
+
+/** Clears the current primary first, because the partial unique index allows only one. */
+async function demotePrimaryAddress(tx: Tx, subscriberId: string): Promise<string | null> {
+  const [demoted] = await tx
+    .update(subscriberAddresses)
+    .set({ isPrimary: false, updatedAt: new Date() })
+    .where(
+      and(eq(subscriberAddresses.subscriberId, subscriberId), eq(subscriberAddresses.isPrimary, true)),
+    )
+    .returning({ id: subscriberAddresses.id });
+  return demoted?.id ?? null;
+}
+
+async function demotePrimaryContact(tx: Tx, subscriberId: string): Promise<string | null> {
+  const [demoted] = await tx
+    .update(subscriberContacts)
+    .set({ isPrimary: false, updatedAt: new Date() })
+    .where(
+      and(eq(subscriberContacts.subscriberId, subscriberId), eq(subscriberContacts.isPrimary, true)),
+    )
+    .returning({ id: subscriberContacts.id });
+  return demoted?.id ?? null;
+}
+
+async function assertContactRoom(tx: Tx, subscriberId: string): Promise<void> {
+  const [row] = await tx
+    .select({ value: count() })
+    .from(subscriberContacts)
+    .where(and(eq(subscriberContacts.subscriberId, subscriberId), eq(subscriberContacts.isActive, true)));
+  if ((row?.value ?? 0) >= SUBSCRIBER_CONTACTS_MAX) {
+    throw new SubscriberError(
+      "CONTACT_LIMIT",
+      409,
+      `A subscriber can have at most ${SUBSCRIBER_CONTACTS_MAX} active contacts.`,
+    );
+  }
+}
+
+export async function addSubscriberAddress(
+  db: Db,
+  actorUserId: string,
+  subscriberId: string,
+  input: AddressCreateInput,
+): Promise<SubscriberDetail> {
+  return db.transaction(async (tx) => {
+    await lockEditableSubscriber(tx, subscriberId);
+
+    const isPrimary = input.isPrimary ?? false;
+    const demotedAddressId = isPrimary ? await demotePrimaryAddress(tx, subscriberId) : null;
+
+    const values = {
+      label: input.label ?? null,
+      line1: input.line1,
+      barangay: input.barangay,
+      city: input.city,
+      province: input.province ?? null,
+      landmark: input.landmark ?? null,
+      isPrimary,
+    };
+    const [created] = await tx
+      .insert(subscriberAddresses)
+      .values({ subscriberId, ...values })
+      .returning({ id: subscriberAddresses.id });
+    if (!created) throw new Error("Failed to add address");
+
+    await writeAudit(tx, {
+      actorUserId,
+      action: "subscriber.address_add",
+      entityType: "subscriber",
+      entityId: subscriberId,
+      newValues: { addressId: created.id, ...values, ...(demotedAddressId && { demotedAddressId }) },
+    });
+
+    return fetchSubscriber(tx, subscriberId);
+  });
+}
+
+export async function updateSubscriberAddress(
+  db: Db,
+  actorUserId: string,
+  subscriberId: string,
+  addressId: string,
+  input: AddressUpdateInput,
+): Promise<SubscriberDetail> {
+  return db.transaction(async (tx) => {
+    await lockEditableSubscriber(tx, subscriberId);
+
+    const [existing] = await tx
+      .select()
+      .from(subscriberAddresses)
+      .where(and(eq(subscriberAddresses.id, addressId), eq(subscriberAddresses.subscriberId, subscriberId)))
+      .limit(1);
+    if (!existing) throw new SubscriberError("ADDRESS_NOT_FOUND", 404, "Address not found.");
+
+    const { reason, ...fields } = input;
+    const { oldValues, newValues } = changedFields(existing, fields);
+    if (Object.keys(newValues).length === 0) return fetchSubscriber(tx, subscriberId);
+
+    const problem = primaryProblem(
+      "address",
+      existing.isPrimary,
+      fields.isActive ?? existing.isActive,
+      fields.isPrimary ?? existing.isPrimary,
+    );
+    if (problem) throw problem;
+
+    if (newValues.isPrimary) {
+      const demotedAddressId = await demotePrimaryAddress(tx, subscriberId);
+      if (demotedAddressId) newValues.demotedAddressId = demotedAddressId;
+    }
+
+    await tx
+      .update(subscriberAddresses)
+      .set({ ...fields, updatedAt: new Date() })
+      .where(eq(subscriberAddresses.id, addressId));
+
+    await writeAudit(tx, {
+      actorUserId,
+      action: "subscriber.address_update",
+      entityType: "subscriber",
+      entityId: subscriberId,
+      reason: reason ?? null,
+      oldValues: { addressId, ...oldValues },
+      newValues: { addressId, ...newValues },
+    });
+
+    return fetchSubscriber(tx, subscriberId);
+  });
+}
+
+export async function addSubscriberContact(
+  db: Db,
+  actorUserId: string,
+  subscriberId: string,
+  input: ContactInput,
+): Promise<SubscriberDetail> {
+  return db.transaction(async (tx) => {
+    await lockEditableSubscriber(tx, subscriberId);
+    await assertContactRoom(tx, subscriberId);
+
+    const isPrimary = input.isPrimary ?? false;
+    const demotedContactId = isPrimary ? await demotePrimaryContact(tx, subscriberId) : null;
+
+    const values = {
+      type: input.type,
+      value: input.value,
+      contactName: input.contactName ?? null,
+      isPrimary,
+    };
+    const [created] = await tx
+      .insert(subscriberContacts)
+      .values({ subscriberId, ...values })
+      .returning({ id: subscriberContacts.id });
+    if (!created) throw new Error("Failed to add contact");
+
+    await writeAudit(tx, {
+      actorUserId,
+      action: "subscriber.contact_add",
+      entityType: "subscriber",
+      entityId: subscriberId,
+      newValues: { contactId: created.id, ...values, ...(demotedContactId && { demotedContactId }) },
+    });
+
+    return fetchSubscriber(tx, subscriberId);
+  });
+}
+
+export async function updateSubscriberContact(
+  db: Db,
+  actorUserId: string,
+  subscriberId: string,
+  contactId: string,
+  input: ContactUpdateInput,
+): Promise<SubscriberDetail> {
+  return db.transaction(async (tx) => {
+    await lockEditableSubscriber(tx, subscriberId);
+
+    const [existing] = await tx
+      .select()
+      .from(subscriberContacts)
+      .where(and(eq(subscriberContacts.id, contactId), eq(subscriberContacts.subscriberId, subscriberId)))
+      .limit(1);
+    if (!existing) throw new SubscriberError("CONTACT_NOT_FOUND", 404, "Contact not found.");
+
+    const { reason, ...fields } = input;
+
+    // The type is fixed at creation, so a new value is checked against the stored type.
+    if (fields.value !== undefined) {
+      const problem = contactValueProblem(existing.type as ContactType, fields.value);
+      if (problem) throw new SubscriberError("INVALID_CONTACT_VALUE", 422, problem);
+    }
+
+    const { oldValues, newValues } = changedFields(existing, fields);
+    if (Object.keys(newValues).length === 0) return fetchSubscriber(tx, subscriberId);
+
+    const problem = primaryProblem(
+      "contact",
+      existing.isPrimary,
+      fields.isActive ?? existing.isActive,
+      fields.isPrimary ?? existing.isPrimary,
+    );
+    if (problem) throw problem;
+
+    // Reactivating takes one of the active contact slots.
+    if (newValues.isActive === true) await assertContactRoom(tx, subscriberId);
+
+    if (newValues.isPrimary) {
+      const demotedContactId = await demotePrimaryContact(tx, subscriberId);
+      if (demotedContactId) newValues.demotedContactId = demotedContactId;
+    }
+
+    await tx
+      .update(subscriberContacts)
+      .set({ ...fields, updatedAt: new Date() })
+      .where(eq(subscriberContacts.id, contactId));
+
+    await writeAudit(tx, {
+      actorUserId,
+      action: "subscriber.contact_update",
+      entityType: "subscriber",
+      entityId: subscriberId,
+      reason: reason ?? null,
+      oldValues: { contactId, ...oldValues },
+      newValues: { contactId, ...newValues },
     });
 
     return fetchSubscriber(tx, subscriberId);

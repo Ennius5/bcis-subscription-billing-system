@@ -1,8 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { and, asc, eq, sql } from "drizzle-orm";
 import {
+  addressCreateSchema,
   areaCreateSchema,
   collectorCreateSchema,
+  contactInputSchema,
   subscriberAssignmentSchema,
   subscriberCreateSchema,
   subscriberListQuerySchema,
@@ -18,11 +20,15 @@ import {
 import { auditLogs, collectorAssignments, subscribers } from "../db/schema";
 import { createTestDb, createTestUser, prepareTestDatabase } from "../test/helpers";
 import {
+  addSubscriberAddress,
+  addSubscriberContact,
   changeSubscriberAssignment,
   changeSubscriberStatus,
   createSubscriber,
   listSubscribers,
   updateSubscriber,
+  updateSubscriberAddress,
+  updateSubscriberContact,
 } from "./service";
 
 const { db, pool } = createTestDb();
@@ -487,5 +493,229 @@ describe("changeSubscriberAssignment", () => {
       code: "NOT_FOUND",
       status: 404,
     });
+  });
+});
+
+describe("addresses", () => {
+  let subscriberId: string;
+  let firstAddressId: string;
+
+  beforeAll(async () => {
+    const created = await createSubscriber(db, actorId, newSubscriber({ fullName: "Address Test" }));
+    subscriberId = created.id;
+    firstAddressId = created.addresses[0]!.id;
+  });
+
+  const address = (overrides: Record<string, unknown> = {}) =>
+    addressCreateSchema.parse({ line1: "Purok 7", barangay: "Dologon", city: "Maramag", ...overrides });
+
+  it("adds a secondary address and audits it against the subscriber", async () => {
+    const updated = await addSubscriberAddress(db, actorId, subscriberId, address({ label: "Shop" }));
+    expect(updated.addresses).toHaveLength(2);
+    expect(updated.addresses[0]?.id).toBe(firstAddressId); // primary listed first
+    expect(updated.addresses[1]).toMatchObject({ label: "Shop", isPrimary: false, isActive: true });
+
+    const audit = await auditFor("subscriber.address_add", subscriberId);
+    expect(audit).toHaveLength(1);
+    expect(audit[0]?.newValues).toMatchObject({ addressId: updated.addresses[1]?.id, label: "Shop" });
+  });
+
+  it("adding a primary address demotes the old primary", async () => {
+    const updated = await addSubscriberAddress(db, actorId, subscriberId, address({ isPrimary: true }));
+    const primaries = updated.addresses.filter((a) => a.isPrimary);
+    expect(primaries).toHaveLength(1);
+    expect(primaries[0]?.id).not.toBe(firstAddressId);
+
+    const audit = await auditFor("subscriber.address_add", subscriberId);
+    expect(audit.map((a) => a.newValues)).toContainEqual(
+      expect.objectContaining({ demotedAddressId: firstAddressId }),
+    );
+  });
+
+  it("promotes an address back to primary and records the demoted one", async () => {
+    const before = await addSubscriberAddress(db, actorId, subscriberId, address({ line1: "Purok 9" }));
+    const currentPrimary = before.addresses.find((a) => a.isPrimary)!.id;
+
+    const updated = await updateSubscriberAddress(db, actorId, subscriberId, firstAddressId, {
+      isPrimary: true,
+      reason: "Back to original house",
+    });
+    expect(updated.addresses[0]?.id).toBe(firstAddressId);
+    expect(updated.addresses.filter((a) => a.isPrimary)).toHaveLength(1);
+
+    const audit = await auditFor("subscriber.address_update", subscriberId);
+    expect(audit).toHaveLength(1);
+    expect(audit[0]?.reason).toBe("Back to original house");
+    expect(audit[0]?.oldValues).toEqual({ addressId: firstAddressId, isPrimary: false });
+    expect(audit[0]?.newValues).toEqual({
+      addressId: firstAddressId,
+      isPrimary: true,
+      demotedAddressId: currentPrimary,
+    });
+  });
+
+  it("edits fields, audits only what changed and skips a no-op", async () => {
+    await updateSubscriberAddress(db, actorId, subscriberId, firstAddressId, {
+      landmark: "Near the chapel",
+      city: "Maramag", // unchanged
+    });
+    let audit = await auditFor("subscriber.address_update", subscriberId);
+    expect(audit).toHaveLength(2);
+    expect(audit.map((a) => a.newValues)).toContainEqual({
+      addressId: firstAddressId,
+      landmark: "Near the chapel",
+    });
+
+    await updateSubscriberAddress(db, actorId, subscriberId, firstAddressId, { landmark: "Near the chapel" });
+    audit = await auditFor("subscriber.address_update", subscriberId);
+    expect(audit).toHaveLength(2);
+  });
+
+  it("blocks deactivating the primary address", async () => {
+    await expect(
+      updateSubscriberAddress(db, actorId, subscriberId, firstAddressId, { isActive: false }),
+    ).rejects.toMatchObject({ code: "PRIMARY_CANNOT_DEACTIVATE", status: 409 });
+  });
+
+  it("deactivates a secondary address but will not make it primary while inactive", async () => {
+    const detail = await addSubscriberAddress(db, actorId, subscriberId, address({ label: "Old shop" }));
+    const oldShop = detail.addresses.find((a) => a.label === "Old shop")!.id;
+
+    const updated = await updateSubscriberAddress(db, actorId, subscriberId, oldShop, { isActive: false });
+    expect(updated.addresses.find((a) => a.id === oldShop)?.isActive).toBe(false);
+
+    await expect(
+      updateSubscriberAddress(db, actorId, subscriberId, oldShop, { isPrimary: true }),
+    ).rejects.toMatchObject({ code: "INACTIVE_CANNOT_BE_PRIMARY", status: 409 });
+
+    // Reactivating and promoting in one request is allowed.
+    const promoted = await updateSubscriberAddress(db, actorId, subscriberId, oldShop, {
+      isActive: true,
+      isPrimary: true,
+    });
+    expect(promoted.addresses[0]?.id).toBe(oldShop);
+  });
+
+  it("reports ADDRESS_NOT_FOUND for an address of another subscriber", async () => {
+    const other = await createSubscriber(db, actorId, newSubscriber({ fullName: "Other Address" }));
+    await expect(
+      updateSubscriberAddress(db, actorId, subscriberId, other.addresses[0]!.id, { landmark: "x" }),
+    ).rejects.toMatchObject({ code: "ADDRESS_NOT_FOUND", status: 404 });
+  });
+
+  it("rejects address changes on an archived subscriber", async () => {
+    const id = (await createSubscriber(db, actorId, newSubscriber({ fullName: "Archived Address" }))).id;
+    for (const status of ["terminated", "archived"]) {
+      await changeSubscriberStatus(
+        db,
+        actorId,
+        id,
+        subscriberStatusChangeSchema.parse({ status, reason: "Closing account" }),
+      );
+    }
+    await expect(addSubscriberAddress(db, actorId, id, address())).rejects.toMatchObject({
+      code: "SUBSCRIBER_ARCHIVED",
+      status: 409,
+    });
+  });
+});
+
+describe("contacts", () => {
+  let subscriberId: string;
+  let mobileId: string;
+
+  beforeAll(async () => {
+    const created = await createSubscriber(
+      db,
+      actorId,
+      newSubscriber({
+        fullName: "Contact Test",
+        contacts: [{ type: "mobile", value: "09171112222", isPrimary: true }],
+      }),
+    );
+    subscriberId = created.id;
+    mobileId = created.contacts[0]!.id;
+  });
+
+  const contact = (overrides: Record<string, unknown> = {}) =>
+    contactInputSchema.parse({ type: "landline", value: "088 356 1234", ...overrides });
+
+  it("adds a contact and audits it", async () => {
+    const updated = await addSubscriberContact(db, actorId, subscriberId, contact());
+    expect(updated.contacts).toHaveLength(2);
+    expect(updated.contacts[0]?.id).toBe(mobileId);
+    expect(await auditFor("subscriber.contact_add", subscriberId)).toHaveLength(1);
+  });
+
+  it("adding a primary contact demotes the old primary", async () => {
+    const updated = await addSubscriberContact(
+      db,
+      actorId,
+      subscriberId,
+      contact({ type: "email", value: "contact.test@example.com", isPrimary: true }),
+    );
+    expect(updated.contacts[0]?.type).toBe("email");
+    expect(updated.contacts.filter((c) => c.isPrimary)).toHaveLength(1);
+
+    // Put the mobile back as primary for the next tests.
+    const restored = await updateSubscriberContact(db, actorId, subscriberId, mobileId, { isPrimary: true });
+    expect(restored.contacts[0]?.id).toBe(mobileId);
+  });
+
+  it("validates an edited value against the stored type", async () => {
+    await expect(
+      updateSubscriberContact(db, actorId, subscriberId, mobileId, { value: "not-a-number" }),
+    ).rejects.toMatchObject({ code: "INVALID_CONTACT_VALUE", status: 422 });
+
+    const before = (await auditFor("subscriber.contact_update", subscriberId)).length;
+    const updated = await updateSubscriberContact(db, actorId, subscriberId, mobileId, {
+      value: "09173334444",
+      reason: "New SIM",
+    });
+    expect(updated.contacts.find((c) => c.id === mobileId)?.value).toBe("09173334444");
+
+    const audit = await auditFor("subscriber.contact_update", subscriberId);
+    expect(audit).toHaveLength(before + 1);
+    const row = audit.find((a) => a.reason === "New SIM");
+    expect(row?.newValues).toEqual({ contactId: mobileId, value: "09173334444" });
+  });
+
+  it("writes no audit row on a no-op update", async () => {
+    const before = (await auditFor("subscriber.contact_update", subscriberId)).length;
+    await updateSubscriberContact(db, actorId, subscriberId, mobileId, { value: "09173334444" });
+    expect(await auditFor("subscriber.contact_update", subscriberId)).toHaveLength(before);
+  });
+
+  it("blocks deactivating the primary contact", async () => {
+    await expect(
+      updateSubscriberContact(db, actorId, subscriberId, mobileId, { isActive: false }),
+    ).rejects.toMatchObject({ code: "PRIMARY_CANNOT_DEACTIVATE", status: 409 });
+  });
+
+  it("allows at most 5 active contacts, and reactivating needs a free slot", async () => {
+    // 3 active contacts so far; fill up to 5.
+    await addSubscriberContact(db, actorId, subscriberId, contact({ value: "088 356 0004" }));
+    const full = await addSubscriberContact(db, actorId, subscriberId, contact({ value: "088 356 0005" }));
+    expect(full.contacts).toHaveLength(5);
+
+    await expect(
+      addSubscriberContact(db, actorId, subscriberId, contact({ value: "088 356 0006" })),
+    ).rejects.toMatchObject({ code: "CONTACT_LIMIT", status: 409 });
+
+    // Deactivating frees a slot, so a new contact fits.
+    const spare = full.contacts.find((c) => c.value === "088 356 0005")!.id;
+    await updateSubscriberContact(db, actorId, subscriberId, spare, { isActive: false });
+    await addSubscriberContact(db, actorId, subscriberId, contact({ value: "088 356 0006" }));
+
+    // Back at 5 active, so the deactivated one cannot come back.
+    await expect(
+      updateSubscriberContact(db, actorId, subscriberId, spare, { isActive: true }),
+    ).rejects.toMatchObject({ code: "CONTACT_LIMIT" });
+  });
+
+  it("reports CONTACT_NOT_FOUND for an unknown contact", async () => {
+    await expect(
+      updateSubscriberContact(db, actorId, subscriberId, randomUUID(), { contactName: "Nobody" }),
+    ).rejects.toMatchObject({ code: "CONTACT_NOT_FOUND", status: 404 });
   });
 });
