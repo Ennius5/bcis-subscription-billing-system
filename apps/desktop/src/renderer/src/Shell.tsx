@@ -12,6 +12,7 @@ import { ServiceAccountsScreen } from "./service-accounts/ServiceAccountsScreen"
 import { GenerateBillingScreen } from "./billing/GenerateBillingScreen";
 import { currentMonth } from "./billing/invoiceStatus";
 import { InvoicesScreen } from "./billing/InvoicesScreen";
+import { ReceivePaymentScreen } from "./payments/ReceivePaymentScreen";
 
 const SEARCH_DELAY_MS = 300;
 
@@ -152,6 +153,8 @@ export function Shell({ session, onSignOut }: ShellProps) {
               <GenerateBillingScreen permissions={permissions} onSessionExpired={onSignOut} />
             ) : active.id === "billing.invoices" ? (
               <InvoicesScreen title="Invoices" initialPeriod="" permissions={permissions} onSessionExpired={onSignOut} />
+            ) : active.id === "payments.receive" ? (
+              <ReceivePaymentScreen permissions={permissions} onSessionExpired={onSignOut} />
             ) : active.id === "subscribers.plans" ? (
               <PlansScreen permissions={permissions} onSessionExpired={onSignOut} />
             ) : active.id === "collections.collectors" ? (

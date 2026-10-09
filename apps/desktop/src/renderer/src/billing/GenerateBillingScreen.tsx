@@ -97,7 +97,11 @@ export function GenerateBillingScreen({ permissions, onSessionExpired }: Generat
       (r) => {
         setSkipped(r.skipped);
         const range = r.firstNumber === r.lastNumber ? r.firstNumber : `${r.firstNumber} to ${r.lastNumber}`;
-        setNotice(`Finalized ${r.finalizedNow} invoice${r.finalizedNow === 1 ? "" : "s"} for ${periodLabel(period)} (${range}) and posted them to the subscriber ledgers.`);
+        const credit =
+          r.creditAppliedCentavos > 0
+            ? ` Advance payments of ${formatPesos(r.creditAppliedCentavos)} were applied to the new invoices.`
+            : "";
+        setNotice(`Finalized ${r.finalizedNow} invoice${r.finalizedNow === 1 ? "" : "s"} for ${periodLabel(period)} (${range}) and posted them to the subscriber ledgers.${credit}`);
       },
     );
 

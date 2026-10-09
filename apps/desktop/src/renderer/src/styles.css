@@ -29,3 +29,24 @@
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
+/* Printing a receipt prints only the receipt (spec 3.11): everything else is hidden. */
+@media print {
+  @page {
+    margin: 12mm;
+  }
+  body * {
+    visibility: hidden;
+  }
+  .print-area,
+  .print-area * {
+    visibility: visible;
+  }
+  .print-area {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    max-width: 100mm;
+    border: none;
+  }
+}

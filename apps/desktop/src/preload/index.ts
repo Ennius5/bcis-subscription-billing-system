@@ -228,6 +228,8 @@ export interface FinalizeResultDto extends BillingSummaryDto {
   lastNumber: string | null;
   /** Drafts left as drafts because their account is no longer active. */
   skipped: { invoiceId: string; serviceNumber: string; accountStatus: string }[];
+  /** Advance credit from earlier payments applied to the newly finalized invoices. */
+  creditAppliedCentavos: number;
 }
 
 export interface InvoiceListQuery {
@@ -334,6 +336,61 @@ export interface SubscriberHistoryDto {
   newValues: Record<string, unknown> | null;
 }
 
+/* ------------------------------- Payments ------------------------------- */
+
+export interface OpenInvoiceDto {
+  id: string;
+  invoiceNumber: string;
+  serviceNumber: string;
+  periodStart: string; // "YYYY-MM-DD"
+  dueDate: string;
+  totalCentavos: number;
+  paidCentavos: number;
+  balanceCentavos: number;
+  displayStatus: string;
+}
+
+export interface PaymentContextDto {
+  subscriber: { id: string; accountNumber: string; fullName: string; status: string };
+  /** Ledger balance: positive is owed, negative is credit in the subscriber's favour. */
+  balanceCentavos: number;
+  creditCentavos: number;
+  /** Oldest first: the order oldest-first allocation pays them in. */
+  openInvoices: OpenInvoiceDto[];
+}
+
+export interface PaymentAllocationDto {
+  invoiceId: string;
+  invoiceNumber: string;
+  serviceNumber: string;
+  periodStart: string;
+  amountCentavos: number;
+  source: string; // auto | manual | credit
+  allocatedAt: string;
+}
+
+export interface PaymentDetailDto {
+  id: string;
+  receiptNumber: string;
+  status: string; // posted | reversed
+  subscriberId: string;
+  accountNumber: string;
+  subscriberName: string;
+  method: string;
+  amountCentavos: number;
+  allocatedCentavos: number;
+  /** Unallocated money still available as credit (0 once reversed). */
+  creditCentavos: number;
+  paymentDate: string;
+  referenceNumber: string | null;
+  notes: string | null;
+  gcashSubmissionId: string | null;
+  receivedByName: string;
+  postedAt: string;
+  allocations: PaymentAllocationDto[];
+  reversal: { reason: string; reversedAt: string; reversedByName: string } | null;
+}
+
 const bcis = {
   getHealth: (): Promise<HealthResult> => ipcRenderer.invoke("api:health"),
   login: (username: string, password: string): Promise<AuthResult> =>
@@ -431,6 +488,13 @@ const bcis = {
       ipcRenderer.invoke("billing:voidInvoice", id, reason),
     ledger: (subscriberId: string, range: LedgerRange): Promise<ApiResult<SubscriberLedgerDto>> =>
       ipcRenderer.invoke("billing:ledger", subscriberId, range),
+  },
+  payments: {
+    context: (subscriberId: string): Promise<ApiResult<PaymentContextDto>> =>
+      ipcRenderer.invoke("payments:context", subscriberId),
+    post: (input: Record<string, unknown>): Promise<ApiResult<PaymentDetailDto>> =>
+      ipcRenderer.invoke("payments:post", input),
+    get: (id: string): Promise<ApiResult<PaymentDetailDto>> => ipcRenderer.invoke("payments:get", id),
   },
 };
 

@@ -12,6 +12,8 @@ import type {
   InvoicePageDto,
   SubscriberLedgerDto,
   GlobalSearchResultDto,
+  PaymentContextDto,
+  PaymentDetailDto,
   CollectorDto,
   PlanDto,
   ServiceAccountDetailDto,
@@ -438,6 +440,24 @@ ipcMain.handle("billing:ledger", (_event, subscriberId: unknown, range: unknown)
   typeof subscriberId === "string" && isRecord(range)
     ? authedRequest<SubscriberLedgerDto>("GET", listPath(`${subscriberPath(subscriberId)}/ledger`, LEDGER_KEYS, range))
     : BAD_INPUT,
+);
+
+/* ------------------------------- Payments ------------------------------- */
+
+const paymentPath = (id: string) => `/payments/${encodeURIComponent(id)}`;
+
+ipcMain.handle("payments:context", (_event, subscriberId: unknown) =>
+  typeof subscriberId === "string"
+    ? authedRequest<PaymentContextDto>("GET", `${subscriberPath(subscriberId)}/payment-context`)
+    : BAD_INPUT,
+);
+
+ipcMain.handle("payments:post", (_event, input: unknown) =>
+  isRecord(input) ? authedRequest<PaymentDetailDto>("POST", "/payments", input) : BAD_INPUT,
+);
+
+ipcMain.handle("payments:get", (_event, id: unknown) =>
+  typeof id === "string" ? authedRequest<PaymentDetailDto>("GET", paymentPath(id)) : BAD_INPUT,
 );
 
 void app.whenReady().then(() => {
