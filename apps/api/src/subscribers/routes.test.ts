@@ -5,7 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { buildApp } from "../app";
 import { createArea, updateArea } from "../collection/service";
 import { auditLogs, subscribers } from "../db/schema";
-import { createTestDb, createTestUser, prepareTestDatabase } from "../test/helpers";
+import { createTestDb, createTestUser, prepareTestDatabase, testConfig } from "../test/helpers";
 
 const PASSWORD = "Passw0rd!test";
 const NIL_ID = "00000000-0000-4000-8000-000000000000";
@@ -77,7 +77,7 @@ beforeAll(async () => {
   await updateArea(db, adminId, inactiveAreaId, { isActive: false });
 
   app = buildApp(
-    { API_HOST: "127.0.0.1", API_PORT: 3000, DATABASE_URL: "unused", NODE_ENV: "test" },
+    testConfig(),
     { db, pool },
   );
   await app.ready();

@@ -3,7 +3,7 @@ import type { FastifyInstance } from "fastify";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { buildApp } from "../app";
 import { auditLogs, servicePlans } from "../db/schema";
-import { createTestDb, createTestUser, prepareTestDatabase } from "../test/helpers";
+import { createTestDb, createTestUser, prepareTestDatabase, testConfig } from "../test/helpers";
 
 const PASSWORD = "test-password-123";
 const { db, pool } = createTestDb();
@@ -46,7 +46,7 @@ beforeAll(async () => {
   await createTestUser(db, "cashier1", PASSWORD, "cashier");
 
   app = buildApp(
-    { API_HOST: "127.0.0.1", API_PORT: 3000, DATABASE_URL: "unused", NODE_ENV: "test" },
+    testConfig(),
     { db, pool },
   );
   await app.ready();

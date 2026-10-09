@@ -1,16 +1,30 @@
 import "dotenv/config";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { eq, sql } from "drizzle-orm";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import type { RoleCode } from "@bcis/shared";
 import { hashPassword } from "../auth/password";
+import type { Config } from "../config";
 import { createDb, type Db } from "../db/client";
 import { syncRolesAndPermissions } from "../db/rbac";
 import { roles, userRoles, users } from "../db/schema";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const migrationsFolder = path.resolve(here, "../../../../database/migrations");
+
+/** App config for route tests. Proof images go to the OS temp folder, never into the repo. */
+export function testConfig(overrides: Partial<Config> = {}): Config {
+  return {
+    API_HOST: "127.0.0.1",
+    API_PORT: 3000,
+    DATABASE_URL: "unused",
+    PROOF_STORAGE_DIR: path.join(os.tmpdir(), "bcis-test-proofs"),
+    NODE_ENV: "test",
+    ...overrides,
+  };
+}
 
 export function createTestDb() {
   const url = process.env.TEST_DATABASE_URL;

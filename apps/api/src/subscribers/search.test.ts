@@ -12,7 +12,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { buildApp } from "../app";
 import { createPlan } from "../plans/service";
 import { createServiceAccount } from "../service-accounts/service";
-import { createTestDb, createTestUser, prepareTestDatabase } from "../test/helpers";
+import { createTestDb, createTestUser, prepareTestDatabase, testConfig } from "../test/helpers";
 import { globalSearch } from "./search";
 import { changeSubscriberStatus, createSubscriber, updateSubscriberContact } from "./service";
 
@@ -91,7 +91,7 @@ beforeAll(async () => {
   ).serviceNumber;
 
   app = buildApp(
-    { API_HOST: "127.0.0.1", API_PORT: 3000, DATABASE_URL: "unused", NODE_ENV: "test" },
+    testConfig(),
     { db, pool },
   );
   await app.ready();

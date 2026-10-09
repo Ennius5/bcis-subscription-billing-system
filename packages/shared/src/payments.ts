@@ -149,3 +149,18 @@ export type GcashSubmissionCreateInput = z.infer<typeof gcashSubmissionCreateSch
 
 export const gcashRejectSchema = z.strictObject({ reason: requiredReason });
 export type GcashRejectInput = z.infer<typeof gcashRejectSchema>;
+
+/** Maximum proof images on one GCash submission. */
+export const GCASH_PROOFS_MAX = 5;
+
+export const GCASH_PAGE_SIZE_DEFAULT = 25;
+export const GCASH_PAGE_SIZE_MAX = 100;
+
+/** The GCash Verification queue. Query-string values arrive as text, so numbers are coerced. */
+export const gcashSubmissionListQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(GCASH_PAGE_SIZE_MAX).default(GCASH_PAGE_SIZE_DEFAULT),
+  status: z.enum(GCASH_SUBMISSION_STATUSES).optional(),
+  subscriberId: z.uuid().optional(),
+});
+export type GcashSubmissionListQuery = z.infer<typeof gcashSubmissionListQuerySchema>;
