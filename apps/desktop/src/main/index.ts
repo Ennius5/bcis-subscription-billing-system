@@ -27,6 +27,7 @@ import type {
   AgingReportDto,
   ReceivableFilterOptionsDto,
   ReceivablePageDto,
+  ReceivableSettingsDto,
   ReconnectionDto,
   ReconnectionPageDto,
   ServiceControlHistoryDto,
@@ -757,6 +758,14 @@ ipcMain.handle("serviceControl:cancel", (_event, id: unknown, reason: unknown) =
 );
 
 ipcMain.handle("serviceControl:technicians", () => authedRequest<TechnicianDto[]>("GET", "/technicians"));
+
+/* ------------------------------- Settings ------------------------------- */
+
+ipcMain.handle("settings:receivables", () => authedRequest<ReceivableSettingsDto>("GET", "/settings/receivables"));
+
+ipcMain.handle("settings:updateReceivables", (_event, input: unknown) =>
+  isRecord(input) ? authedRequest<ReceivableSettingsDto>("PATCH", "/settings/receivables", input) : BAD_INPUT,
+);
 
 void app.whenReady().then(() => {
   createWindow();

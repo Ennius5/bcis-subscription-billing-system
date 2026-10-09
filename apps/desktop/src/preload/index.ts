@@ -823,6 +823,13 @@ export interface TechnicianDto {
   username: string;
 }
 
+/* ------------------------------- Settings ------------------------------- */
+
+export interface ReceivableSettingsDto {
+  gracePeriodDays: number;
+  suspensionThresholdInvoices: number;
+}
+
 const bcis = {
   getHealth: (): Promise<HealthResult> => ipcRenderer.invoke("api:health"),
   login: (username: string, password: string): Promise<AuthResult> =>
@@ -1001,6 +1008,12 @@ const bcis = {
     cancel: (reconnectionId: string, reason: string): Promise<ApiResult<ReconnectionDto>> =>
       ipcRenderer.invoke("serviceControl:cancel", reconnectionId, reason),
     technicians: (): Promise<ApiResult<TechnicianDto[]>> => ipcRenderer.invoke("serviceControl:technicians"),
+  },
+  settings: {
+    receivables: (): Promise<ApiResult<ReceivableSettingsDto>> => ipcRenderer.invoke("settings:receivables"),
+    /** Send only changed fields (plus an optional reason); a no-op is not audited. */
+    updateReceivables: (input: Record<string, unknown>): Promise<ApiResult<ReceivableSettingsDto>> =>
+      ipcRenderer.invoke("settings:updateReceivables", input),
   },
 };
 
