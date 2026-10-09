@@ -9,6 +9,7 @@ import {
   serviceAccountCreateSchema,
   serviceRateChangeSchema,
   serviceStatusChangeSchema,
+  serviceSuspendSchema,
   subscriberCreateSchema,
   subscriberStatusChangeSchema,
 } from "@bcis/shared";
@@ -16,6 +17,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { dbToday } from "../db/query_helpers";
 import { auditLogs, invoiceItems, invoices, ledgerEntries } from "../db/schema";
 import { createPlan } from "../plans/service";
+import { suspendService } from "../receivables/suspensions";
 import { changeServiceRate, changeServiceStatus, createServiceAccount } from "../service-accounts/service";
 import { changeSubscriberStatus, createSubscriber } from "../subscribers/service";
 import { createTestDb, createTestUser, prepareTestDatabase } from "../test/helpers";
@@ -125,12 +127,7 @@ beforeAll(async () => {
 
   suspendedServiceId = (await makeService("Dan Suspended", internet.id, 5)).serviceId;
   await activate(suspendedServiceId, periodBounds(lastMonth).start);
-  await changeServiceStatus(
-    db,
-    actorId,
-    suspendedServiceId,
-    serviceStatusChangeSchema.parse({ status: "suspended", reason: "Unpaid" }),
-  );
+  await suspendService(db, actorId, suspendedServiceId, serviceSuspendSchema.parse({ reason: "Unpaid", approvedBy: "Owner" }));
 
   futureServiceId = (await makeService("Eva Next Month", internet.id, 5)).serviceId;
   await activate(futureServiceId, `${thisMonth}-01`, periodBounds(nextMonth).start);
@@ -252,12 +249,7 @@ describe("finalizing", () => {
   });
 
   it("skips drafts of accounts suspended since generating, and numbers without gaps", async () => {
-    await changeServiceStatus(
-      db,
-      actorId,
-      ben.serviceId,
-      serviceStatusChangeSchema.parse({ status: "suspended", reason: "Requested pause" }),
-    );
+    await suspendService(db, actorId, ben.serviceId, serviceSuspendSchema.parse({ reason: "Requested pause", approvedBy: "Owner" }));
     const previous = (await invoicesFor(ana.serviceId))[0]!.invoiceNumber!;
 
     const result = await finalizeBilling(db, actorId, run(thisMonth));

@@ -229,22 +229,13 @@ describe("changeServiceStatus", () => {
     expect(active.activationDate).toBe(result.rows[0]?.today);
   });
 
-  it("suspends and reconnects without touching the activation dates", async () => {
+  it("leaves suspending and reconnecting to their own actions (Phase 7)", async () => {
     const account = await newAccount(await newSubscriber("Suspend Me"));
     await changeServiceStatus(db, actorId, account.id, status("active", { effectiveDate: "2026-09-01" }));
-    await changeServiceStatus(db, actorId, account.id, status("suspended"));
-    const back = await changeServiceStatus(db, actorId, account.id, status("active"));
-    expect(back).toMatchObject({ status: "active", activationDate: "2026-09-01", billingStartDate: "2026-09-01" });
-    expect(back.events.map((e) => e.toStatus)).toEqual(["active", "suspended", "active", "pending"]);
-  });
-
-  it("refuses a billing start date when reconnecting", async () => {
-    const account = await newAccount(await newSubscriber("No Restart"));
-    await changeServiceStatus(db, actorId, account.id, status("active"));
-    await changeServiceStatus(db, actorId, account.id, status("suspended"));
-    await expect(
-      changeServiceStatus(db, actorId, account.id, status("active", { billingStartDate: "2099-01-01" })),
-    ).rejects.toMatchObject({ code: "INVALID_DATE", status: 422 });
+    await expect(changeServiceStatus(db, actorId, account.id, status("suspended"))).rejects.toMatchObject({
+      code: "INVALID_STATUS_CHANGE",
+      status: 409,
+    });
   });
 
   it("refuses transitions the rules do not allow, and terminated is final and read-only", async () => {

@@ -177,6 +177,24 @@ export async function generateBillingDrafts(
       FOR UPDATE OF sa
     `);
 
+    // Reconnection fees not yet on a live invoice (Phase 7). Read after the accounts are locked,
+    // so a concurrent run for another month sees this run's drafts and cannot bill a fee twice.
+    // A voided invoice frees its fee again, like the installation fee.
+    const pendingFees = await tx.execute<{ id: string; service_account_id: string; fee_centavos: number; completion_date: string }>(sql`
+      SELECT r.id, r.service_account_id, r.fee_centavos, r.completion_date::text AS completion_date
+      FROM reconnection_records r
+      WHERE r.status = 'completed' AND NOT r.fee_waived AND r.fee_centavos > 0 AND r.completion_date <= ${end}
+        AND NOT EXISTS (
+          SELECT 1 FROM invoice_items it JOIN invoices i2 ON i2.id = it.invoice_id
+          WHERE it.reconnection_id = r.id AND i2.status <> 'void'
+        )
+      ORDER BY r.completion_date
+    `);
+    const feesByAccount = new Map<string, typeof pendingFees.rows>();
+    for (const fee of pendingFees.rows) {
+      feesByAccount.set(fee.service_account_id, [...(feesByAccount.get(fee.service_account_id) ?? []), fee]);
+    }
+
     let created = 0;
     let createdTotal = 0;
     for (const account of accounts.rows) {
@@ -197,6 +215,15 @@ export async function generateBillingDrafts(
           description: "Installation fee",
           amountCentavos: account.installation_fee_centavos,
           planId: account.plan_id,
+        });
+      }
+      for (const fee of feesByAccount.get(account.id) ?? []) {
+        lines.push({
+          itemType: "reconnection_fee",
+          description: `Reconnection fee (reconnected ${fee.completion_date})`,
+          amountCentavos: fee.fee_centavos,
+          planId: account.plan_id,
+          reconnectionId: fee.id,
         });
       }
       const total = lines.reduce((sum, l) => sum + l.amountCentavos, 0);

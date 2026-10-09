@@ -40,7 +40,8 @@ export class ServiceAccountError extends Error {
       | "COLLECTOR_INACTIVE"
       | "INVALID_STATUS_CHANGE"
       | "INVALID_DATE"
-      | "ACCOUNT_TERMINATED",
+      | "ACCOUNT_TERMINATED"
+      | "RECONNECTION_IN_PROGRESS",
     public readonly status: number,
     message: string,
   ) {
@@ -155,7 +156,7 @@ export type ServiceEventRow = {
 
 export type ServiceAccountDetail = ServiceAccountRow & { events: ServiceEventRow[] };
 
-async function fetchServiceAccount(executor: DbOrTx, id: string): Promise<ServiceAccountDetail> {
+export async function fetchServiceAccount(executor: DbOrTx, id: string): Promise<ServiceAccountDetail> {
   const [account] = await selectAccounts(executor).where(eq(serviceAccounts.id, id)).limit(1);
   if (!account) throw new ServiceAccountError("NOT_FOUND", 404, "Service account not found.");
 
@@ -187,8 +188,8 @@ export async function getServiceAccount(db: Db, id: string): Promise<ServiceAcco
 
 /* ------------------------------- Helpers ------------------------------- */
 
-/** Today's date by the database clock, the same clock the date CHECK constraints use. */
-async function lockAccount(tx: Tx, id: string) {
+/** Locks the account row for the rest of the transaction (SELECT ... FOR UPDATE). */
+export async function lockAccount(tx: Tx, id: string) {
   const [account] = await tx.select().from(serviceAccounts).where(eq(serviceAccounts.id, id)).for("update");
   if (!account) throw new ServiceAccountError("NOT_FOUND", 404, "Service account not found.");
   return account;
@@ -246,10 +247,19 @@ async function assertCollector(tx: Tx, collectorId: string): Promise<void> {
   }
 }
 
-type EventInput = {
+export type EventInput = {
   serviceAccountId: string;
   actorUserId: string;
-  eventType: "created" | "status_change" | "rate_change" | "plan_change" | "collector_change" | "update";
+  eventType:
+    | "created"
+    | "status_change"
+    | "rate_change"
+    | "plan_change"
+    | "collector_change"
+    | "update"
+    | "reconnection_request"
+    | "reconnection_assign"
+    | "reconnection_cancel";
   fromStatus?: string | null;
   toStatus?: string | null;
   oldValues?: Record<string, unknown> | null;
@@ -259,7 +269,7 @@ type EventInput = {
 };
 
 /** Every change writes the service history row and the audit row in the same transaction. */
-async function recordChange(tx: Tx, action: string, event: EventInput): Promise<void> {
+export async function recordChange(tx: Tx, action: string, event: EventInput): Promise<void> {
   await tx.insert(serviceEvents).values({
     serviceAccountId: event.serviceAccountId,
     actorUserId: event.actorUserId,
@@ -389,6 +399,20 @@ export async function changeServiceStatus(
 
     const problem = serviceStatusChangeProblem(existing.status as ServiceAccountStatus, input.status);
     if (problem) throw new ServiceAccountError("INVALID_STATUS_CHANGE", 409, problem);
+
+    // An open reconnection would be left pointing at a terminated service.
+    if (input.status === "terminated") {
+      const live = await tx.execute(sql`
+        SELECT 1 FROM reconnection_records WHERE service_account_id = ${id} AND status IN ('requested', 'assigned')
+      `);
+      if (live.rows.length > 0) {
+        throw new ServiceAccountError(
+          "RECONNECTION_IN_PROGRESS",
+          409,
+          "A reconnection is open for this service. Cancel it before terminating.",
+        );
+      }
+    }
 
     // A closed subscriber's services can only be terminated.
     if (input.status !== "terminated") {

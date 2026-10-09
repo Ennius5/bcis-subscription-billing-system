@@ -17,10 +17,15 @@ describe("service account status rules", () => {
   it("allows the documented transitions", () => {
     expect(serviceStatusChangeProblem("pending", "active")).toBeNull();
     expect(serviceStatusChangeProblem("pending", "terminated")).toBeNull();
-    expect(serviceStatusChangeProblem("active", "suspended")).toBeNull();
-    expect(serviceStatusChangeProblem("suspended", "active")).toBeNull();
     expect(serviceStatusChangeProblem("active", "terminated")).toBeNull();
     expect(serviceStatusChangeProblem("suspended", "terminated")).toBeNull();
+  });
+
+  it("leaves suspending and reconnecting to their own actions", () => {
+    expect(serviceStatusChangeProblem("active", "suspended")).toBe("Use Suspend, which records the reason and approval.");
+    expect(serviceStatusChangeProblem("suspended", "active")).toBe(
+      "A suspended service is restored through a reconnection.",
+    );
   });
 
   it("does not suspend an account that was never activated", () => {

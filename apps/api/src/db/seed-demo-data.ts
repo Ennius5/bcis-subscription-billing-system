@@ -7,12 +7,14 @@ import {
   servicePlanChangeSchema,
   serviceRateChangeSchema,
   serviceStatusChangeSchema,
+  serviceSuspendSchema,
   subscriberCreateSchema,
   type ServiceTypeCode,
 } from "@bcis/shared";
 import { createArea, createCollector, listAreas, listCollectors } from "../collection/service";
 import { loadConfig } from "../config";
 import { createPlan, listPlans } from "../plans/service";
+import { suspendService } from "../receivables/suspensions";
 import {
   changeServicePlan,
   changeServiceRate,
@@ -260,7 +262,12 @@ async function main() {
           continue;
         }
         if (k % 20 === 13) {
-          await changeServiceStatus(db, actorId, service.id, statusChange("suspended", daysAgo(20), "Unpaid balance"));
+          await suspendService(
+            db,
+            actorId,
+            service.id,
+            serviceSuspendSchema.parse({ reason: "Unpaid balance", effectiveDate: daysAgo(20), approvedBy: "Owner" }),
+          );
           tally.suspended++;
           continue;
         }

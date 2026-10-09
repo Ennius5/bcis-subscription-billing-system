@@ -5,14 +5,16 @@ import { BILLING_DAY_MAX, BILLING_DAY_MIN } from "./subscribers";
 export const SERVICE_ACCOUNT_STATUSES = ["pending", "active", "suspended", "terminated"] as const;
 export type ServiceAccountStatus = (typeof SERVICE_ACCOUNT_STATUSES)[number];
 
+// The generic status change. Suspending and reconnecting are their own actions (Phase 7),
+// with a suspension record and a reconnection workflow, so they are not offered here.
 const ALLOWED_TRANSITIONS: Record<ServiceAccountStatus, readonly ServiceAccountStatus[]> = {
   pending: ["active", "terminated"], // installed, or cancelled before installation
-  active: ["suspended", "terminated"],
-  suspended: ["active", "terminated"],
+  active: ["terminated"],
+  suspended: ["terminated"],
   terminated: [],
 };
 
-/** Domain rule: which status a service account may move to next. */
+/** Domain rule: which status a service account may move to next through a status change. */
 export function allowedServiceTransitions(from: ServiceAccountStatus): readonly ServiceAccountStatus[] {
   return ALLOWED_TRANSITIONS[from];
 }
@@ -23,6 +25,8 @@ export function serviceStatusChangeProblem(
   to: ServiceAccountStatus,
 ): string | null {
   if (from === to) return `The service account is already ${to}.`;
+  if (from === "active" && to === "suspended") return "Use Suspend, which records the reason and approval.";
+  if (from === "suspended" && to === "active") return "A suspended service is restored through a reconnection.";
   if (!ALLOWED_TRANSITIONS[from].includes(to)) {
     return `A ${from} service account cannot be changed to ${to}.`;
   }
