@@ -1,6 +1,7 @@
-import { and, asc, eq, lt, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, ilike, inArray, lt, lte, or, sql, type SQL } from "drizzle-orm";
 import {
   allocateOldestFirst,
+  invoiceDisplayStatus,
   invoicePaymentStatus,
   planManualAllocation,
   type AllocationPlan,
@@ -8,13 +9,15 @@ import {
   type ManualAllocationRequest,
   type OpenInvoice,
   type PaymentCreateInput,
+  type PaymentListQuery,
   type PaymentMethod,
   type PaymentReverseInput,
 } from "@bcis/shared";
 import { writeAudit, type DbOrTx } from "../audit/audit";
 import type { Db } from "../db/client";
 import { takeDocumentNumbers } from "../db/document-numbers";
-import { dbToday, type Tx } from "../db/query_helpers";
+import { getSubscriberBalance } from "../billing/ledger";
+import { dbToday, likePattern, type Tx } from "../db/query_helpers";
 import {
   gcashSubmissions,
   invoices,
@@ -507,4 +510,145 @@ async function fetchPayment(executor: DbOrTx, paymentId: string): Promise<Paymen
 
 export async function getPayment(db: Db, paymentId: string): Promise<PaymentDetail> {
   return fetchPayment(db, paymentId);
+}
+
+export interface PaymentListItem {
+  id: string;
+  receiptNumber: string;
+  status: string;
+  paymentDate: string;
+  postedAt: Date;
+  method: string;
+  amountCentavos: number;
+  allocatedCentavos: number;
+  referenceNumber: string | null;
+  subscriberId: string;
+  accountNumber: string;
+  subscriberName: string;
+  receivedByName: string;
+}
+
+export interface PaymentPage {
+  items: PaymentListItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+/** Payment History: newest first. Search matches receipt, reference, account number or name. */
+export async function listPayments(db: Db, query: PaymentListQuery): Promise<PaymentPage> {
+  const filters: SQL[] = [];
+  if (query.subscriberId) filters.push(eq(payments.subscriberId, query.subscriberId));
+  if (query.method) filters.push(eq(payments.method, query.method));
+  if (query.status) filters.push(eq(payments.status, query.status));
+  if (query.from) filters.push(gte(payments.paymentDate, query.from));
+  if (query.to) filters.push(lte(payments.paymentDate, query.to));
+  if (query.search) {
+    const pattern = likePattern(query.search);
+    filters.push(
+      or(
+        ilike(payments.receiptNumber, pattern),
+        ilike(payments.referenceNumber, pattern),
+        ilike(subscribers.accountNumber, pattern),
+        ilike(subscribers.fullName, pattern),
+      )!,
+    );
+  }
+  const where = filters.length > 0 ? and(...filters) : undefined;
+
+  const [totalRow] = await db
+    .select({ value: count() })
+    .from(payments)
+    .innerJoin(subscribers, eq(subscribers.id, payments.subscriberId))
+    .where(where);
+  const items = await db
+    .select({
+      id: payments.id,
+      receiptNumber: payments.receiptNumber,
+      status: payments.status,
+      paymentDate: payments.paymentDate,
+      postedAt: payments.postedAt,
+      method: payments.method,
+      amountCentavos: payments.amountCentavos,
+      allocatedCentavos: payments.allocatedCentavos,
+      referenceNumber: payments.referenceNumber,
+      subscriberId: payments.subscriberId,
+      accountNumber: subscribers.accountNumber,
+      subscriberName: subscribers.fullName,
+      receivedByName: users.fullName,
+    })
+    .from(payments)
+    .innerJoin(subscribers, eq(subscribers.id, payments.subscriberId))
+    .innerJoin(users, eq(users.id, payments.receivedByUserId))
+    .where(where)
+    .orderBy(desc(payments.postedAt), desc(payments.receiptNumber))
+    .limit(query.pageSize)
+    .offset((query.page - 1) * query.pageSize);
+
+  return { items, total: totalRow?.value ?? 0, page: query.page, pageSize: query.pageSize };
+}
+
+export interface PaymentContext {
+  subscriber: { id: string; accountNumber: string; fullName: string; status: string };
+  /** Ledger balance: positive is owed, negative is credit in the subscriber's favour. */
+  balanceCentavos: number;
+  creditCentavos: number;
+  /** Oldest first: the order oldest-first allocation pays them in. */
+  openInvoices: Array<{
+    id: string;
+    invoiceNumber: string;
+    serviceNumber: string;
+    periodStart: string;
+    dueDate: string;
+    totalCentavos: number;
+    paidCentavos: number;
+    balanceCentavos: number;
+    displayStatus: string;
+  }>;
+}
+
+/**
+ * What Receive Payment needs before posting: the balance, any credit and the open invoices.
+ * The screen runs the shared allocateOldestFirst on these for its preview, the same
+ * function posting uses, so the preview matches what will be posted.
+ */
+export async function getPaymentContext(db: Db, subscriberId: string): Promise<PaymentContext> {
+  const [subscriber] = await db
+    .select({
+      id: subscribers.id,
+      accountNumber: subscribers.accountNumber,
+      fullName: subscribers.fullName,
+      status: subscribers.status,
+    })
+    .from(subscribers)
+    .where(eq(subscribers.id, subscriberId));
+  if (!subscriber) throw new PaymentError("SUBSCRIBER_NOT_FOUND", 404, "Subscriber not found.");
+
+  const today = await dbToday(db);
+  const rows = await db
+    .select({
+      id: invoices.id,
+      invoiceNumber: sql<string>`${invoices.invoiceNumber}`,
+      serviceNumber: serviceAccounts.serviceNumber,
+      periodStart: invoices.periodStart,
+      dueDate: invoices.dueDate,
+      status: invoices.status,
+      totalCentavos: invoices.totalCentavos,
+      paidCentavos: invoices.paidCentavos,
+    })
+    .from(invoices)
+    .innerJoin(serviceAccounts, eq(serviceAccounts.id, invoices.serviceAccountId))
+    .where(and(eq(invoices.subscriberId, subscriberId), inArray(invoices.status, ["unpaid", "partially_paid"])))
+    .orderBy(asc(invoices.dueDate), asc(invoices.invoiceNumber));
+
+  return {
+    subscriber,
+    balanceCentavos: await getSubscriberBalance(db, subscriberId),
+    creditCentavos: await getSubscriberCredit(db, subscriberId),
+    openInvoices: rows.map(({ status, ...r }) => ({
+      ...r,
+      balanceCentavos: r.totalCentavos - r.paidCentavos,
+      displayStatus: invoiceDisplayStatus({ ...r, status }, today),
+    })),
+  };
 }

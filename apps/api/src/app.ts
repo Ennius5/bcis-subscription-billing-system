@@ -9,6 +9,8 @@ import { registerBillingRoutes } from "./billing/routes";
 import { registerCollectionRoutes } from "./collection/routes";
 import { registerSubscriberRoutes } from "./subscribers/routes";
 import { registerServiceAccountRoutes } from "./service-accounts/routes";
+import { registerPaymentRoutes } from "./payments/routes";
+import { ProofStore } from "./payments/proof-storage";
 
 export interface AppDeps {
   pool?: Pool;
@@ -52,6 +54,7 @@ export function buildApp(config: Config, deps: AppDeps = {}): FastifyInstance {
     registerSubscriberRoutes(app, deps.db);
     registerBillingRoutes(app, deps.db);
     registerServiceAccountRoutes(app, deps.db);
+    registerPaymentRoutes(app, deps.db, new ProofStore(config.PROOF_STORAGE_DIR));
   }
 
   return app;

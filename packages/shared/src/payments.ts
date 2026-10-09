@@ -164,3 +164,29 @@ export const gcashSubmissionListQuerySchema = z.object({
   subscriberId: z.uuid().optional(),
 });
 export type GcashSubmissionListQuery = z.infer<typeof gcashSubmissionListQuerySchema>;
+
+export const PAYMENT_PAGE_SIZE_DEFAULT = 25;
+export const PAYMENT_PAGE_SIZE_MAX = 100;
+
+/** Payment History filters. Dates are inclusive payment dates; a blank search is no search. */
+export const paymentListQuerySchema = z
+  .object({
+    page: z.coerce.number().int().min(1).default(1),
+    pageSize: z.coerce.number().int().min(1).max(PAYMENT_PAGE_SIZE_MAX).default(PAYMENT_PAGE_SIZE_DEFAULT),
+    subscriberId: z.uuid().optional(),
+    method: z.enum(PAYMENT_METHODS).optional(),
+    status: z.enum(PAYMENT_STATUSES).optional(),
+    from: isoDate.optional(),
+    to: isoDate.optional(),
+    search: z
+      .string()
+      .trim()
+      .max(100)
+      .optional()
+      .transform((s) => (s === "" ? undefined : s)),
+  })
+  .refine((q) => !q.from || !q.to || q.from <= q.to, {
+    message: "The start date must be on or before the end date.",
+    path: ["to"],
+  });
+export type PaymentListQuery = z.infer<typeof paymentListQuerySchema>;
