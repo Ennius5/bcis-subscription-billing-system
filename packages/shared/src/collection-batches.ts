@@ -204,6 +204,14 @@ export const batchReconcileSchema = z
   });
 export type BatchReconcileInput = z.infer<typeof batchReconcileSchema>;
 
+/**
+ * Closing confirms the recorded difference again (spec: authorized confirmation before
+ * closing). A batch reconciled with a shortage cannot be closed by someone who thinks it
+ * balanced: the server refuses a difference that does not match the one recorded.
+ */
+export const batchCloseSchema = z.strictObject({ differenceCentavos: z.number().int() });
+export type BatchCloseInput = z.infer<typeof batchCloseSchema>;
+
 export const BATCH_PAGE_SIZE_DEFAULT = 25;
 export const BATCH_PAGE_SIZE_MAX = 100;
 

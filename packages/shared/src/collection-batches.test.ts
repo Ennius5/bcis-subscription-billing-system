@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   allowedBatchTransitions,
+  batchCloseSchema,
   batchCreateSchema,
   batchReconcileSchema,
   batchTransitionProblem,
@@ -141,5 +142,11 @@ describe("batch schemas", () => {
 
   it("a balanced batch needs no reason", () => {
     expect(batchReconcileSchema.safeParse({ differenceCentavos: 0 }).success).toBe(true);
+  });
+
+  it("closing needs the confirmed difference, in whole centavos", () => {
+    expect(batchCloseSchema.safeParse({}).success).toBe(false);
+    expect(batchCloseSchema.safeParse({ differenceCentavos: -500.5 }).success).toBe(false);
+    expect(batchCloseSchema.safeParse({ differenceCentavos: -50_000 }).success).toBe(true);
   });
 });

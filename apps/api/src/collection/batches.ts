@@ -9,6 +9,7 @@ import {
   type BatchListQuery,
   type CollectionBatchStatus,
   type DueSnapshot,
+  type VarianceKind,
 } from "@bcis/shared";
 import { writeAudit, type DbOrTx } from "../audit/audit";
 import type { Db } from "../db/client";
@@ -21,6 +22,7 @@ import {
   collectorRemittances,
   collectors,
   invoices,
+  paymentReversals,
   payments,
   serviceAccounts,
   subscriberAddresses,
@@ -48,7 +50,9 @@ export class BatchError extends Error {
       | "BATCH_NOT_COLLECTING"
       | "BATCH_NOT_REMITTING"
       | "REMITTANCE_NOT_FOUND"
-      | "REMITTANCE_VOIDED",
+      | "REMITTANCE_VOIDED"
+      | "DIFFERENCE_CHANGED"
+      | "VARIANCE_REASON_REQUIRED",
     public readonly status: number,
     message: string,
   ) {
@@ -78,7 +82,7 @@ export async function lockBatch(tx: Tx, batchId: string): Promise<BatchRow> {
   return row;
 }
 
-function ensureTransition(batch: BatchRow, to: CollectionBatchStatus) {
+export function ensureTransition(batch: BatchRow, to: CollectionBatchStatus) {
   const problem = batchTransitionProblem(batch.status as CollectionBatchStatus, to);
   if (problem) throw new BatchError("INVALID_TRANSITION", 409, problem);
 }
@@ -434,6 +438,8 @@ export interface BatchCollection {
   referenceNumber: string | null;
   postedAt: Date;
   receivedByName: string;
+  reversedAt: Date | null;
+  reversalReason: string | null;
 }
 
 export interface BatchRemittance {
@@ -488,7 +494,18 @@ export interface BatchDetail {
   /** Every field collection on the batch, reversed ones included, in the order recorded. */
   collections: BatchCollection[];
   remittances: BatchRemittance[];
+  /** Live figures; once reconciled, `reconciliation` holds the frozen ones. */
   money: BatchMoney;
+  /** The figures the batch was reconciled on (AT-07/AT-08). Null until reconciled. */
+  reconciliation: {
+    expectedCashCentavos: number;
+    remittedCashCentavos: number;
+    differenceCentavos: number;
+    varianceKind: VarianceKind;
+    varianceReason: string | null;
+  } | null;
+  /** Collections reversed after the batch was reconciled: not in the frozen figures. */
+  reversedAfterReconciliation: BatchCollection[];
 }
 
 const sum = <T>(rows: readonly T[], pick: (row: T) => number) => rows.reduce((total, row) => total + pick(row), 0);
@@ -576,10 +593,13 @@ export async function getBatch(executor: DbOrTx, batchId: string): Promise<Batch
       referenceNumber: payments.referenceNumber,
       postedAt: payments.postedAt,
       receivedByName: users.fullName,
+      reversedAt: paymentReversals.reversedAt,
+      reversalReason: paymentReversals.reason,
     })
     .from(payments)
     .innerJoin(subscribers, eq(subscribers.id, payments.subscriberId))
     .innerJoin(users, eq(users.id, payments.receivedByUserId))
+    .leftJoin(paymentReversals, eq(paymentReversals.paymentId, payments.id))
     .where(eq(payments.collectionBatchId, batchId))
     .orderBy(asc(payments.postedAt), asc(payments.receiptNumber));
 
@@ -660,6 +680,18 @@ export async function getBatch(executor: DbOrTx, batchId: string): Promise<Batch
       remittedCentavos: sum(remittanceRows.filter((r) => !r.voidedAt), (r) => r.amountCentavos),
       collectionCount: posted.length,
     },
+    reconciliation:
+      b.reconciledAt !== null
+        ? {
+            expectedCashCentavos: b.expectedCashCentavos!,
+            remittedCashCentavos: b.remittedCashCentavos!,
+            differenceCentavos: b.differenceCentavos!,
+            varianceKind: b.varianceKind as VarianceKind,
+            varianceReason: b.varianceReason,
+          }
+        : null,
+    reversedAfterReconciliation:
+      b.reconciledAt === null ? [] : collections.filter((c) => c.reversedAt !== null && c.reversedAt > b.reconciledAt!),
   };
 }
 
