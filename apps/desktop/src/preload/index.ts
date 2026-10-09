@@ -138,6 +138,72 @@ export interface SubscriberDto {
   contacts: SubscriberContactDto[];
 }
 
+export interface ServiceAccountListQuery {
+  page?: number;
+  pageSize?: number;
+  subscriberId?: string;
+  status?: string;
+  planId?: string;
+  serviceType?: string;
+  search?: string;
+}
+
+export interface ServiceAccountDto {
+  id: string;
+  serviceNumber: string;
+  status: string;
+  subscriberId: string;
+  accountNumber: string;
+  subscriberName: string;
+  subscriberStatus: string;
+  planId: string;
+  planCode: string;
+  planName: string;
+  planPriceCentavos: number;
+  serviceType: string;
+  currentRateCentavos: number;
+  billingDay: number;
+  activationDate: string | null; // "YYYY-MM-DD"
+  billingStartDate: string | null;
+  installationAddressId: string;
+  addressLine1: string;
+  addressBarangay: string;
+  addressCity: string;
+  /** The account's own override; null means the subscriber's collector applies. */
+  assignedCollectorId: string | null;
+  /** The effective collector: the override if set, otherwise the subscriber's. */
+  collectorCode: string | null;
+  collectorName: string | null;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ServiceAccountPageDto {
+  items: ServiceAccountDto[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export interface ServiceEventDto {
+  id: string;
+  eventType: string;
+  fromStatus: string | null;
+  toStatus: string | null;
+  oldValues: Record<string, unknown> | null;
+  newValues: Record<string, unknown> | null;
+  effectiveDate: string;
+  reason: string | null;
+  actorUsername: string | null;
+  actorName: string | null;
+  occurredAt: string;
+}
+
+export interface ServiceAccountDetailDto extends ServiceAccountDto {
+  events: ServiceEventDto[];
+}
+
 export interface SubscriberHistoryDto {
   id: string;
   occurredAt: string;
@@ -212,6 +278,23 @@ const bcis = {
       input: Record<string, unknown>,
     ): Promise<ApiResult<SubscriberDto>> =>
       ipcRenderer.invoke("subscribers:updateContact", id, contactId, input),
+  },
+  serviceAccounts: {
+    list: (query: ServiceAccountListQuery): Promise<ApiResult<ServiceAccountPageDto>> =>
+      ipcRenderer.invoke("serviceAccounts:list", query),
+    get: (id: string): Promise<ApiResult<ServiceAccountDetailDto>> => ipcRenderer.invoke("serviceAccounts:get", id),
+    create: (subscriberId: string, input: Record<string, unknown>): Promise<ApiResult<ServiceAccountDetailDto>> =>
+      ipcRenderer.invoke("serviceAccounts:create", subscriberId, input),
+    update: (id: string, input: Record<string, unknown>): Promise<ApiResult<ServiceAccountDetailDto>> =>
+      ipcRenderer.invoke("serviceAccounts:update", id, input),
+    changeStatus: (id: string, input: Record<string, unknown>): Promise<ApiResult<ServiceAccountDetailDto>> =>
+      ipcRenderer.invoke("serviceAccounts:changeStatus", id, input),
+    changeRate: (id: string, input: Record<string, unknown>): Promise<ApiResult<ServiceAccountDetailDto>> =>
+      ipcRenderer.invoke("serviceAccounts:changeRate", id, input),
+    changePlan: (id: string, input: Record<string, unknown>): Promise<ApiResult<ServiceAccountDetailDto>> =>
+      ipcRenderer.invoke("serviceAccounts:changePlan", id, input),
+    changeCollector: (id: string, input: Record<string, unknown>): Promise<ApiResult<ServiceAccountDetailDto>> =>
+      ipcRenderer.invoke("serviceAccounts:changeCollector", id, input),
   },
 };
 

@@ -25,6 +25,8 @@ export function SubscribersScreen({ permissions, initialOpenId = null, onSession
           key={openId}
           subscriberId={openId}
           canManage={permissions.includes("subscriber.manage")}
+          canViewServices={permissions.includes("service.view")}
+          canManageServices={permissions.includes("service.manage")}
           onBack={() => {
             setOpenId(null);
             setReloadKey((k) => k + 1); // the profile may have changed what the list shows

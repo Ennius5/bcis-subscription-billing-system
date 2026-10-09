@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { SUBSCRIBER_CONTACTS_MAX } from "@bcis/shared";
+import { formatPesos, SUBSCRIBER_CONTACTS_MAX } from "@bcis/shared";
 import type {
+  ServiceAccountDto,
   SubscriberAddressDto,
   SubscriberContactDto,
   SubscriberDto,
@@ -8,13 +9,14 @@ import type {
 } from "../../../preload/index";
 import { Badge } from "../ui/Badge";
 import { DataTable } from "../ui/DataTable";
+import { AddServiceForm } from "./AddServiceForm";
 import { AddressForm } from "./AddressForm";
 import { AssignmentForm } from "./AssignmentForm";
 import { ContactForm } from "./ContactForm";
 import { DetailsForm } from "./DetailsForm";
 import { describeHistory, type HistoryLookups } from "./history";
 import { StatusForm } from "./StatusForm";
-import { contactTypeLabel, StatusBadge } from "./status";
+import { contactTypeLabel, serviceTypeLabel, StatusBadge } from "./status";
 
 const DATE_TIME = new Intl.DateTimeFormat("en-PH", { dateStyle: "medium", timeStyle: "short" });
 const formatDateTime = (iso: string) => DATE_TIME.format(new Date(iso));
@@ -40,7 +42,7 @@ function ActionButton({ label, onClick }: { label: string; onClick: () => void }
 }
 
 type Editing =
-  | { kind: "details" | "status" | "assignment" }
+  | { kind: "details" | "status" | "assignment" | "service" }
   | { kind: "address"; address: SubscriberAddressDto | null } // null = add
   | { kind: "contact"; contact: SubscriberContactDto | null }
   | null;
@@ -104,12 +106,24 @@ function FlagBadges({ isPrimary, isActive }: { isPrimary: boolean; isActive: boo
 interface SubscriberProfileProps {
   subscriberId: string;
   canManage: boolean;
+  canViewServices: boolean;
+  canManageServices: boolean;
   onBack: () => void;
   onSessionExpired: () => void;
 }
 
-export function SubscriberProfile({ subscriberId, canManage, onBack, onSessionExpired }: SubscriberProfileProps) {
+export function SubscriberProfile({
+  subscriberId,
+  canManage,
+  canViewServices,
+  canManageServices,
+  onBack,
+  onSessionExpired,
+}: SubscriberProfileProps) {
   const [subscriber, setSubscriber] = useState<SubscriberDto | null>(null);
+  const [services, setServices] = useState<ServiceAccountDto[] | null>(null);
+  const [servicesError, setServicesError] = useState<string | null>(null);
+  const [servicesKey, setServicesKey] = useState(0);
   const [history, setHistory] = useState<SubscriberHistoryDto[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [editing, setEditing] = useState<Editing>(null);
@@ -138,6 +152,23 @@ export function SubscriberProfile({ subscriberId, canManage, onBack, onSessionEx
       cancelled = true;
     };
   }, [subscriberId, onSessionExpired]);
+
+  // A subscriber has a handful of services, so one page of 100 is all of them.
+  useEffect(() => {
+    if (!canViewServices) return;
+    let cancelled = false;
+    void window.bcis.serviceAccounts.list({ subscriberId, pageSize: 100 }).then((r) => {
+      if (cancelled) return;
+      if (r.ok) {
+        setServices(r.data.items);
+        setServicesError(null);
+      } else if (r.code === "UNAUTHENTICATED") onSessionExpired();
+      else setServicesError(r.message);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [subscriberId, canViewServices, servicesKey, onSessionExpired]);
 
   // Only used to name areas and collectors in the history. Needs collection.view;
   // without it the history falls back to "an area" / "a collector".
@@ -179,6 +210,13 @@ export function SubscriberProfile({ subscriberId, canManage, onBack, onSessionEx
   // Hiding controls is cosmetic: the server enforces subscriber.manage and the archived rule.
   const editable = canManage && subscriber !== null && subscriber.status !== "archived";
   const rowsEditable = editable && editing === null && !rowBusy;
+  // Matches the server: inactive subscribers may get a service, terminated and archived may not.
+  const canAddService =
+    canManageServices &&
+    editing === null &&
+    subscriber !== null &&
+    subscriber.status !== "terminated" &&
+    subscriber.status !== "archived";
   const activeContacts = subscriber?.contacts.filter((c) => c.isActive).length ?? 0;
   const contactsFull = activeContacts >= SUBSCRIBER_CONTACTS_MAX;
   const formProps = subscriber && {
@@ -275,6 +313,55 @@ export function SubscriberProfile({ subscriberId, canManage, onBack, onSessionEx
               </dl>
             </Section>
           </div>
+
+          {canViewServices && (
+            <Section
+              title="Service accounts"
+              action={
+                canAddService && <ActionButton label="Add service" onClick={() => setEditing({ kind: "service" })} />
+              }
+            >
+              {editing?.kind === "service" && (
+                <AddServiceForm
+                  subscriber={subscriber}
+                  onSaved={() => {
+                    setEditing(null);
+                    setServicesKey((k) => k + 1);
+                  }}
+                  onCancel={() => setEditing(null)}
+                  onExpired={onSessionExpired}
+                />
+              )}
+              {servicesError && <RowError message={`Could not load service accounts. ${servicesError}`} />}
+              {services === null && !servicesError ? (
+                <p className="text-sm text-muted">Loading…</p>
+              ) : (
+                <DataTable
+                  columns={[
+                    {
+                      key: "number",
+                      header: "Service no.",
+                      render: (s) => <span className="font-medium">{s.serviceNumber}</span>,
+                    },
+                    { key: "type", header: "Type", render: (s) => serviceTypeLabel(s.serviceType) },
+                    { key: "plan", header: "Plan", render: (s) => `${s.planCode} – ${s.planName}` },
+                    { key: "status", header: "Status", render: (s) => <StatusBadge status={s.status} /> },
+                    { key: "address", header: "Installed at", render: (s) => s.addressLine1 },
+                    { key: "activated", header: "Activated", render: (s) => s.activationDate ?? "—" },
+                    {
+                      key: "rate",
+                      header: "Monthly rate",
+                      align: "right",
+                      render: (s) => formatPesos(s.currentRateCentavos),
+                    },
+                  ]}
+                  rows={services ?? []}
+                  getRowKey={(s) => s.id}
+                  emptyMessage="No service accounts yet."
+                />
+              )}
+            </Section>
+          )}
 
           <Section
             title="Addresses"

@@ -8,6 +8,8 @@ import type {
   AvailableUserDto,
   CollectorDto,
   PlanDto,
+  ServiceAccountDetailDto,
+  ServiceAccountPageDto,
   SessionInfo,
   SubscriberDto,
   SubscriberHistoryDto,
@@ -234,22 +236,24 @@ const SUBSCRIBER_LIST_KEYS = [
   "search",
 ] as const;
 
-/** Builds the list query string from known keys only; the API validates the values. */
-function subscriberListPath(query: Record<string, unknown>): string {
+/** Builds a list query string from known keys only; the API validates the values. */
+function listPath(base: string, keys: readonly string[], query: Record<string, unknown>): string {
   const params = new URLSearchParams();
-  for (const key of SUBSCRIBER_LIST_KEYS) {
+  for (const key of keys) {
     const value = query[key];
     if (typeof value === "string" && value !== "") params.set(key, value);
     if (typeof value === "number") params.set(key, String(value));
   }
   const qs = params.toString();
-  return qs ? `/subscribers?${qs}` : "/subscribers";
+  return qs ? `${base}?${qs}` : base;
 }
 
 const subscriberPath = (id: string) => `/subscribers/${encodeURIComponent(id)}`;
 
 ipcMain.handle("subscribers:list", (_event, query: unknown) =>
-  isRecord(query) ? authedRequest<SubscriberPageDto>("GET", subscriberListPath(query)) : BAD_INPUT,
+  isRecord(query)
+    ? authedRequest<SubscriberPageDto>("GET", listPath("/subscribers", SUBSCRIBER_LIST_KEYS, query))
+    : BAD_INPUT,
 );
 
 ipcMain.handle("subscribers:get", (_event, id: unknown) =>
@@ -313,6 +317,67 @@ ipcMain.handle("subscribers:updateContact", (_event, id: unknown, contactId: unk
         `${subscriberPath(id)}/contacts/${encodeURIComponent(contactId)}`,
         input,
       )
+    : BAD_INPUT,
+);
+
+/* --------------------------- Service accounts --------------------------- */
+
+const SERVICE_ACCOUNT_LIST_KEYS = [
+  "page",
+  "pageSize",
+  "subscriberId",
+  "status",
+  "planId",
+  "serviceType",
+  "search",
+] as const;
+
+const serviceAccountPath = (id: string) => `/service-accounts/${encodeURIComponent(id)}`;
+
+ipcMain.handle("serviceAccounts:list", (_event, query: unknown) =>
+  isRecord(query)
+    ? authedRequest<ServiceAccountPageDto>("GET", listPath("/service-accounts", SERVICE_ACCOUNT_LIST_KEYS, query))
+    : BAD_INPUT,
+);
+
+ipcMain.handle("serviceAccounts:get", (_event, id: unknown) =>
+  typeof id === "string" ? authedRequest<ServiceAccountDetailDto>("GET", serviceAccountPath(id)) : BAD_INPUT,
+);
+
+ipcMain.handle("serviceAccounts:create", (_event, subscriberId: unknown, input: unknown) =>
+  typeof subscriberId === "string" && isRecord(input)
+    ? authedRequest<ServiceAccountDetailDto>("POST", `${subscriberPath(subscriberId)}/service-accounts`, input)
+    : BAD_INPUT,
+);
+
+ipcMain.handle("serviceAccounts:update", (_event, id: unknown, input: unknown) =>
+  typeof id === "string" && isRecord(input)
+    ? authedRequest<ServiceAccountDetailDto>("PATCH", serviceAccountPath(id), input)
+    : BAD_INPUT,
+);
+
+// One handler per action, each pinned to its own endpoint (no generic action parameter).
+ipcMain.handle("serviceAccounts:changeStatus", (_event, id: unknown, input: unknown) =>
+  typeof id === "string" && isRecord(input)
+    ? authedRequest<ServiceAccountDetailDto>("POST", `${serviceAccountPath(id)}/status`, input)
+    : BAD_INPUT,
+);
+
+ipcMain.handle("serviceAccounts:changeRate", (_event, id: unknown, input: unknown) =>
+  typeof id === "string" && isRecord(input)
+    ? authedRequest<ServiceAccountDetailDto>("POST", `${serviceAccountPath(id)}/rate`, input)
+    : BAD_INPUT,
+);
+
+ipcMain.handle("serviceAccounts:changePlan", (_event, id: unknown, input: unknown) =>
+  typeof id === "string" && isRecord(input)
+    ? authedRequest<ServiceAccountDetailDto>("POST", `${serviceAccountPath(id)}/plan`, input)
+    : BAD_INPUT,
+);
+
+ipcMain.handle("serviceAccounts:changeCollector", (_event, id: unknown, input: unknown) =>
+  typeof id === "string" && isRecord(input)
+    ? authedRequest<ServiceAccountDetailDto>("POST", `${serviceAccountPath(id)}/collector`, input)
     : BAD_INPUT,
 );
 
