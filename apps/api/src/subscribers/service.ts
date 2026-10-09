@@ -1,7 +1,8 @@
-import { and, asc, count, desc, eq, ilike, ne, or } from "drizzle-orm";
+import { and, asc, count, desc, eq, ilike, isNull, ne, or, sql } from "drizzle-orm";
 import {
   statusChangeProblem,
-  SubscriberUpdateInput,
+  type SubscriberAssignmentInput,
+  type SubscriberUpdateInput,
   type SubscriberCreateInput,
   type SubscriberListQuery,
   type SubscriberStatus,
@@ -428,6 +429,96 @@ export async function updateSubscriber(
       reason: reason ?? null,
       oldValues,
       newValues,
+    });
+
+    return fetchSubscriber(tx, subscriberId);
+  });
+}
+
+/* ------------------------- Assignment change ------------------------- */
+
+export async function changeSubscriberAssignment(
+  db: Db,
+  actorUserId: string,
+  subscriberId: string,
+  input: SubscriberAssignmentInput,
+): Promise<SubscriberDetail> {
+  return db.transaction(async (tx) => {
+    const [existing] = await tx
+      .select({
+        status: subscribers.status,
+        collectionAreaId: subscribers.collectionAreaId,
+        assignedCollectorId: subscribers.assignedCollectorId,
+      })
+      .from(subscribers)
+      .where(eq(subscribers.id, subscriberId))
+      .for("update");
+    if (!existing) throw new SubscriberError("NOT_FOUND", 404, "Subscriber not found.");
+
+    if (existing.status === "archived") {
+      throw new SubscriberError(
+        "SUBSCRIBER_ARCHIVED",
+        409,
+        "An archived subscriber can no longer be reassigned.",
+      );
+    }
+
+    if (
+      existing.collectionAreaId === input.collectionAreaId &&
+      existing.assignedCollectorId === input.assignedCollectorId
+    ) {
+      return fetchSubscriber(tx, subscriberId);
+    }
+
+    await assertAssignmentTargets(tx, input.collectionAreaId, input.assignedCollectorId);
+
+    // Database now() is the transaction start time, so the closed period and
+    // the new one meet exactly, using the same clock as effective_from defaults.
+    await tx
+      .update(collectorAssignments)
+      .set({ effectiveTo: sql`now()` })
+      .where(
+        and(
+          eq(collectorAssignments.subscriberId, subscriberId),
+          isNull(collectorAssignments.effectiveTo),
+        ),
+      );
+
+    // Clearing both fields only closes the open period; no open row means unassigned.
+    if (input.collectionAreaId || input.assignedCollectorId) {
+      await tx.insert(collectorAssignments).values({
+        subscriberId,
+        collectionAreaId: input.collectionAreaId,
+        collectorId: input.assignedCollectorId,
+        effectiveFrom: sql`now()`,
+        assignedByUserId: actorUserId,
+        reason: input.reason ?? null,
+      });
+    }
+
+    await tx
+      .update(subscribers)
+      .set({
+        collectionAreaId: input.collectionAreaId,
+        assignedCollectorId: input.assignedCollectorId,
+        updatedAt: new Date(),
+      })
+      .where(eq(subscribers.id, subscriberId));
+
+    await writeAudit(tx, {
+      actorUserId,
+      action: "subscriber.assignment_change",
+      entityType: "subscriber",
+      entityId: subscriberId,
+      reason: input.reason ?? null,
+      oldValues: {
+        collectionAreaId: existing.collectionAreaId,
+        assignedCollectorId: existing.assignedCollectorId,
+      },
+      newValues: {
+        collectionAreaId: input.collectionAreaId,
+        assignedCollectorId: input.assignedCollectorId,
+      },
     });
 
     return fetchSubscriber(tx, subscriberId);

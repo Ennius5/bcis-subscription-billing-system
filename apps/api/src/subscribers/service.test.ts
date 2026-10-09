@@ -1,8 +1,9 @@
 import { randomUUID } from "node:crypto";
-import { and, eq, sql } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
 import {
   areaCreateSchema,
   collectorCreateSchema,
+  subscriberAssignmentSchema,
   subscriberCreateSchema,
   subscriberListQuerySchema,
   subscriberStatusChangeSchema,
@@ -17,12 +18,12 @@ import {
 import { auditLogs, collectorAssignments, subscribers } from "../db/schema";
 import { createTestDb, createTestUser, prepareTestDatabase } from "../test/helpers";
 import {
+  changeSubscriberAssignment,
   changeSubscriberStatus,
   createSubscriber,
   listSubscribers,
   updateSubscriber,
 } from "./service";
-
 
 const { db, pool } = createTestDb();
 let actorId: string;
@@ -343,5 +344,148 @@ describe("updateSubscriber", () => {
     await expect(
       updateSubscriber(db, actorId, randomUUID(), { fullName: "Ghost" }),
     ).rejects.toMatchObject({ code: "NOT_FOUND", status: 404 });
+  });
+});
+
+describe("changeSubscriberAssignment", () => {
+  let subscriberId: string;
+  let area2Id: string;
+  let collector2Id: string;
+
+  beforeAll(async () => {
+    subscriberId = (
+      await createSubscriber(
+        db,
+        actorId,
+        newSubscriber({
+          fullName: "Route Test",
+          collectionAreaId: areaId,
+          assignedCollectorId: collectorId,
+        }),
+      )
+    ).id;
+    area2Id = (await createArea(db, actorId, areaCreateSchema.parse({ code: "zone-2", name: "Zone 2" }))).id;
+    collector2Id = (
+      await createCollector(db, actorId, collectorCreateSchema.parse({ code: "col-2", fullName: "Maria Collector" }))
+    ).id;
+  });
+
+  const assign = (
+    collectionAreaId: string | null,
+    assignedCollectorId: string | null,
+    reason?: string,
+    id = subscriberId,
+  ) =>
+    changeSubscriberAssignment(
+      db,
+      actorId,
+      id,
+      subscriberAssignmentSchema.parse({ collectionAreaId, assignedCollectorId, reason }),
+    );
+
+  const history = (id = subscriberId) =>
+    db
+      .select()
+      .from(collectorAssignments)
+      .where(eq(collectorAssignments.subscriberId, id))
+      .orderBy(asc(collectorAssignments.effectiveFrom));
+
+  it("closes the open period, opens a new one and audits old and new with the reason", async () => {
+    const updated = await assign(area2Id, collector2Id, "Route rebalancing");
+    expect(updated.areaCode).toBe("ZONE-2");
+    expect(updated.collectorCode).toBe("COL-2");
+
+    const rows = await history();
+    expect(rows).toHaveLength(2);
+    expect(rows[0]?.effectiveTo).not.toBeNull();
+    expect(rows[1]).toMatchObject({
+      collectionAreaId: area2Id,
+      collectorId: collector2Id,
+      effectiveTo: null,
+      assignedByUserId: actorId,
+      reason: "Route rebalancing",
+    });
+    // The closed period ends exactly where the new one starts.
+    expect(rows[0]?.effectiveTo?.getTime()).toBe(rows[1]?.effectiveFrom.getTime());
+
+    const audit = await auditFor("subscriber.assignment_change", subscriberId);
+    expect(audit).toHaveLength(1);
+    expect(audit[0]?.reason).toBe("Route rebalancing");
+    expect(audit[0]?.oldValues).toEqual({ collectionAreaId: areaId, assignedCollectorId: collectorId });
+    expect(audit[0]?.newValues).toEqual({ collectionAreaId: area2Id, assignedCollectorId: collector2Id });
+  });
+
+  it("writes nothing when the assignment is unchanged", async () => {
+    await assign(area2Id, collector2Id);
+    expect(await history()).toHaveLength(2);
+    expect(await auditFor("subscriber.assignment_change", subscriberId)).toHaveLength(1);
+  });
+
+  it("changes only the collector and keeps the area", async () => {
+    const updated = await assign(area2Id, collectorId);
+    expect(updated.collectionAreaId).toBe(area2Id);
+    expect(updated.collectorCode).toBe("COL-1");
+    expect(await history()).toHaveLength(3);
+  });
+
+  it("clearing both only closes the open period", async () => {
+    const updated = await assign(null, null, "Moved out of coverage");
+    expect(updated.collectionAreaId).toBeNull();
+    expect(updated.assignedCollectorId).toBeNull();
+
+    const rows = await history();
+    expect(rows).toHaveLength(3);
+    expect(rows.every((r) => r.effectiveTo !== null)).toBe(true);
+    expect(await auditFor("subscriber.assignment_change", subscriberId)).toHaveLength(3);
+  });
+
+  it("assigns an unassigned subscriber without anything to close", async () => {
+    const id = (await createSubscriber(db, actorId, newSubscriber({ fullName: "Fresh Route" }))).id;
+    await assign(areaId, null, undefined, id);
+    const rows = await history(id);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ collectionAreaId: areaId, collectorId: null, effectiveTo: null });
+  });
+
+  it("rejects an inactive collector and leaves the assignment untouched", async () => {
+    const collector = await createCollector(
+      db,
+      actorId,
+      collectorCreateSchema.parse({ code: "col-gone", fullName: "Former Collector" }),
+    );
+    await updateCollector(db, actorId, collector.id, { isActive: false });
+    await expect(assign(areaId, collector.id)).rejects.toMatchObject({
+      code: "COLLECTOR_INACTIVE",
+      status: 422,
+    });
+    expect(await history()).toHaveLength(3);
+    expect(await auditFor("subscriber.assignment_change", subscriberId)).toHaveLength(3);
+  });
+
+  it("rejects an unknown area", async () => {
+    await expect(assign(randomUUID(), null)).rejects.toMatchObject({ code: "AREA_NOT_FOUND" });
+  });
+
+  it("rejects reassigning an archived subscriber", async () => {
+    const id = (await createSubscriber(db, actorId, newSubscriber({ fullName: "Archived Route" }))).id;
+    for (const status of ["terminated", "archived"]) {
+      await changeSubscriberStatus(
+        db,
+        actorId,
+        id,
+        subscriberStatusChangeSchema.parse({ status, reason: "Closing account" }),
+      );
+    }
+    await expect(assign(areaId, null, undefined, id)).rejects.toMatchObject({
+      code: "SUBSCRIBER_ARCHIVED",
+      status: 409,
+    });
+  });
+
+  it("reports NOT_FOUND for an unknown subscriber", async () => {
+    await expect(assign(areaId, null, undefined, randomUUID())).rejects.toMatchObject({
+      code: "NOT_FOUND",
+      status: 404,
+    });
   });
 });
