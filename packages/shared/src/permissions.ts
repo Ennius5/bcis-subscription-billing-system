@@ -16,6 +16,7 @@ export const PERMISSIONS = [
   "payment.view",
   "payment.create",
   "payment.reverse",
+  "payment.allocate",
   "gcash.verify",
   "collection.view",
   "collection.manage",
@@ -46,8 +47,8 @@ export const ROLE_PERMISSIONS: Record<RoleCode, readonly PermissionCode[]> = {
   administrator: [
     "audit.view", "subscriber.view", "subscriber.manage", "plan.view", "plan.manage",
     "service.view", "service.manage", "billing.view", "billing.generate", "billing.void",
-    "payment.view", "payment.create", "gcash.verify", "collection.view",
-    "collection.manage", "receivable.view", "suspension.manage", "report.view", "report.export",
+    "payment.view", "payment.create", "payment.reverse", "payment.allocate", "gcash.verify",
+    "collection.view", "collection.manage", "receivable.view", "suspension.manage", "report.view", "report.export",
   ],
   cashier: [
     "subscriber.view", "service.view", "billing.view", "payment.view",

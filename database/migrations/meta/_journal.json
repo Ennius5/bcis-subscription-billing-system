@@ -99,6 +99,20 @@
       "when": 1791536436500,
       "tag": "0013_billing_integrity_triggers",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1791541156827,
+      "tag": "0014_payments",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1791541173714,
+      "tag": "0015_payment_integrity_triggers",
+      "breakpoints": true
     }
   ]
 }

@@ -6,4 +6,4 @@ export * from "./collection";
 export * from "./subscribers";
 export * from "./service-accounts";
 export * from "./billing";
-
+export * from "./payments";

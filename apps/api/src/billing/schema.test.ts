@@ -149,9 +149,29 @@ describe("invoice shape", () => {
 
   it("keeps payments within the total", async () => {
     const id = await insertInvoice();
-    await expect(pool.query(`UPDATE invoices SET paid_centavos = 100000 WHERE id = $1`, [id])).rejects.toThrow(
-      /invoices_paid_range/,
+    await finalize(id, "INV-T00010");
+    await expect(
+      pool.query(`UPDATE invoices SET paid_centavos = 100000, status = 'paid' WHERE id = $1`, [id]),
+    ).rejects.toThrow(/invoices_paid_range/);
+  });
+
+  it("takes no payments on a draft", async () => {
+    const id = await insertInvoice();
+    await expect(pool.query(`UPDATE invoices SET paid_centavos = 100 WHERE id = $1`, [id])).rejects.toThrow(
+      /invoices_draft_unpaid/,
     );
+  });
+
+  it("keeps the payment status in step with the amount paid", async () => {
+    const id = await insertInvoice();
+    await finalize(id, "INV-T00011");
+    await expect(pool.query(`UPDATE invoices SET paid_centavos = 50000 WHERE id = $1`, [id])).rejects.toThrow(
+      /invoices_paid_status_consistent/,
+    );
+    await expect(
+      pool.query(`UPDATE invoices SET paid_centavos = 99900, status = 'partially_paid' WHERE id = $1`, [id]),
+    ).rejects.toThrow(/invoices_paid_status_consistent/);
+    await pool.query(`UPDATE invoices SET paid_centavos = 99900, status = 'paid' WHERE id = $1`, [id]);
   });
 });
 

@@ -478,6 +478,13 @@ export const invoices = pgTable(
     ),
     check("invoices_total_nonneg", sql`${t.totalCentavos} >= 0`),
     check("invoices_paid_range", sql`${t.paidCentavos} >= 0 AND ${t.paidCentavos} <= ${t.totalCentavos}`),
+    // Payments only go to finalized invoices.
+    check("invoices_draft_unpaid", sql`${t.status} <> 'draft' OR ${t.paidCentavos} = 0`),
+    // The payment statuses always agree with paid_centavos, so allocation can never leave them out of step.
+    check(
+      "invoices_paid_status_consistent",
+      sql`${t.status} NOT IN ('unpaid', 'partially_paid', 'paid') OR ${t.status} = CASE WHEN ${t.paidCentavos} = ${t.totalCentavos} THEN 'paid' WHEN ${t.paidCentavos} = 0 THEN 'unpaid' ELSE 'partially_paid' END`,
+    ),
     check("invoices_period_valid", sql`${t.periodEnd} >= ${t.periodStart}`),
     check("invoices_due_after_issue", sql`${t.dueDate} >= ${t.invoiceDate}`),
     // Drafts have no number and were never finalized; every other status has both.
@@ -493,6 +500,8 @@ export const invoices = pgTable(
     uniqueIndex("invoices_one_per_period_idx")
       .on(t.serviceAccountId, t.periodStart)
       .where(sql`${t.status} <> 'void'`),
+    // Target of the payment_allocations foreign key: an invoice paired with its subscriber.
+    uniqueIndex("invoices_id_subscriber_idx").on(t.id, t.subscriberId),
     index("invoices_subscriber_idx").on(t.subscriberId, t.periodStart),
     index("invoices_cycle_idx").on(t.billingCycleId),
     index("invoices_due_date_idx").on(t.dueDate),
@@ -548,6 +557,7 @@ export const ledgerEntries = pgTable(
     debitCentavos: integer("debit_centavos").notNull().default(0),
     creditCentavos: integer("credit_centavos").notNull().default(0),
     invoiceId: uuid("invoice_id").references(() => invoices.id),
+    paymentId: uuid("payment_id").references(() => payments.id),
     createdByUserId: uuid("created_by_user_id")
       .notNull()
       .references(() => users.id),
@@ -571,5 +581,199 @@ export const ledgerEntries = pgTable(
     uniqueIndex("ledger_entries_seq_idx").on(t.seq),
     index("ledger_entries_subscriber_idx").on(t.subscriberId, t.entryDate, t.seq),
     index("ledger_entries_invoice_idx").on(t.invoiceId),
+    index("ledger_entries_payment_idx").on(t.paymentId),
+  ],
+);
+
+/* ------------------------------ Payments ------------------------------ */
+
+/**
+ * A posted payment (spec 3.6). Every row is a receipt: the RCPT- number is taken when the
+ * payment is posted, and a reversed payment keeps its number, so numbers are never reused.
+ * The ledger credit for the full amount is posted with it. allocated_centavos is how much
+ * of it has been applied to invoices; the rest is the subscriber's credit (advance payment),
+ * applied to later invoices when they are finalized.
+ * Rows are never deleted; after posting only allocated_centavos and posted -> reversed change.
+ */
+export const payments = pgTable(
+  "payments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    receiptNumber: text("receipt_number").notNull().unique(),
+    subscriberId: uuid("subscriber_id")
+      .notNull()
+      .references(() => subscribers.id),
+    method: text("method").notNull(),
+    amountCentavos: integer("amount_centavos").notNull(),
+    allocatedCentavos: integer("allocated_centavos").notNull().default(0),
+    /** When the customer paid (GCash: the transaction date). posted_at is when it was recorded. */
+    paymentDate: date("payment_date").notNull(),
+    /** GCash reference (normalized), bank reference or cheque number. */
+    referenceNumber: text("reference_number"),
+    notes: text("notes"),
+    status: text("status").notNull().default("posted"),
+    /** GCash payments come only from a verified submission (spec 3.7). */
+    gcashSubmissionId: uuid("gcash_submission_id")
+      .unique()
+      .references(() => gcashSubmissions.id),
+    receivedByUserId: uuid("received_by_user_id")
+      .notNull()
+      .references(() => users.id),
+    postedAt: timestamp("posted_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    check(
+      "payments_method_valid",
+      sql`${t.method} IN ('cash', 'gcash', 'bank_transfer', 'cheque', 'other')`,
+    ),
+    check("payments_status_valid", sql`${t.status} IN ('posted', 'reversed')`),
+    check("payments_amount_positive", sql`${t.amountCentavos} > 0`),
+    check(
+      "payments_allocated_range",
+      sql`${t.allocatedCentavos} >= 0 AND ${t.allocatedCentavos} <= ${t.amountCentavos}`,
+    ),
+    // A GCash payment always has its reference and the submission it was verified from.
+    check(
+      "payments_gcash_shape",
+      sql`(${t.method} = 'gcash') = (${t.gcashSubmissionId} IS NOT NULL) AND (${t.method} <> 'gcash' OR ${t.referenceNumber} IS NOT NULL)`,
+    ),
+    // Allocations use (id, subscriber_id) so a payment can only pay its own subscriber's invoices.
+    uniqueIndex("payments_id_subscriber_idx").on(t.id, t.subscriberId),
+    index("payments_subscriber_idx").on(t.subscriberId, t.paymentDate),
+    index("payments_date_idx").on(t.paymentDate),
+    index("payments_reference_idx").on(t.referenceNumber),
+  ],
+);
+
+/**
+ * Which invoices a payment paid (spec 5.1: Invoice >--< Payment). Append-only history:
+ * reversing a payment does not delete its allocations; the payment's status says they no
+ * longer count, and the invoices' paid_centavos are reduced in the same transaction.
+ */
+export const paymentAllocations = pgTable(
+  "payment_allocations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    paymentId: uuid("payment_id").notNull(),
+    invoiceId: uuid("invoice_id").notNull(),
+    subscriberId: uuid("subscriber_id").notNull(),
+    amountCentavos: integer("amount_centavos").notNull(),
+    /** auto = oldest-first when posted, manual = chosen by an authorized user, credit = advance credit applied later. */
+    source: text("source").notNull(),
+    allocatedByUserId: uuid("allocated_by_user_id")
+      .notNull()
+      .references(() => users.id),
+    allocatedAt: timestamp("allocated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    foreignKey({
+      name: "payment_allocations_payment_fk",
+      columns: [t.paymentId, t.subscriberId],
+      foreignColumns: [payments.id, payments.subscriberId],
+    }),
+    foreignKey({
+      name: "payment_allocations_invoice_fk",
+      columns: [t.invoiceId, t.subscriberId],
+      foreignColumns: [invoices.id, invoices.subscriberId],
+    }),
+    check("payment_allocations_amount_positive", sql`${t.amountCentavos} > 0`),
+    check("payment_allocations_source_valid", sql`${t.source} IN ('auto', 'manual', 'credit')`),
+    index("payment_allocations_payment_idx").on(t.paymentId),
+    index("payment_allocations_invoice_idx").on(t.invoiceId),
+  ],
+);
+
+/** The record of a reversal (AT-06). At most one per payment; the payment row stays. */
+export const paymentReversals = pgTable("payment_reversals", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  paymentId: uuid("payment_id")
+    .notNull()
+    .unique()
+    .references(() => payments.id),
+  reason: text("reason").notNull(),
+  reversedByUserId: uuid("reversed_by_user_id")
+    .notNull()
+    .references(() => users.id),
+  reversedAt: timestamp("reversed_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
+ * A GCash payment as reported by the customer (spec 3.7). It is evidence, not money:
+ * nothing is posted until an authorized user verifies it, which creates the payment.
+ * pending -> verified | rejected; verified -> reversed when its payment is reversed.
+ * The unique index below is the duplicate-reference rule (AT-05): a reference can be
+ * pending or verified only once, and rejecting or reversing frees it again.
+ */
+export const gcashSubmissions = pgTable(
+  "gcash_submissions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    subscriberId: uuid("subscriber_id")
+      .notNull()
+      .references(() => subscribers.id),
+    /** Normalized: spaces removed, upper case. */
+    referenceNumber: text("reference_number").notNull(),
+    senderName: text("sender_name").notNull(),
+    senderNumber: text("sender_number").notNull(),
+    amountCentavos: integer("amount_centavos").notNull(),
+    transactionDate: date("transaction_date").notNull(),
+    notes: text("notes"),
+    status: text("status").notNull().default("pending"),
+    recordedByUserId: uuid("recorded_by_user_id")
+      .notNull()
+      .references(() => users.id),
+    recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull().defaultNow(),
+    /** Who verified or rejected it, and when (spec 3.7 step 6). */
+    reviewedByUserId: uuid("reviewed_by_user_id").references(() => users.id),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    rejectionReason: text("rejection_reason"),
+  },
+  (t) => [
+    check(
+      "gcash_submissions_status_valid",
+      sql`${t.status} IN ('pending', 'verified', 'rejected', 'reversed')`,
+    ),
+    check("gcash_submissions_amount_positive", sql`${t.amountCentavos} > 0`),
+    check(
+      "gcash_submissions_review_shape",
+      sql`(${t.status} = 'pending') = (${t.reviewedAt} IS NULL) AND (${t.reviewedAt} IS NULL) = (${t.reviewedByUserId} IS NULL) AND (${t.status} = 'rejected') = (${t.rejectionReason} IS NOT NULL)`,
+    ),
+    uniqueIndex("gcash_submissions_live_reference_idx")
+      .on(t.referenceNumber)
+      .where(sql`${t.status} IN ('pending', 'verified')`),
+    index("gcash_submissions_status_idx").on(t.status, t.recordedAt),
+    index("gcash_submissions_subscriber_idx").on(t.subscriberId),
+  ],
+);
+
+/**
+ * An uploaded proof image (spec 4: validated type and size, safe storage path). The file
+ * lives in the API's proof folder under storage_key, a server-generated UUID name; the
+ * name the user's file had is kept only for display. Belongs to a GCash submission or,
+ * for other methods, directly to a payment. Append-only.
+ */
+export const paymentProofs = pgTable(
+  "payment_proofs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    gcashSubmissionId: uuid("gcash_submission_id").references(() => gcashSubmissions.id),
+    paymentId: uuid("payment_id").references(() => payments.id),
+    storageKey: text("storage_key").notNull().unique(),
+    originalFilename: text("original_filename"),
+    mimeType: text("mime_type").notNull(),
+    sizeBytes: integer("size_bytes").notNull(),
+    sha256: text("sha256").notNull(),
+    uploadedByUserId: uuid("uploaded_by_user_id")
+      .notNull()
+      .references(() => users.id),
+    uploadedAt: timestamp("uploaded_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    check("payment_proofs_one_owner", sql`num_nonnulls(${t.gcashSubmissionId}, ${t.paymentId}) = 1`),
+    check("payment_proofs_mime_valid", sql`${t.mimeType} IN ('image/png', 'image/jpeg', 'image/webp')`),
+    check("payment_proofs_size_valid", sql`${t.sizeBytes} > 0 AND ${t.sizeBytes} <= 5242880`),
+    check("payment_proofs_sha256_shape", sql`${t.sha256} ~ '^[0-9a-f]{64}$'`),
+    index("payment_proofs_submission_idx").on(t.gcashSubmissionId),
+    index("payment_proofs_payment_idx").on(t.paymentId),
   ],
 );
