@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { Centavos } from "./money";
+import { SERVICE_TYPE_CODES } from "./plans";
 
 /*
  * Receivables and service control (spec 3.9, 3.10), as decided for this project:
@@ -224,3 +225,50 @@ export type ReconnectionCompleteInput = z.infer<typeof reconnectionCompleteSchem
 
 export const reconnectionCancelSchema = z.strictObject({ reason: requiredReason });
 export type ReconnectionCancelInput = z.infer<typeof reconnectionCancelSchema>;
+
+/* ------------------------------ List queries ------------------------------ */
+
+export const RECEIVABLE_VIEWS = ["outstanding", "overdue"] as const;
+export type ReceivableView = (typeof RECEIVABLE_VIEWS)[number];
+
+export const RECEIVABLE_SORTS = ["oldest", "arrears", "balance", "name"] as const;
+export type ReceivableSort = (typeof RECEIVABLE_SORTS)[number];
+
+export const RECEIVABLE_PAGE_SIZE_DEFAULT = 25;
+export const RECEIVABLE_PAGE_SIZE_MAX = 100;
+
+// Query-string values arrive as text; a blank search box is the same as no search.
+const receivableFilters = {
+  collectorId: z.uuid().optional(),
+  areaId: z.uuid().optional(),
+  planId: z.uuid().optional(),
+  serviceType: z.enum(SERVICE_TYPE_CODES).optional(),
+};
+const search = z
+  .string()
+  .trim()
+  .max(100)
+  .optional()
+  .transform((s) => (s === "" ? undefined : s));
+
+/**
+ * Outstanding and Overdue lists: one row per service account with an open balance.
+ * Overdue keeps only rows with arrears. `bucket` is the delinquency age, taken from the
+ * account's oldest open invoice.
+ */
+export const receivableListQuerySchema = z.object({
+  view: z.enum(RECEIVABLE_VIEWS).default("outstanding"),
+  ...receivableFilters,
+  bucket: z.enum(AGING_BUCKETS).optional(),
+  search,
+  sort: z.enum(RECEIVABLE_SORTS).default("oldest"),
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(RECEIVABLE_PAGE_SIZE_MAX).default(RECEIVABLE_PAGE_SIZE_DEFAULT),
+});
+export type ReceivableListQuery = z.infer<typeof receivableListQuerySchema>;
+
+export const agingQuerySchema = z.object(receivableFilters);
+export type AgingQuery = z.infer<typeof agingQuerySchema>;
+
+export const suspensionCandidateQuerySchema = z.object({ ...receivableFilters, search });
+export type SuspensionCandidateQuery = z.infer<typeof suspensionCandidateQuerySchema>;
