@@ -56,6 +56,7 @@ const reads = () =>
   [
     { method: "GET", url: "/collection-batches" },
     { method: "GET", url: `/collection-batches/${NIL_ID}` },
+    { method: "GET", url: "/collection-reports/collectors?from=2026-10-01&to=2026-10-31" },
   ] as const;
 
 const manageWrites = () =>
@@ -165,6 +166,7 @@ describe("collection batch routes: authorization", () => {
 
   it("lets an auditor read but change nothing", async () => {
     expect((await app.inject({ ...reads()[0], headers: as("auditor") })).statusCode).toBe(200);
+    expect((await app.inject({ ...reads()[2], headers: as("auditor") })).statusCode).toBe(200);
     for (const c of [...manageWrites(), ...reconcileWrites()]) {
       expect((await app.inject({ ...c, headers: as("auditor") })).statusCode, `${c.method} ${c.url}`).toBe(403);
     }
@@ -186,6 +188,9 @@ describe("collection batch routes: supervisor", () => {
     expect(noDate.statusCode).toBe(400);
     expect(noDate.json().error).toBe("VALIDATION");
     expect((await call("supervisor", "GET", "/collection-batches/not-a-uuid")).statusCode).toBe(400);
+    const backwards = await call("supervisor", "GET", "/collection-reports/collectors?from=2026-10-31&to=2026-10-01");
+    expect(backwards.statusCode).toBe(400);
+    expect(backwards.json().issues[0].path).toBe("to");
 
     const id = await batch("in_progress");
     const cheque = await call("supervisor", "POST", `/collection-batches/${id}/collections`, {

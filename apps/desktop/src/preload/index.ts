@@ -609,6 +609,50 @@ export interface CreateBatchResultDto {
   skipped: { subscriberId: string; accountNumber: string; fullName: string; batchNumber: string }[];
 }
 
+export interface CollectorReportBatchDto {
+  id: string;
+  batchNumber: string;
+  collectionDate: string;
+  status: string;
+  accountCount: number;
+  expectedTotalDueCentavos: number;
+  cashCollectedCentavos: number;
+  chequeCollectedCentavos: number;
+  remittedCentavos: number;
+  /** Frozen at reconciliation; null before. */
+  differenceCentavos: number | null;
+  varianceKind: string | null;
+}
+
+export interface CollectorReportTotalsDto {
+  batchCount: number;
+  unreconciledCount: number;
+  accountCount: number;
+  expectedTotalDueCentavos: number;
+  cashCollectedCentavos: number;
+  chequeCollectedCentavos: number;
+  remittedCentavos: number;
+  shortageCentavos: number;
+  overageCentavos: number;
+  /** Basis points (8530 = 85.30%); null when nothing was due. */
+  collectionRateBasisPoints: number | null;
+}
+
+export interface CollectorReportRowDto extends CollectorReportTotalsDto {
+  collectorId: string;
+  code: string;
+  fullName: string;
+  isActive: boolean;
+  batches: CollectorReportBatchDto[];
+}
+
+export interface CollectorReportDto {
+  from: string;
+  to: string;
+  collectors: CollectorReportRowDto[];
+  totals: CollectorReportTotalsDto;
+}
+
 const bcis = {
   getHealth: (): Promise<HealthResult> => ipcRenderer.invoke("api:health"),
   login: (username: string, password: string): Promise<AuthResult> =>
@@ -759,6 +803,9 @@ const bcis = {
     /** Confirms the recorded difference again (AT-08: never closed silently as balanced). */
     close: (id: string, differenceCentavos: number): Promise<ApiResult<BatchDetailDto>> =>
       ipcRenderer.invoke("batches:close", id, differenceCentavos),
+    /** Per collector, batches with a collection date from `from` to `to` (inclusive). */
+    collectorReport: (from: string, to: string): Promise<ApiResult<CollectorReportDto>> =>
+      ipcRenderer.invoke("batches:collectorReport", from, to),
   },
 };
 

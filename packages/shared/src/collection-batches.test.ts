@@ -8,9 +8,12 @@ import {
   canRecordCollections,
   canRecordRemittances,
   cashVariance,
+  collectionRateBasisPoints,
+  collectorReportQuerySchema,
   COLLECTION_BATCH_STATUSES,
   dueSnapshot,
   fieldCollectionCreateSchema,
+  formatRate,
   uncollectedCentavos,
 } from "./collection-batches";
 
@@ -113,6 +116,28 @@ describe("uncollectedCentavos", () => {
 
   it("does not go below zero when subscribers paid more than was due", () => {
     expect(uncollectedCentavos(100_000, 150_000, 0)).toBe(0);
+  });
+});
+
+describe("collector report", () => {
+  it("rates collected against due in basis points", () => {
+    expect(collectionRateBasisPoints(853_000, 1_000_000)).toBe(8_530);
+    expect(formatRate(8_530)).toBe("85.3%");
+  });
+
+  it("has no rate when nothing was due", () => {
+    expect(collectionRateBasisPoints(0, 0)).toBeNull();
+    expect(formatRate(null)).toBe("—");
+  });
+
+  it("can exceed 100% when subscribers paid ahead", () => {
+    expect(collectionRateBasisPoints(150_000, 100_000)).toBe(15_000);
+  });
+
+  it("needs both dates, in order", () => {
+    expect(collectorReportQuerySchema.safeParse({ from: "2026-10-01" }).success).toBe(false);
+    expect(collectorReportQuerySchema.safeParse({ from: "2026-10-31", to: "2026-10-01" }).success).toBe(false);
+    expect(collectorReportQuerySchema.safeParse({ from: "2026-10-01", to: "2026-10-31" }).success).toBe(true);
   });
 });
 

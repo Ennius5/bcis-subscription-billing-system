@@ -4,7 +4,7 @@ import type { SessionInfo } from "../../preload/index";
 import { findItem, firstLeaf, Sidebar } from "./Sidebar";
 import { PlansScreen } from "./plans/PlanScreen";
 import { AreasScreen } from "./collection/AreaScreen";
-import { CollectorsScreen } from "./collection/CollectorScreen";
+import { CollectorsHub } from "./collection/CollectorReportScreen";
 import { BatchesScreen } from "./collection/BatchesScreen";
 import { RemittanceScreen } from "./collection/RemittanceScreen";
 import { NewSubscriberScreen } from "./subscribers/NewSubscriberScreen";
@@ -166,7 +166,7 @@ export function Shell({ session, onSignOut }: ShellProps) {
             ) : active.id === "subscribers.plans" ? (
               <PlansScreen permissions={permissions} onSessionExpired={onSignOut} />
             ) : active.id === "collections.collectors" ? (
-              <CollectorsScreen permissions={permissions} onSessionExpired={onSignOut} />
+              <CollectorsHub permissions={permissions} onSessionExpired={onSignOut} />
             ) : active.id === "collections.areas" ? (
               <AreasScreen permissions={permissions} onSessionExpired={onSignOut} />
             ) : active.id === "collections.batches" ? (

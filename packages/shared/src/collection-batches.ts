@@ -212,6 +212,30 @@ export type BatchReconcileInput = z.infer<typeof batchReconcileSchema>;
 export const batchCloseSchema = z.strictObject({ differenceCentavos: z.number().int() });
 export type BatchCloseInput = z.infer<typeof batchCloseSchema>;
 
+/* ---------------------------- Collector report ---------------------------- */
+
+/**
+ * Collection rate in basis points (8530 = 85.30%): what the collector brought in (cash and
+ * cheques) against the total due on their route sheets. Null when nothing was due, so a
+ * collector with no accounts is shown as "—" rather than 0% or 100%. Integer maths only.
+ */
+export function collectionRateBasisPoints(collectedCentavos: Centavos, expectedCentavos: Centavos): number | null {
+  if (expectedCentavos <= 0) return null;
+  return Math.round((collectedCentavos * 10_000) / expectedCentavos);
+}
+
+/** 8530 -> "85.3%", null -> "—". */
+export function formatRate(basisPoints: number | null): string {
+  if (basisPoints === null) return "—";
+  return `${(basisPoints / 100).toFixed(1)}%`;
+}
+
+/** Batches whose collection date falls in the range, both ends inclusive. */
+export const collectorReportQuerySchema = z
+  .object({ from: isoDate, to: isoDate })
+  .refine((r) => r.from <= r.to, { message: "The start date must be on or before the end date.", path: ["to"] });
+export type CollectorReportQuery = z.infer<typeof collectorReportQuerySchema>;
+
 export const BATCH_PAGE_SIZE_DEFAULT = 25;
 export const BATCH_PAGE_SIZE_MAX = 100;
 

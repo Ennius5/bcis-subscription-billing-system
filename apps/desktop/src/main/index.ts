@@ -9,6 +9,7 @@ import type {
   AvailableUserDto,
   BatchDetailDto,
   BatchPageDto,
+  CollectorReportDto,
   CreateBatchResultDto,
   BillingSummaryDto,
   FinalizeResultDto,
@@ -657,6 +658,14 @@ ipcMain.handle("batches:reconcile", (_event, id: unknown, input: unknown) =>
 ipcMain.handle("batches:close", (_event, id: unknown, differenceCentavos: unknown) =>
   typeof id === "string" && typeof differenceCentavos === "number"
     ? authedRequest<BatchDetailDto>("POST", `${batchPath(id)}/close`, { differenceCentavos })
+    : BAD_INPUT,
+);
+
+const isIsoDate = (value: unknown): value is string => typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value);
+
+ipcMain.handle("batches:collectorReport", (_event, from: unknown, to: unknown) =>
+  isIsoDate(from) && isIsoDate(to)
+    ? authedRequest<CollectorReportDto>("GET", `/collection-reports/collectors?from=${from}&to=${to}`)
     : BAD_INPUT,
 );
 

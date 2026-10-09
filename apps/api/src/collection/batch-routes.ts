@@ -7,6 +7,7 @@ import {
   batchCreateSchema,
   batchListQuerySchema,
   batchReconcileSchema,
+  collectorReportQuerySchema,
   fieldCollectionCreateSchema,
   remittanceCreateSchema,
   remittanceVoidSchema,
@@ -29,6 +30,7 @@ import {
 } from "./batches";
 import { recordFieldCollection, recordRemittance, voidRemittance } from "./field-collections";
 import { closeBatch, reconcileBatch } from "./reconciliation";
+import { getCollectorReport } from "./report";
 
 const idParams = z.object({ id: z.uuid() });
 const accountParams = z.object({ id: z.uuid(), subscriberId: z.uuid() });
@@ -71,6 +73,13 @@ export function registerBatchRoutes(app: FastifyInstance, db: Db): void {
     } catch (err) {
       return sendBatchError(reply, err);
     }
+  });
+
+  // Collector report: collection, remittance, shortage/overage and rate per collector.
+  app.get("/collection-reports/collectors", canView, async (request, reply) => {
+    const query = collectorReportQuerySchema.safeParse(request.query);
+    if (!query.success) return sendValidationError(reply, query.error);
+    return getCollectorReport(db, query.data);
   });
 
   /* ------------------------------ Building ------------------------------ */
