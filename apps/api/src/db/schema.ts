@@ -390,7 +390,7 @@ export const serviceEvents = pgTable(
   (t) => [
     check(
       "service_events_type_valid",
-      sql`${t.eventType} IN ('created', 'status_change', 'rate_change', 'plan_change', 'collector_change', 'update')`,
+      sql`${t.eventType} IN ('created', 'status_change', 'rate_change', 'plan_change', 'collector_change', 'update', 'reconnection_request', 'reconnection_assign', 'reconnection_cancel')`,
     ),
     index("service_events_account_idx").on(t.serviceAccountId, t.occurredAt),
   ],
@@ -539,13 +539,20 @@ export const invoiceItems = pgTable(
     /** Snapshot of what was billed, so later plan or rate changes never alter this line. */
     planId: uuid("plan_id").references(() => servicePlans.id),
     rateCentavos: integer("rate_centavos"),
+    /** The reconnection whose fee this line bills (Phase 7). A voided invoice frees the fee again. */
+    reconnectionId: uuid("reconnection_id").references(() => reconnectionRecords.id),
   },
   (t) => [
     check(
       "invoice_items_type_valid",
       sql`${t.itemType} IN ('subscription', 'installation_fee', 'reconnection_fee', 'discount', 'penalty', 'adjustment')`,
     ),
+    check(
+      "invoice_items_reconnection_fee_only",
+      sql`${t.reconnectionId} IS NULL OR ${t.itemType} = 'reconnection_fee'`,
+    ),
     check("invoice_items_line_positive", sql`${t.lineNo} >= 1`),
+    index("invoice_items_reconnection_idx").on(t.reconnectionId),
     uniqueIndex("invoice_items_line_idx").on(t.invoiceId, t.lineNo),
   ],
 );
@@ -1021,5 +1028,124 @@ export const paymentProofs = pgTable(
     check("payment_proofs_sha256_shape", sql`${t.sha256} ~ '^[0-9a-f]{64}$'`),
     index("payment_proofs_submission_idx").on(t.gcashSubmissionId),
     index("payment_proofs_payment_idx").on(t.paymentId),
+  ],
+);
+/* --------------------------- Service control --------------------------- */
+
+/**
+ * One row per suspension of a service account (spec 3.10). Append-only: the status change
+ * itself is a service event, and lifting a suspension is a completed reconnection.
+ */
+export const suspensionRecords = pgTable(
+  "suspension_records",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    serviceAccountId: uuid("service_account_id")
+      .notNull()
+      .references(() => serviceAccounts.id),
+    effectiveDate: date("effective_date").notNull(),
+    reason: text("reason").notNull(),
+    /** Who approved it, as written by staff (the approver need not be a system user). */
+    approvedBy: text("approved_by").notNull(),
+    notes: text("notes"),
+    /** Snapshot when suspended, so the history shows why even after later payments. */
+    pastDueInvoiceCount: integer("past_due_invoice_count").notNull(),
+    pastDueCentavos: integer("past_due_centavos").notNull(),
+    suspendedByUserId: uuid("suspended_by_user_id")
+      .notNull()
+      .references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    check("suspension_records_reason_present", sql`length(trim(${t.reason})) > 0`),
+    check("suspension_records_approved_by_present", sql`length(trim(${t.approvedBy})) > 0`),
+    check(
+      "suspension_records_snapshot_nonneg",
+      sql`${t.pastDueInvoiceCount} >= 0 AND ${t.pastDueCentavos} >= 0`,
+    ),
+    index("suspension_records_account_idx").on(t.serviceAccountId, t.createdAt),
+    // Lets a reconnection prove its suspension belongs to the same service account.
+    uniqueIndex("suspension_records_id_account_idx").on(t.id, t.serviceAccountId),
+  ],
+);
+
+/**
+ * Reconnection workflow after a qualifying payment (spec 3.10):
+ * requested -> assigned (optional, technician) -> completed (service active again) | cancelled.
+ * The fee is a snapshot of the plan's reconnection fee and is billed on the next generated
+ * invoice unless waived with a reason.
+ */
+export const reconnectionRecords = pgTable(
+  "reconnection_records",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    serviceAccountId: uuid("service_account_id")
+      .notNull()
+      .references(() => serviceAccounts.id),
+    suspensionRecordId: uuid("suspension_record_id").notNull(),
+    status: text("status").notNull().default("requested"),
+    requestDate: date("request_date").notNull(),
+    requestedByUserId: uuid("requested_by_user_id")
+      .notNull()
+      .references(() => users.id),
+    requestedAt: timestamp("requested_at", { withTimezone: true }).notNull().defaultNow(),
+    feeCentavos: integer("fee_centavos").notNull(),
+    feeWaived: boolean("fee_waived").notNull().default(false),
+    feeWaiverReason: text("fee_waiver_reason"),
+    notes: text("notes"),
+    technicianUserId: uuid("technician_user_id").references(() => users.id),
+    assignedByUserId: uuid("assigned_by_user_id").references(() => users.id),
+    assignedAt: timestamp("assigned_at", { withTimezone: true }),
+    completionDate: date("completion_date"),
+    completedByUserId: uuid("completed_by_user_id").references(() => users.id),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    cancelReason: text("cancel_reason"),
+    cancelledByUserId: uuid("cancelled_by_user_id").references(() => users.id),
+    cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+  },
+  (t) => [
+    foreignKey({
+      name: "reconnection_records_suspension_fk",
+      columns: [t.suspensionRecordId, t.serviceAccountId],
+      foreignColumns: [suspensionRecords.id, suspensionRecords.serviceAccountId],
+    }),
+    check(
+      "reconnection_records_status_valid",
+      sql`${t.status} IN ('requested', 'assigned', 'completed', 'cancelled')`,
+    ),
+    check("reconnection_records_fee_nonneg", sql`${t.feeCentavos} >= 0`),
+    // A waived fee always says why; an unwaived one has no waiver reason.
+    check(
+      "reconnection_records_waiver_shape",
+      sql`${t.feeWaived} = (${t.feeWaiverReason} IS NOT NULL)`,
+    ),
+    // Assignment fields are set together; a technician can be skipped (requested -> completed).
+    check(
+      "reconnection_records_assignment_shape",
+      sql`num_nonnulls(${t.technicianUserId}, ${t.assignedByUserId}, ${t.assignedAt}) IN (0, 3)
+        AND (${t.status} <> 'assigned' OR ${t.technicianUserId} IS NOT NULL)`,
+    ),
+    check(
+      "reconnection_records_completion_shape",
+      sql`(${t.status} = 'completed') = (num_nonnulls(${t.completionDate}, ${t.completedByUserId}, ${t.completedAt}) = 3)
+        AND num_nonnulls(${t.completionDate}, ${t.completedByUserId}, ${t.completedAt}) IN (0, 3)
+        AND (${t.completionDate} IS NULL OR ${t.completionDate} >= ${t.requestDate})`,
+    ),
+    check(
+      "reconnection_records_cancel_shape",
+      sql`(${t.status} = 'cancelled') = (num_nonnulls(${t.cancelReason}, ${t.cancelledByUserId}, ${t.cancelledAt}) = 3)
+        AND num_nonnulls(${t.cancelReason}, ${t.cancelledByUserId}, ${t.cancelledAt}) IN (0, 3)`,
+    ),
+    index("reconnection_records_account_idx").on(t.serviceAccountId, t.requestedAt),
+    index("reconnection_records_status_idx").on(t.status),
+    index("reconnection_records_technician_idx").on(t.technicianUserId),
+    // At most one live (requested/assigned) reconnection per service account,
+    // and a suspension is lifted by at most one non-cancelled reconnection.
+    uniqueIndex("reconnection_records_one_live_idx")
+      .on(t.serviceAccountId)
+      .where(sql`${t.status} IN ('requested', 'assigned')`),
+    uniqueIndex("reconnection_records_one_per_suspension_idx")
+      .on(t.suspensionRecordId)
+      .where(sql`${t.status} <> 'cancelled'`),
   ],
 );
