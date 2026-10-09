@@ -204,6 +204,23 @@ export interface ServiceAccountDetailDto extends ServiceAccountDto {
   events: ServiceEventDto[];
 }
 
+export interface GlobalSearchHitDto {
+  id: string;
+  accountNumber: string;
+  fullName: string;
+  status: string;
+  primaryAddress: string | null;
+  primaryContact: string | null;
+  /** What the query matched: accountNumber, serviceNumber, name, contact or address. */
+  matches: { field: string; value: string }[];
+}
+
+export interface GlobalSearchResultDto {
+  query: string;
+  items: GlobalSearchHitDto[];
+  hasMore: boolean;
+}
+
 export interface SubscriberHistoryDto {
   id: string;
   occurredAt: string;
@@ -247,6 +264,9 @@ const bcis = {
       ipcRenderer.invoke("collectors:update", id, input),
     availableUsers: (): Promise<ApiResult<AvailableUserDto[]>> =>
       ipcRenderer.invoke("collectors:availableUsers"),
+  },
+  search: {
+    global: (q: string): Promise<ApiResult<GlobalSearchResultDto>> => ipcRenderer.invoke("search:global", q),
   },
   subscribers: {
     list: (query: SubscriberListQuery): Promise<ApiResult<SubscriberPageDto>> =>

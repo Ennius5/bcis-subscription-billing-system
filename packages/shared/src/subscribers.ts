@@ -203,3 +203,32 @@ export const subscriberListQuerySchema = z.object({
     .transform((value) => (value === "" ? undefined : value)),
 });
 export type SubscriberListQuery = z.infer<typeof subscriberListQuerySchema>;
+/* ---------------------------- Global search ---------------------------- */
+
+export const GLOBAL_SEARCH_MIN_LENGTH = 2;
+export const GLOBAL_SEARCH_LIMIT = 20;
+/** Fewer digits than this would match far too many phone numbers. */
+export const GLOBAL_SEARCH_MIN_PHONE_DIGITS = 4;
+
+export const GLOBAL_SEARCH_FIELDS = ["accountNumber", "serviceNumber", "name", "contact", "address"] as const;
+export type GlobalSearchField = (typeof GLOBAL_SEARCH_FIELDS)[number];
+
+export const globalSearchQuerySchema = z.object({
+  q: z
+    .string()
+    .trim()
+    .min(GLOBAL_SEARCH_MIN_LENGTH, `Type at least ${GLOBAL_SEARCH_MIN_LENGTH} characters to search.`)
+    .max(100),
+});
+export type GlobalSearchQuery = z.infer<typeof globalSearchQuerySchema>;
+
+/**
+ * The digits to look for in phone numbers, or null when the query is not phone-like.
+ * A leading "0" or "63" is dropped so local and international forms find each other:
+ * "0917 123 4567" and "+63 917 123 4567" both become "9171234567".
+ */
+export function phoneSearchDigits(query: string): string | null {
+  if (!/^[0-9+()\-\s]+$/.test(query.trim())) return null;
+  const digits = query.replace(/\D/g, "").replace(/^(63|0)/, "");
+  return digits.length >= GLOBAL_SEARCH_MIN_PHONE_DIGITS ? digits : null;
+}

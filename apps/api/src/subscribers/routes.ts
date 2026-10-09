@@ -5,6 +5,7 @@ import {
   addressUpdateSchema,
   contactInputSchema,
   contactUpdateSchema,
+  globalSearchQuerySchema,
   subscriberAssignmentSchema,
   subscriberCreateSchema,
   subscriberListQuerySchema,
@@ -15,6 +16,7 @@ import { createAuthenticate } from "../auth/authenticate";
 import { requirePermission } from "../auth/guard";
 import type { Db } from "../db/client";
 import { sendValidationError } from "../http/errors";
+import { globalSearch } from "./search";
 import {
   addSubscriberAddress,
   addSubscriberContact,
@@ -45,6 +47,15 @@ export function registerSubscriberRoutes(app: FastifyInstance, db: Db): void {
   const authenticate = createAuthenticate(db);
   const canView = { preHandler: [authenticate, requirePermission("subscriber.view")] };
   const canManage = { preHandler: [authenticate, requirePermission("subscriber.manage")] };
+
+  /* --------------------------- Global search --------------------------- */
+
+  // Cashiers search too (spec 3.1), so this needs only subscriber.view.
+  app.get("/search", canView, async (request, reply) => {
+    const query = globalSearchQuerySchema.safeParse(request.query);
+    if (!query.success) return sendValidationError(reply, query.error);
+    return globalSearch(db, query.data);
+  });
 
   /* ---------------------------- Subscribers ---------------------------- */
 

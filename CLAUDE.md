@@ -14,7 +14,7 @@ Drizzle ORM + drizzle-kit, Zod 4, Vitest 5, pino, argon2id
 
 ## Layout
 
-- `apps/api/src/{auth,admin,audit,plans,collection,subscribers,http,db,test}`
+- `apps/api/src/{auth,admin,audit,plans,collection,subscribers,service-accounts,http,db,test}`
 - `apps/desktop` (`src/main`, `src/preload`, `src/renderer/src/...`)
 - `packages/shared` (`@bcis/shared`): Zod schemas, domain rules, money
   helpers, navigation tree and permission codes, shared by API and desktop

@@ -78,6 +78,13 @@
       "when": 1791530546823,
       "tag": "0010_service_events_append_only",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1791534493499,
+      "tag": "0011_search_trigram_indexes",
+      "breakpoints": true
     }
   ]
 }

@@ -4,6 +4,8 @@ import {
   allowedStatusTransitions,
   contactUpdateSchema,
   contactValueProblem,
+  globalSearchQuerySchema,
+  phoneSearchDigits,
   statusChangeProblem,
   SUBSCRIBER_STATUSES,
   subscriberAssignmentSchema,
@@ -208,5 +210,26 @@ describe("subscriberListQuerySchema", () => {
     expect(subscriberListQuerySchema.safeParse({ pageSize: "500" }).success).toBe(false);
     expect(subscriberListQuerySchema.safeParse({ status: "deleted" }).success).toBe(false);
     expect(subscriberListQuerySchema.safeParse({ collectionAreaId: "abc" }).success).toBe(false);
+  });
+});
+describe("global search", () => {
+  it("trims the query and requires at least 2 characters", () => {
+    expect(globalSearchQuerySchema.parse({ q: "  ana " }).q).toBe("ana");
+    expect(globalSearchQuerySchema.safeParse({ q: " a " }).success).toBe(false);
+    expect(globalSearchQuerySchema.safeParse({ q: "x".repeat(101) }).success).toBe(false);
+  });
+
+  it("normalizes local and international phone numbers to the same digits", () => {
+    expect(phoneSearchDigits("0917 123 4567")).toBe("9171234567");
+    expect(phoneSearchDigits("+63 917 123 4567")).toBe("9171234567");
+    expect(phoneSearchDigits("(088) 356-1234")).toBe("883561234");
+    expect(phoneSearchDigits("1234")).toBe("1234");
+  });
+
+  it("does not treat names, account numbers or very short numbers as phone searches", () => {
+    expect(phoneSearchDigits("Ana Reyes")).toBeNull();
+    expect(phoneSearchDigits("BCIS-000012")).toBeNull();
+    expect(phoneSearchDigits("091")).toBeNull();
+    expect(phoneSearchDigits("63")).toBeNull();
   });
 });

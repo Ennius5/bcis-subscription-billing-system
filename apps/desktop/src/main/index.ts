@@ -6,6 +6,7 @@ import type {
   AreaDto,
   AuthResult,
   AvailableUserDto,
+  GlobalSearchResultDto,
   CollectorDto,
   PlanDto,
   ServiceAccountDetailDto,
@@ -253,6 +254,13 @@ const subscriberPath = (id: string) => `/subscribers/${encodeURIComponent(id)}`;
 ipcMain.handle("subscribers:list", (_event, query: unknown) =>
   isRecord(query)
     ? authedRequest<SubscriberPageDto>("GET", listPath("/subscribers", SUBSCRIBER_LIST_KEYS, query))
+    : BAD_INPUT,
+);
+
+// The query is user text, so it is always URL-encoded; the API validates its length.
+ipcMain.handle("search:global", (_event, q: unknown) =>
+  typeof q === "string"
+    ? authedRequest<GlobalSearchResultDto>("GET", `/search?q=${encodeURIComponent(q)}`)
     : BAD_INPUT,
 );
 
