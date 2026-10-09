@@ -5,11 +5,13 @@ import { SubscriberProfile } from "./SubscriberProfile";
 
 interface SubscribersScreenProps {
   permissions: readonly PermissionCode[];
+  /** Opens straight to this profile, e.g. right after New Subscriber. */
+  initialOpenId?: string | null;
   onSessionExpired: () => void;
 }
 
-export function SubscribersScreen({ permissions, onSessionExpired }: SubscribersScreenProps) {
-  const [openId, setOpenId] = useState<string | null>(null);
+export function SubscribersScreen({ permissions, initialOpenId = null, onSessionExpired }: SubscribersScreenProps) {
+  const [openId, setOpenId] = useState<string | null>(initialOpenId);
   const [reloadKey, setReloadKey] = useState(0);
 
   return (

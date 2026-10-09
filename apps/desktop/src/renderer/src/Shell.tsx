@@ -5,6 +5,7 @@ import { findItem, firstLeaf, Sidebar } from "./Sidebar";
 import { PlansScreen } from "./plans/PlanScreen";
 import { AreasScreen } from "./collection/AreaScreen";
 import { CollectorsScreen } from "./collection/CollectorScreen";
+import { NewSubscriberScreen } from "./subscribers/NewSubscriberScreen";
 import { SubscribersScreen } from "./subscribers/SubscribersScreen";
 
 function isPermissionCode(value: string): value is PermissionCode {
@@ -28,6 +29,13 @@ export function Shell({ session, onSignOut }: ShellProps) {
   );
   const [activeId, setActiveId] = useState<string | null>(() => firstLeaf(items)?.id ?? null);
   const active = activeId ? findItem(items, activeId) : null;
+  // Set after New Subscriber so All Subscribers opens on the new profile; cleared on any menu click.
+  const [openSubscriberId, setOpenSubscriberId] = useState<string | null>(null);
+
+  function selectScreen(id: string) {
+    setOpenSubscriberId(null);
+    setActiveId(id);
+  }
 
   return (
     <div className="flex h-screen flex-col">
@@ -45,14 +53,26 @@ export function Shell({ session, onSignOut }: ShellProps) {
       </header>
 
       <div className="flex min-h-0 flex-1 border-t border-white/10">
-        {items.length > 0 && <Sidebar items={items} activeId={activeId} onSelect={setActiveId} />}
+        {items.length > 0 && <Sidebar items={items} activeId={activeId} onSelect={selectScreen} />}
         <main className="flex-1 overflow-y-auto p-8">
           {!active ? (
             <p className="text-muted">
               Your account has no assigned permissions. Please contact the administrator.
             </p>
           ) : active.id === "subscribers.all" ? (
-            <SubscribersScreen permissions={permissions} onSessionExpired={onSignOut} />
+            <SubscribersScreen
+              permissions={permissions}
+              initialOpenId={openSubscriberId}
+              onSessionExpired={onSignOut}
+            />
+          ) : active.id === "subscribers.new" ? (
+            <NewSubscriberScreen
+              onCreated={(id) => {
+                setOpenSubscriberId(id);
+                setActiveId("subscribers.all");
+              }}
+              onSessionExpired={onSignOut}
+            />
           ) : active.id === "subscribers.plans" ? (
             <PlansScreen permissions={permissions} onSessionExpired={onSignOut} />
           ) : active.id === "collections.collectors" ? (
