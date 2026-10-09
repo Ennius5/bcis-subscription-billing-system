@@ -1,8 +1,16 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import type { SubscriberDto, SubscriberHistoryDto } from "../../../preload/index";
+import { SUBSCRIBER_CONTACTS_MAX } from "@bcis/shared";
+import type {
+  SubscriberAddressDto,
+  SubscriberContactDto,
+  SubscriberDto,
+  SubscriberHistoryDto,
+} from "../../../preload/index";
 import { Badge } from "../ui/Badge";
 import { DataTable } from "../ui/DataTable";
+import { AddressForm } from "./AddressForm";
 import { AssignmentForm } from "./AssignmentForm";
+import { ContactForm } from "./ContactForm";
 import { DetailsForm } from "./DetailsForm";
 import { describeHistory, type HistoryLookups } from "./history";
 import { StatusForm } from "./StatusForm";
@@ -31,7 +39,41 @@ function ActionButton({ label, onClick }: { label: string; onClick: () => void }
   );
 }
 
-type Editing = "details" | "status" | "assignment" | null;
+type Editing =
+  | { kind: "details" | "status" | "assignment" }
+  | { kind: "address"; address: SubscriberAddressDto | null } // null = add
+  | { kind: "contact"; contact: SubscriberContactDto | null }
+  | null;
+
+type RowAction = "primary" | "deactivate" | "reactivate";
+
+const ROW_ACTION_CHANGES: Record<RowAction, Record<string, boolean>> = {
+  primary: { isPrimary: true },
+  deactivate: { isActive: false },
+  reactivate: { isActive: true },
+};
+
+/** Only offers the actions the server would accept for this row. */
+function RowActions({
+  item,
+  canReactivate,
+  onEdit,
+  onAction,
+}: {
+  item: { isPrimary: boolean; isActive: boolean };
+  canReactivate: boolean;
+  onEdit: () => void;
+  onAction: (action: RowAction) => void;
+}) {
+  return (
+    <span className="flex justify-end gap-1">
+      {item.isActive && <ActionButton label="Edit" onClick={onEdit} />}
+      {item.isActive && !item.isPrimary && <ActionButton label="Make primary" onClick={() => onAction("primary")} />}
+      {item.isActive && !item.isPrimary && <ActionButton label="Deactivate" onClick={() => onAction("deactivate")} />}
+      {!item.isActive && canReactivate && <ActionButton label="Reactivate" onClick={() => onAction("reactivate")} />}
+    </span>
+  );
+}
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -39,6 +81,14 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
       <dt className="text-xs text-muted">{label}</dt>
       <dd className="text-sm text-ink">{children}</dd>
     </div>
+  );
+}
+
+function RowError({ message }: { message: string }) {
+  return (
+    <p role="alert" className="mb-3 rounded border border-danger/30 bg-danger/5 px-3 py-2 text-sm text-danger">
+      {message}
+    </p>
   );
 }
 
@@ -63,6 +113,8 @@ export function SubscriberProfile({ subscriberId, canManage, onBack, onSessionEx
   const [history, setHistory] = useState<SubscriberHistoryDto[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [editing, setEditing] = useState<Editing>(null);
+  const [rowError, setRowError] = useState<{ section: "address" | "contact"; message: string } | null>(null);
+  const [rowBusy, setRowBusy] = useState(false);
   const [areaNames, setAreaNames] = useState<ReadonlyMap<string, string>>(new Map());
   const [collectorNames, setCollectorNames] = useState<ReadonlyMap<string, string>>(new Map());
 
@@ -102,13 +154,33 @@ export function SubscriberProfile({ subscriberId, canManage, onBack, onSessionEx
   async function handleSaved(updated: SubscriberDto) {
     setSubscriber(updated);
     setEditing(null);
+    setRowError(null);
     const events = await window.bcis.subscribers.history(subscriberId);
     if (events.ok) setHistory(events.data);
     else if (events.code === "UNAUTHENTICATED") onSessionExpired();
   }
 
+  // One-click row changes: make primary, deactivate, reactivate.
+  async function runRowAction(section: "address" | "contact", id: string, action: RowAction) {
+    if (rowBusy) return;
+    setRowBusy(true);
+    setRowError(null);
+    const changes = ROW_ACTION_CHANGES[action];
+    const result =
+      section === "address"
+        ? await window.bcis.subscribers.updateAddress(subscriberId, id, changes)
+        : await window.bcis.subscribers.updateContact(subscriberId, id, changes);
+    setRowBusy(false);
+    if (result.ok) return void handleSaved(result.data);
+    if (result.code === "UNAUTHENTICATED") return onSessionExpired();
+    setRowError({ section, message: result.message });
+  }
+
   // Hiding controls is cosmetic: the server enforces subscriber.manage and the archived rule.
   const editable = canManage && subscriber !== null && subscriber.status !== "archived";
+  const rowsEditable = editable && editing === null && !rowBusy;
+  const activeContacts = subscriber?.contacts.filter((c) => c.isActive).length ?? 0;
+  const contactsFull = activeContacts >= SUBSCRIBER_CONTACTS_MAX;
   const formProps = subscriber && {
     subscriber,
     onSaved: (updated: SubscriberDto) => void handleSaved(updated),
@@ -148,7 +220,7 @@ export function SubscriberProfile({ subscriberId, canManage, onBack, onSessionEx
               <StatusBadge status={subscriber.status} />
             </h1>
             {editable && editing === null && (
-              <ActionButton label="Change status" onClick={() => setEditing("status")} />
+              <ActionButton label="Change status" onClick={() => setEditing({ kind: "status" })} />
             )}
           </div>
 
@@ -158,14 +230,16 @@ export function SubscriberProfile({ subscriberId, canManage, onBack, onSessionEx
             </p>
           )}
 
-          {editing === "status" && <StatusForm {...formProps} />}
-          {editing === "details" && <DetailsForm {...formProps} />}
-          {editing === "assignment" && <AssignmentForm {...formProps} />}
+          {editing?.kind === "status" && <StatusForm {...formProps} />}
+          {editing?.kind === "details" && <DetailsForm {...formProps} />}
+          {editing?.kind === "assignment" && <AssignmentForm {...formProps} />}
 
           <div className="grid grid-cols-2 gap-4">
             <Section
               title="Details"
-              action={editable && editing === null && <ActionButton label="Edit" onClick={() => setEditing("details")} />}
+              action={
+                editable && editing === null && <ActionButton label="Edit" onClick={() => setEditing({ kind: "details" })} />
+              }
             >
               <dl className="grid grid-cols-2 gap-3">
                 <Field label="Billing day">Day {subscriber.billingDay} of each month</Field>
@@ -185,7 +259,8 @@ export function SubscriberProfile({ subscriberId, canManage, onBack, onSessionEx
             <Section
               title="Collection assignment"
               action={
-                editable && editing === null && <ActionButton label="Change" onClick={() => setEditing("assignment")} />
+                editable &&
+                editing === null && <ActionButton label="Change" onClick={() => setEditing({ kind: "assignment" })} />
               }
             >
               <dl className="grid grid-cols-2 gap-3">
@@ -201,7 +276,18 @@ export function SubscriberProfile({ subscriberId, canManage, onBack, onSessionEx
             </Section>
           </div>
 
-          <Section title="Addresses">
+          <Section
+            title="Addresses"
+            action={
+              rowsEditable && (
+                <ActionButton label="Add address" onClick={() => setEditing({ kind: "address", address: null })} />
+              )
+            }
+          >
+            {editing?.kind === "address" && (
+              <AddressForm key={editing.address?.id ?? "new"} {...formProps} address={editing.address} />
+            )}
+            {rowError?.section === "address" && <RowError message={rowError.message} />}
             <DataTable
               columns={[
                 { key: "label", header: "Label", render: (a) => a.label ?? "—" },
@@ -214,6 +300,22 @@ export function SubscriberProfile({ subscriberId, canManage, onBack, onSessionEx
                 },
                 { key: "landmark", header: "Landmark", render: (a) => a.landmark ?? "—" },
                 { key: "flags", header: "", render: (a) => <FlagBadges {...a} /> },
+                ...(rowsEditable
+                  ? [
+                      {
+                        key: "actions",
+                        header: "",
+                        render: (a: SubscriberAddressDto) => (
+                          <RowActions
+                            item={a}
+                            canReactivate
+                            onEdit={() => setEditing({ kind: "address", address: a })}
+                            onAction={(action) => void runRowAction("address", a.id, action)}
+                          />
+                        ),
+                      },
+                    ]
+                  : []),
               ]}
               rows={subscriber.addresses}
               getRowKey={(a) => a.id}
@@ -221,13 +323,45 @@ export function SubscriberProfile({ subscriberId, canManage, onBack, onSessionEx
             />
           </Section>
 
-          <Section title="Contacts">
+          <Section
+            title="Contacts"
+            action={
+              rowsEditable &&
+              (contactsFull ? (
+                <span className="text-xs text-muted">
+                  {SUBSCRIBER_CONTACTS_MAX} active contacts (the maximum). Deactivate one to add another.
+                </span>
+              ) : (
+                <ActionButton label="Add contact" onClick={() => setEditing({ kind: "contact", contact: null })} />
+              ))
+            }
+          >
+            {editing?.kind === "contact" && (
+              <ContactForm key={editing.contact?.id ?? "new"} {...formProps} contact={editing.contact} />
+            )}
+            {rowError?.section === "contact" && <RowError message={rowError.message} />}
             <DataTable
               columns={[
                 { key: "type", header: "Type", render: (c) => contactTypeLabel(c.type) },
                 { key: "value", header: "Value", render: (c) => c.value },
                 { key: "name", header: "Contact name", render: (c) => c.contactName ?? "—" },
                 { key: "flags", header: "", render: (c) => <FlagBadges {...c} /> },
+                ...(rowsEditable
+                  ? [
+                      {
+                        key: "actions",
+                        header: "",
+                        render: (c: SubscriberContactDto) => (
+                          <RowActions
+                            item={c}
+                            canReactivate={!contactsFull}
+                            onEdit={() => setEditing({ kind: "contact", contact: c })}
+                            onAction={(action) => void runRowAction("contact", c.id, action)}
+                          />
+                        ),
+                      },
+                    ]
+                  : []),
               ]}
               rows={subscriber.contacts}
               getRowKey={(c) => c.id}
