@@ -7,6 +7,7 @@ import { AreasScreen } from "./collection/AreaScreen";
 import { CollectorsScreen } from "./collection/CollectorScreen";
 import { NewSubscriberScreen } from "./subscribers/NewSubscriberScreen";
 import { SubscribersScreen } from "./subscribers/SubscribersScreen";
+import { ServiceAccountsScreen } from "./service-accounts/ServiceAccountsScreen";
 
 function isPermissionCode(value: string): value is PermissionCode {
   return (PERMISSIONS as readonly string[]).includes(value);
@@ -73,6 +74,8 @@ export function Shell({ session, onSignOut }: ShellProps) {
               }}
               onSessionExpired={onSignOut}
             />
+          ) : active.id === "subscribers.services" ? (
+            <ServiceAccountsScreen permissions={permissions} onSessionExpired={onSignOut} />
           ) : active.id === "subscribers.plans" ? (
             <PlansScreen permissions={permissions} onSessionExpired={onSignOut} />
           ) : active.id === "collections.collectors" ? (

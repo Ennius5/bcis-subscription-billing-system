@@ -10,6 +10,18 @@ export function failureToErrors(failure: ApiFailure): { fields: Record<string, s
   return { fields, form: Object.keys(fields).length > 0 ? null : failure.message };
 }
 
+/** Field errors from a failed shared-schema check, so the form shows the same messages the server would. */
+export function schemaErrors(error: {
+  issues: readonly { path: readonly PropertyKey[]; message: string }[];
+}): Record<string, string> {
+  const fields: Record<string, string> = {};
+  for (const issue of error.issues) {
+    const path = issue.path.map(String).join(".") || "form";
+    if (!fields[path]) fields[path] = issue.message;
+  }
+  return fields;
+}
+
 interface ProfileFormProps {
   title: string;
   submitLabel: string;

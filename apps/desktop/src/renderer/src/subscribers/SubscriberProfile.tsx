@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { formatPesos, SUBSCRIBER_CONTACTS_MAX } from "@bcis/shared";
 import type {
   ServiceAccountDto,
@@ -14,32 +14,11 @@ import { AddressForm } from "./AddressForm";
 import { AssignmentForm } from "./AssignmentForm";
 import { ContactForm } from "./ContactForm";
 import { DetailsForm } from "./DetailsForm";
+import { ActionButton, Field, formatDateTime, RowError, Section } from "./ProfileParts";
 import { describeHistory, type HistoryLookups } from "./history";
+import { ServiceAccountScreen } from "../service-accounts/ServiceAccountScreen";
 import { StatusForm } from "./StatusForm";
 import { contactTypeLabel, serviceTypeLabel, StatusBadge } from "./status";
-
-const DATE_TIME = new Intl.DateTimeFormat("en-PH", { dateStyle: "medium", timeStyle: "short" });
-const formatDateTime = (iso: string) => DATE_TIME.format(new Date(iso));
-
-function Section({ title, action, children }: { title: string; action?: ReactNode; children: ReactNode }) {
-  return (
-    <section className="rounded-lg border border-slate-200 bg-surface p-4">
-      <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">{title}</h2>
-        {action}
-      </div>
-      {children}
-    </section>
-  );
-}
-
-function ActionButton({ label, onClick }: { label: string; onClick: () => void }) {
-  return (
-    <button className="rounded border border-slate-300 px-2 py-1 text-xs hover:bg-slate-100" onClick={onClick}>
-      {label}
-    </button>
-  );
-}
 
 type Editing =
   | { kind: "details" | "status" | "assignment" | "service" }
@@ -77,23 +56,6 @@ function RowActions({
   );
 }
 
-function Field({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div>
-      <dt className="text-xs text-muted">{label}</dt>
-      <dd className="text-sm text-ink">{children}</dd>
-    </div>
-  );
-}
-
-function RowError({ message }: { message: string }) {
-  return (
-    <p role="alert" className="mb-3 rounded border border-danger/30 bg-danger/5 px-3 py-2 text-sm text-danger">
-      {message}
-    </p>
-  );
-}
-
 function FlagBadges({ isPrimary, isActive }: { isPrimary: boolean; isActive: boolean }) {
   return (
     <span className="flex gap-1">
@@ -124,6 +86,8 @@ export function SubscriberProfile({
   const [services, setServices] = useState<ServiceAccountDto[] | null>(null);
   const [servicesError, setServicesError] = useState<string | null>(null);
   const [servicesKey, setServicesKey] = useState(0);
+  // Third level: a service account opened from this profile.
+  const [openServiceId, setOpenServiceId] = useState<string | null>(null);
   const [history, setHistory] = useState<SubscriberHistoryDto[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [editing, setEditing] = useState<Editing>(null);
@@ -237,257 +201,281 @@ export function SubscriberProfile({
   );
 
   return (
-    <div>
-      <button className="mb-4 text-sm text-accent hover:underline" onClick={onBack}>
-        ← Back to subscribers
-      </button>
-
-      {loadError && (
-        <p role="alert" className="rounded border border-danger/30 bg-danger/5 px-3 py-2 text-sm text-danger">
-          Could not load the subscriber. {loadError}
-        </p>
+    <>
+      {openServiceId && (
+        <ServiceAccountScreen
+          key={openServiceId}
+          serviceAccountId={openServiceId}
+          canManage={canManageServices}
+          backLabel={subscriber ? `Back to ${subscriber.fullName}` : "Back to subscriber"}
+          onBack={() => {
+            setOpenServiceId(null);
+            setServicesKey((k) => k + 1); // the service screen may have changed its row here
+          }}
+          onSessionExpired={onSessionExpired}
+        />
       )}
-      {!subscriber && !loadError && <p className="text-muted">Loading…</p>}
+      {/* The profile stays mounted while a service is open, so it keeps its place. */}
+      <div hidden={openServiceId !== null}>
+        <button className="mb-4 text-sm text-accent hover:underline" onClick={onBack}>
+          ← Back to subscribers
+        </button>
 
-      {subscriber && formProps && (
-        <div className="space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <h1 className="flex flex-wrap items-center gap-3 text-xl font-semibold text-navy">
-              {subscriber.fullName}
-              <span className="font-normal text-muted">{subscriber.accountNumber}</span>
-              <StatusBadge status={subscriber.status} />
-            </h1>
-            {editable && editing === null && (
-              <ActionButton label="Change status" onClick={() => setEditing({ kind: "status" })} />
-            )}
-          </div>
+        {loadError && (
+          <p role="alert" className="rounded border border-danger/30 bg-danger/5 px-3 py-2 text-sm text-danger">
+            Could not load the subscriber. {loadError}
+          </p>
+        )}
+        {!subscriber && !loadError && <p className="text-muted">Loading…</p>}
 
-          {subscriber.status === "archived" && (
-            <p className="rounded border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-muted">
-              This account is archived. Its record is read-only.
-            </p>
-          )}
-
-          {editing?.kind === "status" && <StatusForm {...formProps} />}
-          {editing?.kind === "details" && <DetailsForm {...formProps} />}
-          {editing?.kind === "assignment" && <AssignmentForm {...formProps} />}
-
-          <div className="grid grid-cols-2 gap-4">
-            <Section
-              title="Details"
-              action={
-                editable && editing === null && <ActionButton label="Edit" onClick={() => setEditing({ kind: "details" })} />
-              }
-            >
-              <dl className="grid grid-cols-2 gap-3">
-                <Field label="Billing day">Day {subscriber.billingDay} of each month</Field>
-                <Field label="Customer since">{formatDateTime(subscriber.createdAt)}</Field>
-                <div className="col-span-2">
-                  <Field label="Notes">
-                    {subscriber.notes ? (
-                      <span className="whitespace-pre-wrap">{subscriber.notes}</span>
-                    ) : (
-                      <span className="text-muted">None</span>
-                    )}
-                  </Field>
-                </div>
-              </dl>
-            </Section>
-
-            <Section
-              title="Collection assignment"
-              action={
-                editable &&
-                editing === null && <ActionButton label="Change" onClick={() => setEditing({ kind: "assignment" })} />
-              }
-            >
-              <dl className="grid grid-cols-2 gap-3">
-                <Field label="Area">
-                  {subscriber.areaCode ? `${subscriber.areaCode} – ${subscriber.areaName}` : "Not assigned"}
-                </Field>
-                <Field label="Collector">
-                  {subscriber.collectorCode
-                    ? `${subscriber.collectorCode} – ${subscriber.collectorName}`
-                    : "Not assigned"}
-                </Field>
-              </dl>
-            </Section>
-          </div>
-
-          {canViewServices && (
-            <Section
-              title="Service accounts"
-              action={
-                canAddService && <ActionButton label="Add service" onClick={() => setEditing({ kind: "service" })} />
-              }
-            >
-              {editing?.kind === "service" && (
-                <AddServiceForm
-                  subscriber={subscriber}
-                  onSaved={() => {
-                    setEditing(null);
-                    setServicesKey((k) => k + 1);
-                  }}
-                  onCancel={() => setEditing(null)}
-                  onExpired={onSessionExpired}
-                />
+        {subscriber && formProps && (
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h1 className="flex flex-wrap items-center gap-3 text-xl font-semibold text-navy">
+                {subscriber.fullName}
+                <span className="font-normal text-muted">{subscriber.accountNumber}</span>
+                <StatusBadge status={subscriber.status} />
+              </h1>
+              {editable && editing === null && (
+                <ActionButton label="Change status" onClick={() => setEditing({ kind: "status" })} />
               )}
-              {servicesError && <RowError message={`Could not load service accounts. ${servicesError}`} />}
-              {services === null && !servicesError ? (
-                <p className="text-sm text-muted">Loading…</p>
-              ) : (
-                <DataTable
-                  columns={[
-                    {
-                      key: "number",
-                      header: "Service no.",
-                      render: (s) => <span className="font-medium">{s.serviceNumber}</span>,
-                    },
-                    { key: "type", header: "Type", render: (s) => serviceTypeLabel(s.serviceType) },
-                    { key: "plan", header: "Plan", render: (s) => `${s.planCode} – ${s.planName}` },
-                    { key: "status", header: "Status", render: (s) => <StatusBadge status={s.status} /> },
-                    { key: "address", header: "Installed at", render: (s) => s.addressLine1 },
-                    { key: "activated", header: "Activated", render: (s) => s.activationDate ?? "—" },
-                    {
-                      key: "rate",
-                      header: "Monthly rate",
-                      align: "right",
-                      render: (s) => formatPesos(s.currentRateCentavos),
-                    },
-                  ]}
-                  rows={services ?? []}
-                  getRowKey={(s) => s.id}
-                  emptyMessage="No service accounts yet."
-                />
-              )}
-            </Section>
-          )}
+            </div>
 
-          <Section
-            title="Addresses"
-            action={
-              rowsEditable && (
-                <ActionButton label="Add address" onClick={() => setEditing({ kind: "address", address: null })} />
-              )
-            }
-          >
-            {editing?.kind === "address" && (
-              <AddressForm key={editing.address?.id ?? "new"} {...formProps} address={editing.address} />
+            {subscriber.status === "archived" && (
+              <p className="rounded border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-muted">
+                This account is archived. Its record is read-only.
+              </p>
             )}
-            {rowError?.section === "address" && <RowError message={rowError.message} />}
-            <DataTable
-              columns={[
-                { key: "label", header: "Label", render: (a) => a.label ?? "—" },
-                { key: "line1", header: "Street or purok", render: (a) => a.line1 },
-                { key: "barangay", header: "Barangay", render: (a) => a.barangay },
-                {
-                  key: "city",
-                  header: "City",
-                  render: (a) => (a.province ? `${a.city}, ${a.province}` : a.city),
-                },
-                { key: "landmark", header: "Landmark", render: (a) => a.landmark ?? "—" },
-                { key: "flags", header: "", render: (a) => <FlagBadges {...a} /> },
-                ...(rowsEditable
-                  ? [
-                      {
-                        key: "actions",
-                        header: "",
-                        render: (a: SubscriberAddressDto) => (
-                          <RowActions
-                            item={a}
-                            canReactivate
-                            onEdit={() => setEditing({ kind: "address", address: a })}
-                            onAction={(action) => void runRowAction("address", a.id, action)}
-                          />
-                        ),
-                      },
-                    ]
-                  : []),
-              ]}
-              rows={subscriber.addresses}
-              getRowKey={(a) => a.id}
-              emptyMessage="No addresses."
-            />
-          </Section>
 
-          <Section
-            title="Contacts"
-            action={
-              rowsEditable &&
-              (contactsFull ? (
-                <span className="text-xs text-muted">
-                  {SUBSCRIBER_CONTACTS_MAX} active contacts (the maximum). Deactivate one to add another.
-                </span>
-              ) : (
-                <ActionButton label="Add contact" onClick={() => setEditing({ kind: "contact", contact: null })} />
-              ))
-            }
-          >
-            {editing?.kind === "contact" && (
-              <ContactForm key={editing.contact?.id ?? "new"} {...formProps} contact={editing.contact} />
-            )}
-            {rowError?.section === "contact" && <RowError message={rowError.message} />}
-            <DataTable
-              columns={[
-                { key: "type", header: "Type", render: (c) => contactTypeLabel(c.type) },
-                { key: "value", header: "Value", render: (c) => c.value },
-                { key: "name", header: "Contact name", render: (c) => c.contactName ?? "—" },
-                { key: "flags", header: "", render: (c) => <FlagBadges {...c} /> },
-                ...(rowsEditable
-                  ? [
-                      {
-                        key: "actions",
-                        header: "",
-                        render: (c: SubscriberContactDto) => (
-                          <RowActions
-                            item={c}
-                            canReactivate={!contactsFull}
-                            onEdit={() => setEditing({ kind: "contact", contact: c })}
-                            onAction={(action) => void runRowAction("contact", c.id, action)}
-                          />
-                        ),
-                      },
-                    ]
-                  : []),
-              ]}
-              rows={subscriber.contacts}
-              getRowKey={(c) => c.id}
-              emptyMessage="No contacts on file."
-            />
-          </Section>
+            {editing?.kind === "status" && <StatusForm {...formProps} />}
+            {editing?.kind === "details" && <DetailsForm {...formProps} />}
+            {editing?.kind === "assignment" && <AssignmentForm {...formProps} />}
 
-          <Section title="History">
-            {history.length === 0 ? (
-              <p className="text-sm text-muted">No recorded changes.</p>
-            ) : (
-              <ol className="divide-y divide-slate-100">
-                {history.map((row) => {
-                  const entry = describeHistory(row, lookups);
-                  return (
-                    <li key={row.id} className="py-2 text-sm">
-                      <div className="flex justify-between gap-4">
-                        <span className="font-medium text-ink">{entry.title}</span>
-                        <span className="shrink-0 text-xs text-muted">{formatDateTime(row.occurredAt)}</span>
-                      </div>
-                      {entry.details.length > 0 && (
-                        <ul className="mt-1 list-disc pl-5 text-ink">
-                          {entry.details.map((detail, i) => (
-                            <li key={i}>{detail}</li>
-                          ))}
-                        </ul>
+            <div className="grid grid-cols-2 gap-4">
+              <Section
+                title="Details"
+                action={
+                  editable && editing === null && <ActionButton label="Edit" onClick={() => setEditing({ kind: "details" })} />
+                }
+              >
+                <dl className="grid grid-cols-2 gap-3">
+                  <Field label="Billing day">Day {subscriber.billingDay} of each month</Field>
+                  <Field label="Customer since">{formatDateTime(subscriber.createdAt)}</Field>
+                  <div className="col-span-2">
+                    <Field label="Notes">
+                      {subscriber.notes ? (
+                        <span className="whitespace-pre-wrap">{subscriber.notes}</span>
+                      ) : (
+                        <span className="text-muted">None</span>
                       )}
-                      <div className="mt-1 text-xs text-muted">
-                        By {row.actorName ?? row.actorUsername ?? "system"}
-                        {row.reason && <> · Reason: {row.reason}</>}
-                      </div>
-                    </li>
-                  );
-                })}
-              </ol>
+                    </Field>
+                  </div>
+                </dl>
+              </Section>
+
+              <Section
+                title="Collection assignment"
+                action={
+                  editable &&
+                  editing === null && <ActionButton label="Change" onClick={() => setEditing({ kind: "assignment" })} />
+                }
+              >
+                <dl className="grid grid-cols-2 gap-3">
+                  <Field label="Area">
+                    {subscriber.areaCode ? `${subscriber.areaCode} – ${subscriber.areaName}` : "Not assigned"}
+                  </Field>
+                  <Field label="Collector">
+                    {subscriber.collectorCode
+                      ? `${subscriber.collectorCode} – ${subscriber.collectorName}`
+                      : "Not assigned"}
+                  </Field>
+                </dl>
+              </Section>
+            </div>
+
+            {canViewServices && (
+              <Section
+                title="Service accounts"
+                action={
+                  canAddService && <ActionButton label="Add service" onClick={() => setEditing({ kind: "service" })} />
+                }
+              >
+                {editing?.kind === "service" && (
+                  <AddServiceForm
+                    subscriber={subscriber}
+                    onSaved={() => {
+                      setEditing(null);
+                      setServicesKey((k) => k + 1);
+                    }}
+                    onCancel={() => setEditing(null)}
+                    onExpired={onSessionExpired}
+                  />
+                )}
+                {servicesError && <RowError message={`Could not load service accounts. ${servicesError}`} />}
+                {services === null && !servicesError ? (
+                  <p className="text-sm text-muted">Loading…</p>
+                ) : (
+                  <DataTable
+                    columns={[
+                      {
+                        key: "number",
+                        header: "Service no.",
+                        render: (s) => (
+                          <button
+                            className="font-medium text-accent hover:underline"
+                            onClick={() => setOpenServiceId(s.id)}
+                            title={`Open ${s.serviceNumber}`}
+                          >
+                            {s.serviceNumber}
+                          </button>
+                        ),
+                      },
+                      { key: "type", header: "Type", render: (s) => serviceTypeLabel(s.serviceType) },
+                      { key: "plan", header: "Plan", render: (s) => `${s.planCode} – ${s.planName}` },
+                      { key: "status", header: "Status", render: (s) => <StatusBadge status={s.status} /> },
+                      { key: "address", header: "Installed at", render: (s) => s.addressLine1 },
+                      { key: "activated", header: "Activated", render: (s) => s.activationDate ?? "—" },
+                      {
+                        key: "rate",
+                        header: "Monthly rate",
+                        align: "right",
+                        render: (s) => formatPesos(s.currentRateCentavos),
+                      },
+                    ]}
+                    rows={services ?? []}
+                    getRowKey={(s) => s.id}
+                    emptyMessage="No service accounts yet."
+                  />
+                )}
+              </Section>
             )}
-          </Section>
-        </div>
-      )}
-    </div>
+
+            <Section
+              title="Addresses"
+              action={
+                rowsEditable && (
+                  <ActionButton label="Add address" onClick={() => setEditing({ kind: "address", address: null })} />
+                )
+              }
+            >
+              {editing?.kind === "address" && (
+                <AddressForm key={editing.address?.id ?? "new"} {...formProps} address={editing.address} />
+              )}
+              {rowError?.section === "address" && <RowError message={rowError.message} />}
+              <DataTable
+                columns={[
+                  { key: "label", header: "Label", render: (a) => a.label ?? "—" },
+                  { key: "line1", header: "Street or purok", render: (a) => a.line1 },
+                  { key: "barangay", header: "Barangay", render: (a) => a.barangay },
+                  {
+                    key: "city",
+                    header: "City",
+                    render: (a) => (a.province ? `${a.city}, ${a.province}` : a.city),
+                  },
+                  { key: "landmark", header: "Landmark", render: (a) => a.landmark ?? "—" },
+                  { key: "flags", header: "", render: (a) => <FlagBadges {...a} /> },
+                  ...(rowsEditable
+                    ? [
+                        {
+                          key: "actions",
+                          header: "",
+                          render: (a: SubscriberAddressDto) => (
+                            <RowActions
+                              item={a}
+                              canReactivate
+                              onEdit={() => setEditing({ kind: "address", address: a })}
+                              onAction={(action) => void runRowAction("address", a.id, action)}
+                            />
+                          ),
+                        },
+                      ]
+                    : []),
+                ]}
+                rows={subscriber.addresses}
+                getRowKey={(a) => a.id}
+                emptyMessage="No addresses."
+              />
+            </Section>
+
+            <Section
+              title="Contacts"
+              action={
+                rowsEditable &&
+                (contactsFull ? (
+                  <span className="text-xs text-muted">
+                    {SUBSCRIBER_CONTACTS_MAX} active contacts (the maximum). Deactivate one to add another.
+                  </span>
+                ) : (
+                  <ActionButton label="Add contact" onClick={() => setEditing({ kind: "contact", contact: null })} />
+                ))
+              }
+            >
+              {editing?.kind === "contact" && (
+                <ContactForm key={editing.contact?.id ?? "new"} {...formProps} contact={editing.contact} />
+              )}
+              {rowError?.section === "contact" && <RowError message={rowError.message} />}
+              <DataTable
+                columns={[
+                  { key: "type", header: "Type", render: (c) => contactTypeLabel(c.type) },
+                  { key: "value", header: "Value", render: (c) => c.value },
+                  { key: "name", header: "Contact name", render: (c) => c.contactName ?? "—" },
+                  { key: "flags", header: "", render: (c) => <FlagBadges {...c} /> },
+                  ...(rowsEditable
+                    ? [
+                        {
+                          key: "actions",
+                          header: "",
+                          render: (c: SubscriberContactDto) => (
+                            <RowActions
+                              item={c}
+                              canReactivate={!contactsFull}
+                              onEdit={() => setEditing({ kind: "contact", contact: c })}
+                              onAction={(action) => void runRowAction("contact", c.id, action)}
+                            />
+                          ),
+                        },
+                      ]
+                    : []),
+                ]}
+                rows={subscriber.contacts}
+                getRowKey={(c) => c.id}
+                emptyMessage="No contacts on file."
+              />
+            </Section>
+
+            <Section title="History">
+              {history.length === 0 ? (
+                <p className="text-sm text-muted">No recorded changes.</p>
+              ) : (
+                <ol className="divide-y divide-slate-100">
+                  {history.map((row) => {
+                    const entry = describeHistory(row, lookups);
+                    return (
+                      <li key={row.id} className="py-2 text-sm">
+                        <div className="flex justify-between gap-4">
+                          <span className="font-medium text-ink">{entry.title}</span>
+                          <span className="shrink-0 text-xs text-muted">{formatDateTime(row.occurredAt)}</span>
+                        </div>
+                        {entry.details.length > 0 && (
+                          <ul className="mt-1 list-disc pl-5 text-ink">
+                            {entry.details.map((detail, i) => (
+                              <li key={i}>{detail}</li>
+                            ))}
+                          </ul>
+                        )}
+                        <div className="mt-1 text-xs text-muted">
+                          By {row.actorName ?? row.actorUsername ?? "system"}
+                          {row.reason && <> · Reason: {row.reason}</>}
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ol>
+              )}
+            </Section>
+          </div>
+        )}
+      </div>
+    </>
   );
 }
