@@ -14,12 +14,14 @@ import {
   type AgingQuery,
   type ReceivableListQuery,
   type ReceivableSettings,
+  type ReceivableSettingsUpdateInput,
   type ServiceAccountStatus,
   type ServiceTypeCode,
   type SuspensionCandidateQuery,
 } from "@bcis/shared";
-import type { DbOrTx } from "../audit/audit";
-import { dbToday, likePattern } from "../db/query_helpers";
+import { writeAudit, type DbOrTx } from "../audit/audit";
+import type { Db } from "../db/client";
+import { changedFields, dbToday, likePattern } from "../db/query_helpers";
 
 /*
  * Receivables (spec 3.9) and suspension candidates (spec 3.10). Everything is as of today
@@ -42,6 +44,46 @@ export async function getReceivableSettings(executor: DbOrTx): Promise<Receivabl
     suspensionThresholdInvoices:
       stored.get(RECEIVABLE_SETTING_KEYS.suspensionThresholdInvoices) ??
       RECEIVABLE_SETTING_DEFAULTS.suspensionThresholdInvoices,
+  });
+}
+
+/**
+ * Changes the grace period and/or threshold (settings.manage). Only changed values are
+ * written and audited; a no-op writes nothing. The rows are locked so two PCs saving at
+ * once cannot lose an update.
+ */
+export async function updateReceivableSettings(
+  db: Db,
+  actorUserId: string,
+  input: ReceivableSettingsUpdateInput,
+): Promise<ReceivableSettings> {
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`
+      SELECT key FROM application_settings
+      WHERE key IN (${RECEIVABLE_SETTING_KEYS.gracePeriodDays}, ${RECEIVABLE_SETTING_KEYS.suspensionThresholdInvoices})
+      FOR UPDATE
+    `);
+    const existing = await getReceivableSettings(tx);
+    const { reason, ...fields } = input;
+    const { oldValues, newValues } = changedFields(existing, fields);
+    if (Object.keys(newValues).length === 0) return existing;
+
+    for (const [field, value] of Object.entries(newValues)) {
+      const key = RECEIVABLE_SETTING_KEYS[field as keyof ReceivableSettings];
+      await tx.execute(sql`
+        INSERT INTO application_settings (key, value, updated_at) VALUES (${key}, ${String(value)}, now())
+        ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()
+      `);
+    }
+    await writeAudit(tx, {
+      actorUserId,
+      action: "settings.update",
+      entityType: "application_settings",
+      reason: reason ?? null,
+      oldValues,
+      newValues,
+    });
+    return getReceivableSettings(tx);
   });
 }
 

@@ -272,3 +272,11 @@ export type AgingQuery = z.infer<typeof agingQuerySchema>;
 
 export const suspensionCandidateQuerySchema = z.object({ ...receivableFilters, search });
 export type SuspensionCandidateQuery = z.infer<typeof suspensionCandidateQuerySchema>;
+
+/** Reconnection work list; "open" means requested or assigned. Newest request first. */
+export const reconnectionListQuerySchema = z.object({
+  status: z.enum([...RECONNECTION_STATUSES, "open"]).optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(RECEIVABLE_PAGE_SIZE_MAX).default(RECEIVABLE_PAGE_SIZE_DEFAULT),
+});
+export type ReconnectionListQuery = z.infer<typeof reconnectionListQuerySchema>;

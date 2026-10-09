@@ -1,4 +1,4 @@
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, count, desc, eq, inArray, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import {
   daysPastDue,
@@ -8,6 +8,7 @@ import {
   type ReconnectionAssignInput,
   type ReconnectionCancelInput,
   type ReconnectionCompleteInput,
+  type ReconnectionListQuery,
   type ReconnectionRequestInput,
   type ReconnectionStatus,
   type ServiceSuspendInput,
@@ -20,6 +21,7 @@ import {
   roles,
   serviceAccounts,
   servicePlans,
+  subscribers,
   suspensionRecords,
   userRoles,
   users,
@@ -392,6 +394,10 @@ function selectReconnections(executor: DbOrTx) {
     .select({
       id: reconnectionRecords.id,
       serviceAccountId: reconnectionRecords.serviceAccountId,
+      serviceNumber: serviceAccounts.serviceNumber,
+      subscriberId: serviceAccounts.subscriberId,
+      accountNumber: subscribers.accountNumber,
+      subscriberName: subscribers.fullName,
       suspensionRecordId: reconnectionRecords.suspensionRecordId,
       status: reconnectionRecords.status,
       requestDate: reconnectionRecords.requestDate,
@@ -412,6 +418,8 @@ function selectReconnections(executor: DbOrTx) {
       cancelledAt: reconnectionRecords.cancelledAt,
     })
     .from(reconnectionRecords)
+    .innerJoin(serviceAccounts, eq(serviceAccounts.id, reconnectionRecords.serviceAccountId))
+    .innerJoin(subscribers, eq(subscribers.id, serviceAccounts.subscriberId))
     .innerJoin(requestedBy, eq(requestedBy.id, reconnectionRecords.requestedByUserId))
     .leftJoin(technician, eq(technician.id, reconnectionRecords.technicianUserId))
     .leftJoin(completedBy, eq(completedBy.id, reconnectionRecords.completedByUserId))
@@ -469,6 +477,30 @@ export async function getServiceControlHistory(db: Db, serviceAccountId: string)
     .where(eq(reconnectionRecords.serviceAccountId, serviceAccountId))
     .orderBy(desc(reconnectionRecords.requestedAt));
   return { suspensions, reconnections };
+}
+
+export interface ReconnectionPage {
+  items: ReconnectionDetail[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+/** Reconnection work list, newest request first. "open" = requested or assigned. */
+export async function listReconnections(db: Db, query: ReconnectionListQuery): Promise<ReconnectionPage> {
+  const where =
+    query.status === undefined
+      ? undefined
+      : query.status === "open"
+        ? inArray(reconnectionRecords.status, ["requested", "assigned"])
+        : eq(reconnectionRecords.status, query.status);
+  const [totalRow] = await db.select({ value: count() }).from(reconnectionRecords).where(where);
+  const items = await selectReconnections(db)
+    .where(where)
+    .orderBy(desc(reconnectionRecords.requestedAt))
+    .limit(query.pageSize)
+    .offset((query.page - 1) * query.pageSize);
+  return { items, total: totalRow?.value ?? 0, page: query.page, pageSize: query.pageSize };
 }
 
 /** Active technicians, for the assignment picker. */
