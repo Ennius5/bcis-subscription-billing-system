@@ -169,6 +169,20 @@
       "when": 1791667913384,
       "tag": "0023_users_must_change_password",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1791670824258,
+      "tag": "0024_backup_history",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1791670835687,
+      "tag": "0025_backup_integrity",
+      "breakpoints": true
     }
   ]
 }

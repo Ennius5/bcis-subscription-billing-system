@@ -12,6 +12,14 @@ const envSchema = z.object({
     .min(1)
     .default("attachments/payment-proofs")
     .transform((dir) => path.resolve(dir)),
+  /** Folder holding one sub-folder per backup; resolved to an absolute path. */
+  BACKUP_DIR: z
+    .string()
+    .min(1)
+    .default("backups")
+    .transform((dir) => path.resolve(dir)),
+  /** Folder of pg_dump/pg_restore, e.g. C:\Program Files\PostgreSQL\18\bin. Empty = find them on PATH. */
+  PG_BIN_DIR: z.string().default(""),
   /** Folder for the daily API log files; resolved to an absolute path. */
   LOG_DIR: z
     .string()

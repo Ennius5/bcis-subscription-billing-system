@@ -114,6 +114,54 @@ export const auditLogs = pgTable(
   ],
 );
 
+/**
+ * One row per backup attempt (spec 5: backup_history). The files live in
+ * BACKUP_DIR/<folder_name>/: database.dump, proofs/ and manifest.json.
+ * Rows are never deleted; a failed attempt stays as evidence.
+ */
+export const backupHistory = pgTable(
+  "backup_history",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    backupNumber: text("backup_number").notNull().unique(), // BK-000001
+    kind: text("kind").notNull(), // manual | scheduled | safety (taken before a restore)
+    status: text("status").notNull(), // in_progress | completed | failed
+    folderName: text("folder_name").notNull().unique(),
+    note: text("note"),
+    createdByUserId: uuid("created_by_user_id").references(() => users.id), // null = scheduled script
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    databaseBytes: bigint("database_bytes", { mode: "number" }),
+    proofFileCount: integer("proof_file_count"),
+    proofBytes: bigint("proof_bytes", { mode: "number" }),
+    manifestSha256: text("manifest_sha256"),
+    verificationStatus: text("verification_status"), // passed | failed
+    verifiedAt: timestamp("verified_at", { withTimezone: true }),
+    verificationMessage: text("verification_message"),
+    errorMessage: text("error_message"),
+  },
+  (t) => [
+    check("backup_history_kind_valid", sql`${t.kind} IN ('manual', 'scheduled', 'safety')`),
+    check("backup_history_status_valid", sql`${t.status} IN ('in_progress', 'completed', 'failed')`),
+    check(
+      "backup_history_verification_valid",
+      sql`${t.verificationStatus} IS NULL OR ${t.verificationStatus} IN ('passed', 'failed')`,
+    ),
+    check(
+      "backup_history_completed_shape",
+      sql`${t.status} <> 'completed' OR (${t.completedAt} IS NOT NULL AND ${t.manifestSha256} IS NOT NULL
+        AND ${t.databaseBytes} IS NOT NULL AND ${t.proofFileCount} IS NOT NULL AND ${t.proofBytes} IS NOT NULL)`,
+    ),
+    check("backup_history_failed_shape", sql`${t.status} <> 'failed' OR ${t.errorMessage} IS NOT NULL`),
+    check("backup_history_in_progress_shape", sql`${t.status} <> 'in_progress' OR ${t.completedAt} IS NULL`),
+    // One backup at a time, across the API and the scheduled script alike.
+    uniqueIndex("backup_history_one_in_progress")
+      .on(t.status)
+      .where(sql`${t.status} = 'in_progress'`),
+    index("backup_history_started_idx").on(t.startedAt),
+  ],
+);
+
 export const serviceTypes = pgTable("service_types", {
   id: uuid("id").primaryKey().defaultRandom(),
   code: text("code").notNull().unique(), // internet | cable | combo

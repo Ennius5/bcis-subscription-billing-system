@@ -22,6 +22,8 @@ export function testConfig(overrides: Partial<Config> = {}): Config {
     DATABASE_URL: "unused",
     PROOF_STORAGE_DIR: path.join(os.tmpdir(), "bcis-test-proofs"),
     LOG_DIR: path.join(os.tmpdir(), "bcis-test-logs"),
+    BACKUP_DIR: path.join(os.tmpdir(), "bcis-test-backups"),
+    PG_BIN_DIR: process.env.PG_BIN_DIR ?? "",
     LOG_LEVEL: "info",
     NODE_ENV: "test",
     ...overrides,
