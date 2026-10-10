@@ -9,6 +9,7 @@ export interface AuthContext {
   username: string;
   fullName: string;
   sessionId: string;
+  mustChangePassword: boolean;
   permissions: PermissionCode[];
 }
 
@@ -17,6 +18,10 @@ declare module "fastify" {
     auth: AuthContext | null;
   }
 }
+
+// While a password change is pending, only these routes answer: enough to see who is
+// signed in, sign out, or set the new password. Everything else is refused server-side.
+const ALLOWED_WHILE_PASSWORD_CHANGE_PENDING = new Set(["/auth/me", "/auth/logout", "/auth/password"]);
 
 export function createAuthenticate(db: Db) {
   return async function authenticate(
@@ -32,11 +37,22 @@ export function createAuthenticate(db: Db) {
         .send({ error: "UNAUTHENTICATED", message: "Please sign in again." });
     }
 
+    if (
+      session.mustChangePassword &&
+      !ALLOWED_WHILE_PASSWORD_CHANGE_PENDING.has(request.routeOptions.url ?? "")
+    ) {
+      return reply.code(403).send({
+        error: "PASSWORD_CHANGE_REQUIRED",
+        message: "Please choose a new password before continuing.",
+      });
+    }
+
     request.auth = {
       userId: session.userId,
       username: session.username,
       fullName: session.fullName,
       sessionId: session.sessionId,
+      mustChangePassword: session.mustChangePassword,
       permissions: await loadPermissions(db, session.userId),
     };
   };

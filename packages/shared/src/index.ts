@@ -13,3 +13,4 @@ export * from "./adjustments";
 export * from "./receivables";
 export * from "./reports";
 export * from "./audit";
+export * from "./users";

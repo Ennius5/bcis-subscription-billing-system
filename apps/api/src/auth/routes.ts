@@ -1,6 +1,10 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
+import { passwordChangeSchema } from "@bcis/shared";
 import type { Db } from "../db/client";
+import { sendUserError } from "../admin/routes";
+import { changeOwnPassword } from "../admin/users";
+import { sendValidationError } from "../http/errors";
 import { createAuthenticate } from "./authenticate";
 import { AuthError, login } from "./service";
 import { revokeSession } from "./session";
@@ -31,12 +35,24 @@ export function registerAuthRoutes(app: FastifyInstance, db: Db): void {
   });
 
   app.get("/auth/me", { preHandler: authenticate }, async (request) => {
-    const { userId, username, fullName, permissions } = request.auth!;
-    return { user: { id: userId, username, fullName }, permissions };
+    const { userId, username, fullName, mustChangePassword, permissions } = request.auth!;
+    return { user: { id: userId, username, fullName, mustChangePassword }, permissions };
   });
 
   app.post("/auth/logout", { preHandler: authenticate }, async (request) => {
     await revokeSession(db, request.auth!.sessionId);
     return { status: "signed out" };
+  });
+
+  // Any signed-in user, no permission needed: it only ever touches their own account.
+  app.post("/auth/password", { preHandler: authenticate }, async (request, reply) => {
+    const body = passwordChangeSchema.safeParse(request.body);
+    if (!body.success) return sendValidationError(reply, body.error);
+    try {
+      await changeOwnPassword(db, request.auth!.userId, request.auth!.sessionId, body.data);
+      return { status: "password changed" };
+    } catch (err) {
+      return sendUserError(reply, err);
+    }
   });
 }

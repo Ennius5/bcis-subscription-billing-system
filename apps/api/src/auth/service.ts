@@ -37,7 +37,7 @@ export async function loadPermissions(
 
 export interface LoginResult {
   token: string;
-  user: { id: string; username: string; fullName: string };
+  user: { id: string; username: string; fullName: string; mustChangePassword: boolean };
   permissions: PermissionCode[];
 }
 
@@ -106,7 +106,12 @@ export async function login(
 
   return {
     token: await createSession(db, user.id),
-    user: { id: user.id, username: user.username, fullName: user.fullName },
+    user: {
+      id: user.id,
+      username: user.username,
+      fullName: user.fullName,
+      mustChangePassword: user.mustChangePassword,
+    },
     permissions: await loadPermissions(db, user.id),
   };
 }

@@ -19,6 +19,9 @@ export interface AuditEntry {
 const SENSITIVE_KEYS = new Set([
   "password",
   "passwordhash",
+  "temporarypassword",
+  "currentpassword",
+  "newpassword",
   "token",
   "tokenhash",
   "secret",

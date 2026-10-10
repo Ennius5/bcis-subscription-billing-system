@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
-import { and, eq, gt, isNull } from "drizzle-orm";
+import { and, eq, gt, isNull, ne } from "drizzle-orm";
 import type { Db } from "../db/client";
+import type { Tx } from "../db/query_helpers";
 import { sessions, users } from "../db/schema";
 
 export const IDLE_TIMEOUT_MS = 30 * 60 * 1000;
@@ -27,6 +28,7 @@ export interface ActiveSession {
   userId: string;
   username: string;
   fullName: string;
+  mustChangePassword: boolean;
 }
 
 export async function findActiveSession(
@@ -42,6 +44,7 @@ export async function findActiveSession(
       userId: users.id,
       username: users.username,
       fullName: users.fullName,
+      mustChangePassword: users.mustChangePassword,
     })
     .from(sessions)
     .innerJoin(users, eq(users.id, sessions.userId))
@@ -70,4 +73,21 @@ export async function revokeSession(db: Db, sessionId: string): Promise<void> {
     .update(sessions)
     .set({ revokedAt: new Date() })
     .where(eq(sessions.id, sessionId));
+}
+/** Ends every open session of a user, except `keepSessionId` when given. */
+export async function revokeUserSessions(
+  executor: Db | Tx,
+  userId: string,
+  keepSessionId?: string,
+): Promise<void> {
+  await executor
+    .update(sessions)
+    .set({ revokedAt: new Date() })
+    .where(
+      and(
+        eq(sessions.userId, userId),
+        isNull(sessions.revokedAt),
+        keepSessionId ? ne(sessions.id, keepSessionId) : undefined,
+      ),
+    );
 }
