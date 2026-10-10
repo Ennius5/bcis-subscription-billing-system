@@ -321,3 +321,32 @@ describe("collection batch routes: supervisor", () => {
     expect(await db.select().from(payments)).toEqual([]);
   });
 });
+
+describe("collector performance export", () => {
+  const url = (format: string) => `/collection-reports/collectors/export?from=${collectionDate}&to=${collectionDate}&format=${format}`;
+
+  it("lets supervisors (now holding report.export) and auditors export, audited; cashiers are refused", async () => {
+    await batch("submitted");
+    expect((await call("cashier", "GET", url("pdf"))).statusCode).toBe(403);
+
+    const pdf = await call("supervisor", "GET", url("pdf"));
+    expect(pdf.statusCode).toBe(200);
+    expect(pdf.headers["content-disposition"]).toBe(
+      `attachment; filename="collector-performance-${collectionDate}_to_${collectionDate}.pdf"`,
+    );
+    const xlsx = await call("auditor", "GET", url("xlsx"));
+    expect(xlsx.statusCode).toBe(200);
+
+    const audits = await db.select().from(auditLogs).where(eq(auditLogs.entityId, "collector-performance"));
+    expect(audits.map((a) => (a.newValues as { format: string }).format).toSorted((a, b) => a.localeCompare(b))).toEqual(["pdf", "xlsx"]);
+  });
+
+  it("validates the range and the format", async () => {
+    for (const bad of [
+      `/collection-reports/collectors/export?from=${collectionDate}&to=${collectionDate}`,
+      "/collection-reports/collectors/export?from=2026-10-31&to=2026-10-01&format=pdf",
+    ]) {
+      expect((await call("supervisor", "GET", bad)).statusCode, bad).toBe(400);
+    }
+  });
+});

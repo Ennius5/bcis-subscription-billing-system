@@ -682,6 +682,17 @@ ipcMain.handle("batches:close", (_event, id: unknown, differenceCentavos: unknow
 
 const isIsoDate = (value: unknown): value is string => typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value);
 
+ipcMain.handle("batches:exportCollectorReport", (event, from: unknown, to: unknown, format: unknown) =>
+  isIsoDate(from) && isIsoDate(to) && isExportFormat(format)
+    ? saveExport(
+        event,
+        `/collection-reports/collectors/export?from=${from}&to=${to}&format=${format}`,
+        `collector-performance-${from}_to_${to}`,
+        format,
+      )
+    : BAD_INPUT,
+);
+
 ipcMain.handle("batches:collectorReport", (_event, from: unknown, to: unknown) =>
   isIsoDate(from) && isIsoDate(to)
     ? authedRequest<CollectorReportDto>("GET", `/collection-reports/collectors?from=${from}&to=${to}`)

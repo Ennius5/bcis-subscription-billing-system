@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { addMonths, billingPeriodSchema, ledgerQuerySchema, periodBounds, periodLabel, periodOf } from "./billing";
+import { collectorReportQuerySchema } from "./collection-batches";
 import { agingQuerySchema } from "./receivables";
 import { SUBSCRIBER_STATUSES } from "./subscribers";
 
@@ -228,3 +229,7 @@ export type ExceptionsQuery = z.infer<typeof exceptionsQuerySchema>;
 export const exceptionsExportQuerySchema = z
   .object({ ...dateRangeShape, format: reportExportFormatSchema })
   .refine((q) => q.from <= q.to, orderedRange);
+
+/* ------------------------- Collector performance ------------------------- */
+
+export const collectorReportExportQuerySchema = collectorReportQuerySchema.and(z.object({ format: reportExportFormatSchema }));

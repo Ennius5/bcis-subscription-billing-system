@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyReply } from "fastify";
 import { z } from "zod";
 import {
+  collectorReportExportQuerySchema,
   batchAccountAddSchema,
   batchCancelSchema,
   batchCloseSchema,
@@ -16,7 +17,9 @@ import { createAuthenticate } from "../auth/authenticate";
 import { requirePermission } from "../auth/guard";
 import type { Db } from "../db/client";
 import { sendValidationError } from "../http/errors";
+import { sendReportExport } from "../reports/export";
 import { PaymentError } from "../payments/service";
+import { buildCollectorReportDocument } from "./report-export";
 import {
   addBatchAccount,
   BatchError,
@@ -81,6 +84,18 @@ export function registerBatchRoutes(app: FastifyInstance, db: Db): void {
     if (!query.success) return sendValidationError(reply, query.error);
     return getCollectorReport(db, query.data);
   });
+
+  app.get(
+    "/collection-reports/collectors/export",
+    { preHandler: [authenticate, requirePermission("collection.view", "report.export")] },
+    async (request, reply) => {
+      const query = collectorReportExportQuerySchema.safeParse(request.query);
+      if (!query.success) return sendValidationError(reply, query.error);
+      const { format, ...filters } = query.data;
+      const doc = buildCollectorReportDocument(await getCollectorReport(db, filters));
+      return sendReportExport(reply, db, request.auth!, doc, format, filters);
+    },
+  );
 
   /* ------------------------------ Building ------------------------------ */
 

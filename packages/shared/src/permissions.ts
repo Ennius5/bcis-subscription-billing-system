@@ -58,7 +58,7 @@ export const ROLE_PERMISSIONS: Record<RoleCode, readonly PermissionCode[]> = {
   collection_supervisor: [
     "subscriber.view", "billing.view", "payment.view", "collection.view",
     "collection.manage", "collection.reconcile", "collection.close",
-    "receivable.view", "report.view",
+    "receivable.view", "report.view", "report.export",
   ],
   auditor: [
     "audit.view", "subscriber.view", "billing.view", "payment.view",

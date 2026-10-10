@@ -1235,6 +1235,8 @@ const bcis = {
     /** Per collector, batches with a collection date from `from` to `to` (inclusive). */
     collectorReport: (from: string, to: string): Promise<ApiResult<CollectorReportDto>> =>
       ipcRenderer.invoke("batches:collectorReport", from, to),
+    exportCollectorReport: (from: string, to: string, format: ExportFormat): Promise<ApiResult<SavedExportDto>> =>
+      ipcRenderer.invoke("batches:exportCollectorReport", from, to, format),
   },
   receivables: {
     list: (query: ReceivableListQuery): Promise<ApiResult<ReceivablePageDto>> =>
