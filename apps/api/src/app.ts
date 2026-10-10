@@ -1,4 +1,4 @@
-import Fastify, { type FastifyInstance } from "fastify";
+import Fastify, { type FastifyBaseLogger, type FastifyInstance } from "fastify";
 import type { Pool } from "pg";
 import type { Config } from "./config";
 import type { Db } from "./db/client";
@@ -15,21 +15,24 @@ import { registerPaymentRoutes } from "./payments/routes";
 import { registerReceivableRoutes } from "./receivables/routes";
 import { registerReportRoutes } from "./reports/routes";
 import { ProofStore } from "./payments/proof-storage";
+import { registerErrorHandling } from "./http/error-handler";
+import { loggerOptions, newRequestId } from "./http/logging";
 
 export interface AppDeps {
   pool?: Pool;
   db?: Db;
+  /** Tests pass their own logger to read what was logged. */
+  logger?: FastifyBaseLogger;
 }
 
 export function buildApp(config: Config, deps: AppDeps = {}): FastifyInstance {
   const app = Fastify({
-    logger: {
-      level: config.NODE_ENV === "test" ? "silent" : "info",
-      redact: ["req.headers.authorization", "req.headers.cookie"],
-    },
+    ...(deps.logger ? { loggerInstance: deps.logger } : { logger: loggerOptions(config) }),
+    genReqId: newRequestId,
   });
 
   app.decorateRequest("auth", null);
+  registerErrorHandling(app);
 
   app.get("/health", async () => ({
     status: "ok",

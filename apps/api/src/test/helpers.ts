@@ -21,6 +21,8 @@ export function testConfig(overrides: Partial<Config> = {}): Config {
     API_PORT: 3000,
     DATABASE_URL: "unused",
     PROOF_STORAGE_DIR: path.join(os.tmpdir(), "bcis-test-proofs"),
+    LOG_DIR: path.join(os.tmpdir(), "bcis-test-logs"),
+    LOG_LEVEL: "info",
     NODE_ENV: "test",
     ...overrides,
   };

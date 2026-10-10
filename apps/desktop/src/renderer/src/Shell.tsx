@@ -26,6 +26,7 @@ import { SuspensionScreen } from "./receivables/SuspensionScreen";
 import { SettingsScreen } from "./admin/SettingsScreen";
 import { UsersScreen } from "./admin/UsersScreen";
 import { ChangePasswordPanel } from "./account/ChangePassword";
+import { ErrorBoundary } from "./ui/ErrorBoundary";
 
 const SEARCH_DELAY_MS = 300;
 
@@ -157,82 +158,84 @@ export function Shell({ session, onSignOut }: ShellProps) {
             <SearchResults query={searchQuery} onOpen={openSubscriber} onSessionExpired={onSignOut} />
           )}
           <div hidden={covered}>
-            {!active ? (
-              <p className="text-muted">
-                Your account has no assigned permissions. Please contact the administrator.
-              </p>
-            ) : active.id === "dashboard" ? (
-              <DashboardScreen
-                canOpenSubscriber={permissions.includes("subscriber.view")}
-                onOpenSubscriber={openSubscriber}
-                canNavigate={(id) => findItem(items, id) !== null}
-                onNavigate={selectScreen}
-                onSessionExpired={onSignOut}
-              />
-            ) : active.id === "subscribers.all" ? (
-              <SubscribersScreen
-                key={openRequest}
-                permissions={permissions}
-                initialOpenId={openSubscriberId}
-                onSessionExpired={onSignOut}
-              />
-            ) : active.id === "subscribers.new" ? (
-              <NewSubscriberScreen onCreated={openSubscriber} onSessionExpired={onSignOut} />
-            ) : active.id === "subscribers.services" ? (
-              <ServiceAccountsScreen permissions={permissions} onSessionExpired={onSignOut} />
-            ) : active.id === "billing.current" ? (
-              <InvoicesScreen
-                title="Current Billing"
-                initialPeriod={currentMonth()}
-                permissions={permissions}
-                onSessionExpired={onSignOut}
-              />
-            ) : active.id === "billing.generate" ? (
-              <GenerateBillingScreen permissions={permissions} onSessionExpired={onSignOut} />
-            ) : active.id === "billing.invoices" ? (
-              <InvoicesScreen title="Invoices" initialPeriod="" permissions={permissions} onSessionExpired={onSignOut} />
-            ) : active.id === "payments.receive" ? (
-              <ReceivePaymentScreen permissions={permissions} onSessionExpired={onSignOut} />
-            ) : active.id === "payments.history" ? (
-              <PaymentHistoryScreen permissions={permissions} onSessionExpired={onSignOut} />
-            ) : active.id === "payments.gcash" ? (
-              <GcashScreen permissions={permissions} onSessionExpired={onSignOut} />
-            ) : active.id === "subscribers.plans" ? (
-              <PlansScreen permissions={permissions} onSessionExpired={onSignOut} />
-            ) : active.id === "collections.collectors" ? (
-              <CollectorsHub permissions={permissions} onSessionExpired={onSignOut} />
-            ) : active.id === "collections.areas" ? (
-              <AreasScreen permissions={permissions} onSessionExpired={onSignOut} />
-            ) : active.id === "collections.batches" ? (
-              <BatchesScreen permissions={permissions} onSessionExpired={onSignOut} />
-            ) : active.id === "collections.remittance" ? (
-              <RemittanceScreen permissions={permissions} onSessionExpired={onSignOut} />
-            ) : active.id === "receivables.outstanding" || active.id === "receivables.overdue" ? (
-              <ReceivablesScreen
-                key={active.id}
-                view={active.id === "receivables.overdue" ? "overdue" : "outstanding"}
-                permissions={permissions}
-                onOpenSubscriber={openSubscriber}
-                onSessionExpired={onSignOut}
-              />
-            ) : active.id === "receivables.aging" ? (
-              <AgingScreen canExport={permissions.includes("report.export")} onSessionExpired={onSignOut} />
-            ) : active.id === "receivables.suspension" ? (
-              <SuspensionScreen permissions={permissions} onSessionExpired={onSignOut} />
-            ) : active.id === "reports" ? (
-              <ReportsScreen permissions={permissions} onOpenSubscriber={openSubscriber} onSessionExpired={onSignOut} />
-            ) : active.id === "admin.audit" ? (
-              <AuditLogScreen permissions={permissions} onOpenSubscriber={openSubscriber} onSessionExpired={onSignOut} />
-            ) : active.id === "admin.users" ? (
-              <UsersScreen currentUserId={session.user.id} onSessionExpired={onSignOut} />
-            ) : active.id === "admin.settings" ? (
-              <SettingsScreen onSessionExpired={onSignOut} />
-            ) : (
-              <>
-                <h1 className="text-xl font-semibold text-navy">{active.label}</h1>
-                <p className="mt-2 text-muted">This screen has not been built yet.</p>
-              </>
-            )}
+            <ErrorBoundary key={activeId ?? "none"}>
+              {!active ? (
+                <p className="text-muted">
+                  Your account has no assigned permissions. Please contact the administrator.
+                </p>
+              ) : active.id === "dashboard" ? (
+                <DashboardScreen
+                  canOpenSubscriber={permissions.includes("subscriber.view")}
+                  onOpenSubscriber={openSubscriber}
+                  canNavigate={(id) => findItem(items, id) !== null}
+                  onNavigate={selectScreen}
+                  onSessionExpired={onSignOut}
+                />
+              ) : active.id === "subscribers.all" ? (
+                <SubscribersScreen
+                  key={openRequest}
+                  permissions={permissions}
+                  initialOpenId={openSubscriberId}
+                  onSessionExpired={onSignOut}
+                />
+              ) : active.id === "subscribers.new" ? (
+                <NewSubscriberScreen onCreated={openSubscriber} onSessionExpired={onSignOut} />
+              ) : active.id === "subscribers.services" ? (
+                <ServiceAccountsScreen permissions={permissions} onSessionExpired={onSignOut} />
+              ) : active.id === "billing.current" ? (
+                <InvoicesScreen
+                  title="Current Billing"
+                  initialPeriod={currentMonth()}
+                  permissions={permissions}
+                  onSessionExpired={onSignOut}
+                />
+              ) : active.id === "billing.generate" ? (
+                <GenerateBillingScreen permissions={permissions} onSessionExpired={onSignOut} />
+              ) : active.id === "billing.invoices" ? (
+                <InvoicesScreen title="Invoices" initialPeriod="" permissions={permissions} onSessionExpired={onSignOut} />
+              ) : active.id === "payments.receive" ? (
+                <ReceivePaymentScreen permissions={permissions} onSessionExpired={onSignOut} />
+              ) : active.id === "payments.history" ? (
+                <PaymentHistoryScreen permissions={permissions} onSessionExpired={onSignOut} />
+              ) : active.id === "payments.gcash" ? (
+                <GcashScreen permissions={permissions} onSessionExpired={onSignOut} />
+              ) : active.id === "subscribers.plans" ? (
+                <PlansScreen permissions={permissions} onSessionExpired={onSignOut} />
+              ) : active.id === "collections.collectors" ? (
+                <CollectorsHub permissions={permissions} onSessionExpired={onSignOut} />
+              ) : active.id === "collections.areas" ? (
+                <AreasScreen permissions={permissions} onSessionExpired={onSignOut} />
+              ) : active.id === "collections.batches" ? (
+                <BatchesScreen permissions={permissions} onSessionExpired={onSignOut} />
+              ) : active.id === "collections.remittance" ? (
+                <RemittanceScreen permissions={permissions} onSessionExpired={onSignOut} />
+              ) : active.id === "receivables.outstanding" || active.id === "receivables.overdue" ? (
+                <ReceivablesScreen
+                  key={active.id}
+                  view={active.id === "receivables.overdue" ? "overdue" : "outstanding"}
+                  permissions={permissions}
+                  onOpenSubscriber={openSubscriber}
+                  onSessionExpired={onSignOut}
+                />
+              ) : active.id === "receivables.aging" ? (
+                <AgingScreen canExport={permissions.includes("report.export")} onSessionExpired={onSignOut} />
+              ) : active.id === "receivables.suspension" ? (
+                <SuspensionScreen permissions={permissions} onSessionExpired={onSignOut} />
+              ) : active.id === "reports" ? (
+                <ReportsScreen permissions={permissions} onOpenSubscriber={openSubscriber} onSessionExpired={onSignOut} />
+              ) : active.id === "admin.audit" ? (
+                <AuditLogScreen permissions={permissions} onOpenSubscriber={openSubscriber} onSessionExpired={onSignOut} />
+              ) : active.id === "admin.users" ? (
+                <UsersScreen currentUserId={session.user.id} onSessionExpired={onSignOut} />
+              ) : active.id === "admin.settings" ? (
+                <SettingsScreen onSessionExpired={onSignOut} />
+              ) : (
+                <>
+                  <h1 className="text-xl font-semibold text-navy">{active.label}</h1>
+                  <p className="mt-2 text-muted">This screen has not been built yet.</p>
+                </>
+              )}
+            </ErrorBoundary>
           </div>
         </main>
       </div>

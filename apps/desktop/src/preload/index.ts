@@ -25,6 +25,8 @@ export interface ApiFailure {
   code: string;
   message: string;
   issues?: ApiIssue[];
+  /** The API request id, also in the server log, for tracing a reported problem. */
+  reference?: string;
 }
 
 export type ApiResult<T> = { ok: true; data: T } | ApiFailure;
@@ -1152,6 +1154,9 @@ export interface ReceivableSettingsDto {
 
 const bcis = {
   getHealth: (): Promise<HealthResult> => ipcRenderer.invoke("api:health"),
+  /** Records a screen crash in this PC's log folder. */
+  logRendererError: (message: string, stack: string | null): Promise<void> =>
+    ipcRenderer.invoke("app:logRendererError", message, stack),
   login: (username: string, password: string): Promise<AuthResult> =>
     ipcRenderer.invoke("auth:login", username, password),
   me: (): Promise<AuthResult> => ipcRenderer.invoke("auth:me"),

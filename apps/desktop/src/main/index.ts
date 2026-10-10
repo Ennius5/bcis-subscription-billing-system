@@ -1,4 +1,4 @@
-import { readFile, stat, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
 import type {
@@ -103,6 +103,8 @@ const NETWORK_ERROR: ApiFailure = {
 };
 
 async function readError(res: Response): Promise<ApiFailure> {
+  // Every API reply carries its request id; on a server error the message already quotes it.
+  const reference = res.headers.get("x-request-id") ?? undefined;
   try {
     const body = (await res.json()) as {
       error?: string;
@@ -114,11 +116,35 @@ async function readError(res: Response): Promise<ApiFailure> {
       code: body.error ?? "ERROR",
       message: body.message ?? "Something went wrong.",
       ...(body.issues ? { issues: body.issues } : {}),
+      ...(reference ? { reference } : {}),
     };
   } catch {
-    return { ok: false, code: "ERROR", message: "Something went wrong." };
+    return {
+      ok: false,
+      code: "ERROR",
+      message: reference ? `Something went wrong. Reference: ${reference}` : "Something went wrong.",
+      ...(reference ? { reference } : {}),
+    };
   }
 }
+
+// Screen crashes on this PC: one JSON line each in renderer-errors.log in Electron's logs folder.
+// Only the error text and component stack, capped, never form contents.
+ipcMain.handle("app:logRendererError", async (_event, message: unknown, stack: unknown) => {
+  if (typeof message !== "string") return;
+  const line = JSON.stringify({
+    time: new Date().toISOString(),
+    message: message.slice(0, 500),
+    stack: typeof stack === "string" ? stack.slice(0, 4000) : null,
+  });
+  try {
+    const dir = app.getPath("logs");
+    await mkdir(dir, { recursive: true });
+    await appendFile(path.join(dir, "renderer-errors.log"), `${line}\n`);
+  } catch {
+    // Logging must never break the app.
+  }
+});
 
 ipcMain.handle(
   "auth:login",

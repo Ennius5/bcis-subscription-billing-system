@@ -7,3 +7,4 @@ release/
 backups/
 attachments/
 .DS_Store
+logs/

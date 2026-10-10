@@ -12,6 +12,13 @@ const envSchema = z.object({
     .min(1)
     .default("attachments/payment-proofs")
     .transform((dir) => path.resolve(dir)),
+  /** Folder for the daily API log files; resolved to an absolute path. */
+  LOG_DIR: z
+    .string()
+    .min(1)
+    .default("logs")
+    .transform((dir) => path.resolve(dir)),
+  LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug"]).default("info"),
   NODE_ENV: z
     .enum(["development", "test", "production"])
     .default("development"),
