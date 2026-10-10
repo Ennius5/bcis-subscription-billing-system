@@ -15,6 +15,14 @@ import { contactValueProblem } from "./subscribers";
 export const PAYMENT_METHODS = ["cash", "gcash", "bank_transfer", "cheque", "other"] as const;
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 
+export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
+  cash: "Cash",
+  gcash: "GCash",
+  bank_transfer: "Bank transfer",
+  cheque: "Cheque",
+  other: "Other",
+};
+
 /** Methods posted directly at the counter. GCash goes through verification instead. */
 export const COUNTER_PAYMENT_METHODS = ["cash", "bank_transfer", "cheque", "other"] as const;
 export type CounterPaymentMethod = (typeof COUNTER_PAYMENT_METHODS)[number];

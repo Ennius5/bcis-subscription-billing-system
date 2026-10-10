@@ -716,6 +716,39 @@ export interface SavedExportDto {
   format: ExportFormat;
 }
 
+export type ReportGrouping = "day" | "week" | "month" | "year";
+
+export interface CollectionsReportQuery {
+  from: string;
+  to: string;
+  groupBy: ReportGrouping;
+}
+
+export interface CollectionAmountsDto {
+  paymentCount: number;
+  collectedCentavos: number;
+  reversalCount: number;
+  reversedCentavos: number;
+  netCentavos: number;
+}
+
+export interface CollectionsPeriodDto extends CollectionAmountsDto {
+  start: string;
+  end: string;
+  label: string;
+  /** Keyed by payment method code (cash, gcash, bank_transfer, cheque, other). */
+  netByMethod: Record<string, number>;
+}
+
+export interface CollectionsReportDto {
+  from: string;
+  to: string;
+  groupBy: ReportGrouping;
+  periods: CollectionsPeriodDto[];
+  methods: (CollectionAmountsDto & { method: string })[];
+  totals: CollectionAmountsDto;
+}
+
 export interface AgingQuery {
   collectorId?: string;
   areaId?: string;
@@ -1019,6 +1052,12 @@ const bcis = {
     cancel: (reconnectionId: string, reason: string): Promise<ApiResult<ReconnectionDto>> =>
       ipcRenderer.invoke("serviceControl:cancel", reconnectionId, reason),
     technicians: (): Promise<ApiResult<TechnicianDto[]>> => ipcRenderer.invoke("serviceControl:technicians"),
+  },
+  reports: {
+    collections: (query: CollectionsReportQuery): Promise<ApiResult<CollectionsReportDto>> =>
+      ipcRenderer.invoke("reports:collections", query),
+    exportCollections: (query: CollectionsReportQuery, format: ExportFormat): Promise<ApiResult<SavedExportDto>> =>
+      ipcRenderer.invoke("reports:exportCollections", query, format),
   },
   exports: {
     /** Opens the last saved export in its default program (e.g. to print a PDF). */

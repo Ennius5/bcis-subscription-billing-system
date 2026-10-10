@@ -27,6 +27,7 @@ import type {
   AgingReportDto,
   ReceivableFilterOptionsDto,
   ReceivablePageDto,
+  CollectionsReportDto,
   ExportFormat,
   SavedExportDto,
   ReceivableSettingsDto,
@@ -726,13 +727,13 @@ function localToday(): string {
 async function saveExport(
   event: Electron.IpcMainInvokeEvent,
   urlPath: string,
-  slug: string,
+  fileStem: string,
   format: ExportFormat,
 ): Promise<ApiResult<SavedExportDto>> {
   const type = EXPORT_TYPES[format];
   const options: Electron.SaveDialogOptions = {
     title: "Save report",
-    defaultPath: path.join(app.getPath("documents"), `${slug}-${localToday()}.${format}`),
+    defaultPath: path.join(app.getPath("documents"), `${fileStem}.${format}`),
     filters: [type.filter],
   };
   const win = BrowserWindow.fromWebContents(event.sender);
@@ -761,12 +762,31 @@ ipcMain.handle("exports:openLast", async (): Promise<ApiResult<null>> => {
 
 ipcMain.handle("receivables:exportAging", (event, query: unknown, format: unknown) =>
   isRecord(query) && isExportFormat(format)
-    ? saveExport(event, listPath("/receivables/aging/export", [...AGING_KEYS, "format"], { ...query, format }), "ar-aging", format)
+    ? saveExport(event, listPath("/receivables/aging/export", [...AGING_KEYS, "format"], { ...query, format }), `ar-aging-${localToday()}`, format)
     : BAD_INPUT,
 );
 
 ipcMain.handle("receivables:filterOptions", () =>
   authedRequest<ReceivableFilterOptionsDto>("GET", "/receivables/filter-options"),
+);
+
+/* -------------------------------- Reports -------------------------------- */
+
+const COLLECTIONS_KEYS = ["from", "to", "groupBy"] as const;
+
+ipcMain.handle("reports:collections", (_event, query: unknown) =>
+  isRecord(query) ? authedRequest<CollectionsReportDto>("GET", listPath("/reports/collections", COLLECTIONS_KEYS, query)) : BAD_INPUT,
+);
+
+ipcMain.handle("reports:exportCollections", (event, query: unknown, format: unknown) =>
+  isRecord(query) && isIsoDate(query.from) && isIsoDate(query.to) && isExportFormat(format)
+    ? saveExport(
+        event,
+        listPath("/reports/collections/export", [...COLLECTIONS_KEYS, "format"], { ...query, format }),
+        `collections-${query.from}_to_${query.to}`,
+        format,
+      )
+    : BAD_INPUT,
 );
 
 /* --------------------------- Service control --------------------------- */

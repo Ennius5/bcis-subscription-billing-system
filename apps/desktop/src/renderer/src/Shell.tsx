@@ -18,6 +18,7 @@ import { ReceivePaymentScreen } from "./payments/ReceivePaymentScreen";
 import { PaymentHistoryScreen } from "./payments/PaymentHistoryScreen";
 import { GcashScreen } from "./payments/GcashScreen";
 import { AgingScreen } from "./receivables/AgingScreen";
+import { ReportsScreen } from "./reports/ReportsScreen";
 import { ReceivablesScreen } from "./receivables/ReceivablesScreen";
 import { SuspensionScreen } from "./receivables/SuspensionScreen";
 import { SettingsScreen } from "./admin/SettingsScreen";
@@ -189,6 +190,8 @@ export function Shell({ session, onSignOut }: ShellProps) {
               <AgingScreen canExport={permissions.includes("report.export")} onSessionExpired={onSignOut} />
             ) : active.id === "receivables.suspension" ? (
               <SuspensionScreen permissions={permissions} onSessionExpired={onSignOut} />
+            ) : active.id === "reports" ? (
+              <ReportsScreen permissions={permissions} onSessionExpired={onSignOut} />
             ) : active.id === "admin.settings" ? (
               <SettingsScreen onSessionExpired={onSignOut} />
             ) : (

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { periodBounds, periodLabel, periodOf } from "./billing";
 import { agingQuerySchema } from "./receivables";
 
 /** Reports are exported as PDF (to read and print) or XLSX (to work with the figures). */
@@ -22,3 +23,110 @@ export function reportFileName(slug: string, date: string, format: ReportExportF
 /** The aging screen's filters plus the format. */
 export const agingExportQuerySchema = agingQuerySchema.extend({ format: reportExportFormatSchema });
 export type AgingExportQuery = z.infer<typeof agingExportQuerySchema>;
+
+/* --------------------------- Report periods --------------------------- */
+
+/*
+ * Report dates are calendar dates (YYYY-MM-DD, Asia/Manila). Weeks run Monday to Sunday.
+ * A range is split into whole periods, and the first and last are clipped to the range, so
+ * "week" over Oct 1-15 gives Oct 1-4, Oct 5-11, Oct 12-15.
+ */
+export const REPORT_GROUPINGS = ["day", "week", "month", "year"] as const;
+export type ReportGrouping = (typeof REPORT_GROUPINGS)[number];
+
+export const REPORT_GROUPING_LABELS: Record<ReportGrouping, string> = {
+  day: "Daily",
+  week: "Weekly",
+  month: "Monthly",
+  year: "Annual",
+};
+
+/** Upper bound on rows in a period table (about a year of days). */
+export const REPORT_MAX_PERIODS = 400;
+
+export interface ReportPeriod {
+  start: string;
+  end: string;
+  label: string;
+}
+
+const utc = (date: string) => new Date(`${date}T00:00:00Z`);
+const iso = (d: Date) => d.toISOString().slice(0, 10);
+
+export function addDays(date: string, days: number): string {
+  const d = utc(date);
+  d.setUTCDate(d.getUTCDate() + days);
+  return iso(d);
+}
+
+/** First day of the period containing `date` (Monday for weeks). */
+export function periodStartOf(date: string, groupBy: ReportGrouping): string {
+  switch (groupBy) {
+    case "day":
+      return date;
+    case "week":
+      return addDays(date, -((utc(date).getUTCDay() + 6) % 7));
+    case "month":
+      return `${periodOf(date)}-01`;
+    case "year":
+      return `${date.slice(0, 4)}-01-01`;
+  }
+}
+
+function periodEndOf(start: string, groupBy: ReportGrouping): string {
+  switch (groupBy) {
+    case "day":
+      return start;
+    case "week":
+      return addDays(start, 6);
+    case "month":
+      return periodBounds(periodOf(start)).end;
+    case "year":
+      return `${start.slice(0, 4)}-12-31`;
+  }
+}
+
+function periodName(start: string, end: string, groupBy: ReportGrouping): string {
+  switch (groupBy) {
+    case "day":
+      return start;
+    case "week":
+      return `${start} – ${end}`;
+    case "month":
+      return periodLabel(periodOf(start));
+    case "year":
+      return start.slice(0, 4);
+  }
+}
+
+/** The periods covering from..to (both inclusive), clipped to the range, oldest first. */
+export function reportPeriods(from: string, to: string, groupBy: ReportGrouping): ReportPeriod[] {
+  const periods: ReportPeriod[] = [];
+  for (let start = periodStartOf(from, groupBy); start <= to; start = addDays(periodEndOf(start, groupBy), 1)) {
+    const clippedStart = start < from ? from : start;
+    const end = periodEndOf(start, groupBy);
+    const clippedEnd = end > to ? to : end;
+    periods.push({ start: clippedStart, end: clippedEnd, label: periodName(clippedStart, clippedEnd, groupBy) });
+    if (periods.length > REPORT_MAX_PERIODS) break; // the schema refuses this; stop counting early
+  }
+  return periods;
+}
+
+const isoDate = z.iso.date({ message: "Enter a valid date (YYYY-MM-DD)." });
+
+/** A date range (both ends inclusive) split into day/week/month/year rows. */
+export const collectionsReportQuerySchema = z
+  .object({
+    from: isoDate,
+    to: isoDate,
+    groupBy: z.enum(REPORT_GROUPINGS, { error: "Choose daily, weekly, monthly or annual." }).default("day"),
+  })
+  .refine((q) => q.from <= q.to, { message: "The start date must be on or before the end date.", path: ["to"] })
+  .refine((q) => q.from > q.to || reportPeriods(q.from, q.to, q.groupBy).length <= REPORT_MAX_PERIODS, {
+    message: `That range has more than ${REPORT_MAX_PERIODS} rows. Choose a shorter range or a larger grouping.`,
+    path: ["groupBy"],
+  });
+export type CollectionsReportQuery = z.infer<typeof collectionsReportQuerySchema>;
+
+export const collectionsExportQuerySchema = collectionsReportQuerySchema.and(z.object({ format: reportExportFormatSchema }));
+export type CollectionsExportQuery = z.infer<typeof collectionsExportQuerySchema>;

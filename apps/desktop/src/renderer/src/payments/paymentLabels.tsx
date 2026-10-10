@@ -1,14 +1,8 @@
-import { COUNTER_PAYMENT_METHODS, type PaymentMethod } from "@bcis/shared";
+import { COUNTER_PAYMENT_METHODS, PAYMENT_METHOD_LABELS, type PaymentMethod } from "@bcis/shared";
 import { Badge } from "../ui/Badge";
 import type { SelectOption } from "../ui/SelectField";
 
-export const METHOD_LABELS: Record<PaymentMethod, string> = {
-  cash: "Cash",
-  gcash: "GCash",
-  bank_transfer: "Bank transfer",
-  cheque: "Cheque",
-  other: "Other",
-};
+export const METHOD_LABELS: Record<PaymentMethod, string> = PAYMENT_METHOD_LABELS;
 
 export function methodLabel(method: string): string {
   return METHOD_LABELS[method as PaymentMethod] ?? method;

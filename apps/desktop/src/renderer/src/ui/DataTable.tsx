@@ -13,9 +13,11 @@ interface DataTableProps<T> {
   rows: readonly T[];
   getRowKey: (row: T) => string;
   emptyMessage: string;
+  /** Optional totals row, rendered bold below the rows with the same column renderers. */
+  totals?: T;
 }
 
-export function DataTable<T>({ columns, rows, getRowKey, emptyMessage }: DataTableProps<T>) {
+export function DataTable<T>({ columns, rows, getRowKey, emptyMessage, totals }: DataTableProps<T>) {
   return (
     <div className="max-h-full overflow-auto rounded-lg border border-slate-200 bg-surface">
       <table className="w-full border-collapse text-sm">
@@ -56,6 +58,17 @@ export function DataTable<T>({ columns, rows, getRowKey, emptyMessage }: DataTab
             ))
           )}
         </tbody>
+        {totals !== undefined && rows.length > 0 && (
+          <tfoot>
+            <tr className="border-t-2 border-slate-300 bg-slate-50 font-semibold">
+              {columns.map((col) => (
+                <td key={col.key} className={`px-3 py-2 ${col.align === "right" ? "money" : "text-left"}`}>
+                  {col.render(totals)}
+                </td>
+              ))}
+            </tr>
+          </tfoot>
+        )}
       </table>
     </div>
   );
