@@ -1,6 +1,6 @@
-import { readFile, stat } from "node:fs/promises";
+import { readFile, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { app, BrowserWindow, dialog, ipcMain } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
 import type {
   ApiFailure,
   ApiResult,
@@ -27,6 +27,8 @@ import type {
   AgingReportDto,
   ReceivableFilterOptionsDto,
   ReceivablePageDto,
+  ExportFormat,
+  SavedExportDto,
   ReceivableSettingsDto,
   ReconnectionDto,
   ReconnectionPageDto,
@@ -692,6 +694,74 @@ ipcMain.handle("receivables:list", (_event, query: unknown) =>
 ipcMain.handle("receivables:aging", (_event, query: unknown) =>
   isRecord(query)
     ? authedRequest<AgingReportDto>("GET", listPath("/receivables/aging", AGING_KEYS, query))
+    : BAD_INPUT,
+);
+
+/* -------------------------------- Exports -------------------------------- */
+
+// Mirrors REPORT_EXPORT_CONTENT_TYPES in @bcis/shared (main does not load shared at runtime).
+const EXPORT_TYPES: Record<ExportFormat, { contentType: string; filter: Electron.FileFilter }> = {
+  pdf: { contentType: "application/pdf", filter: { name: "PDF document", extensions: ["pdf"] } },
+  xlsx: {
+    contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    filter: { name: "Excel workbook", extensions: ["xlsx"] },
+  },
+};
+const isExportFormat = (value: unknown): value is ExportFormat => value === "pdf" || value === "xlsx";
+
+/** Where the last export was saved; kept here so the renderer never handles file paths. */
+let lastSavedExport: string | null = null;
+
+/** This PC's calendar date (the office PCs run on Philippine time). */
+function localToday(): string {
+  const now = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+}
+
+/**
+ * Asks where to save first, then downloads and writes the file. Cancelling the dialog sends
+ * nothing to the server, so only saved exports appear in the audit log.
+ */
+async function saveExport(
+  event: Electron.IpcMainInvokeEvent,
+  urlPath: string,
+  slug: string,
+  format: ExportFormat,
+): Promise<ApiResult<SavedExportDto>> {
+  const type = EXPORT_TYPES[format];
+  const options: Electron.SaveDialogOptions = {
+    title: "Save report",
+    defaultPath: path.join(app.getPath("documents"), `${slug}-${localToday()}.${format}`),
+    filters: [type.filter],
+  };
+  const win = BrowserWindow.fromWebContents(event.sender);
+  const picked = win ? await dialog.showSaveDialog(win, options) : await dialog.showSaveDialog(options);
+  if (picked.canceled || !picked.filePath) return { ok: false, code: "CANCELLED", message: "The report was not saved." };
+
+  const file = await authedFetch(urlPath, { method: "GET" }, async (res) => {
+    if (res.headers.get("content-type") !== type.contentType) throw new Error("Unexpected export type");
+    return new Uint8Array(await res.arrayBuffer());
+  });
+  if (!file.ok) return file;
+  try {
+    await writeFile(picked.filePath, file.data);
+  } catch {
+    return { ok: false, code: "FILE_WRITE", message: "The file could not be saved there. Is it open in another program?" };
+  }
+  lastSavedExport = picked.filePath;
+  return { ok: true, data: { fileName: path.basename(picked.filePath), format } };
+}
+
+ipcMain.handle("exports:openLast", async (): Promise<ApiResult<null>> => {
+  if (!lastSavedExport) return { ok: false, code: "NOT_FOUND", message: "Nothing has been saved yet." };
+  const problem = await shell.openPath(lastSavedExport);
+  return problem ? { ok: false, code: "OPEN_FAILED", message: problem } : { ok: true, data: null };
+});
+
+ipcMain.handle("receivables:exportAging", (event, query: unknown, format: unknown) =>
+  isRecord(query) && isExportFormat(format)
+    ? saveExport(event, listPath("/receivables/aging/export", [...AGING_KEYS, "format"], { ...query, format }), "ar-aging", format)
     : BAD_INPUT,
 );
 

@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyReply } from "fastify";
 import { z } from "zod";
 import {
+  agingExportQuerySchema,
   agingQuerySchema,
   receivableListQuerySchema,
   receivableSettingsUpdateSchema,
@@ -16,7 +17,9 @@ import { createAuthenticate } from "../auth/authenticate";
 import { requireAnyPermission, requirePermission } from "../auth/guard";
 import type { Db } from "../db/client";
 import { sendValidationError } from "../http/errors";
+import { sendReportExport } from "../reports/export";
 import { ServiceAccountError } from "../service-accounts/service";
+import { buildAgingDocument, describeReceivableFilters } from "./aging-export";
 import {
   getAgingReport,
   getReceivableFilterOptions,
@@ -51,11 +54,13 @@ function sendControlError(reply: FastifyReply, err: unknown) {
  * Receivables, suspension and reconnection (Phase 7). Lists and aging need receivable.view;
  * the candidate list and every suspension/reconnection step need suspension.manage (which
  * technicians have); the service's control history is part of the service (service.view);
- * the grace period and threshold need settings.manage.
+ * the grace period and threshold need settings.manage. Exports need report.export on top of
+ * the permission that shows the same data on screen.
  */
 export function registerReceivableRoutes(app: FastifyInstance, db: Db): void {
   const authenticate = createAuthenticate(db);
   const canView = { preHandler: [authenticate, requirePermission("receivable.view")] };
+  const canExport = { preHandler: [authenticate, requirePermission("receivable.view", "report.export")] };
   const canControl = { preHandler: [authenticate, requirePermission("suspension.manage")] };
   const canViewService = { preHandler: [authenticate, requirePermission("service.view")] };
   const canSettings = { preHandler: [authenticate, requirePermission("settings.manage")] };
@@ -76,6 +81,15 @@ export function registerReceivableRoutes(app: FastifyInstance, db: Db): void {
     const query = agingQuerySchema.safeParse(request.query);
     if (!query.success) return sendValidationError(reply, query.error);
     return getAgingReport(db, query.data);
+  });
+
+  app.get("/receivables/aging/export", canExport, async (request, reply) => {
+    const query = agingExportQuerySchema.safeParse(request.query);
+    if (!query.success) return sendValidationError(reply, query.error);
+    const { format, ...filters } = query.data;
+    const [report, options] = await Promise.all([getAgingReport(db, filters), getReceivableFilterOptions(db)]);
+    const doc = buildAgingDocument(report, describeReceivableFilters(filters, options));
+    return sendReportExport(reply, db, request.auth!, doc, format, filters);
   });
 
   app.get("/receivables/suspension-candidates", canControl, async (request, reply) => {

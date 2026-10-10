@@ -3,6 +3,12 @@ import { z } from "zod";
 export const SERVICE_TYPE_CODES = ["internet", "cable", "combo"] as const;
 export type ServiceTypeCode = (typeof SERVICE_TYPE_CODES)[number];
 
+export const SERVICE_TYPE_LABELS: Record<ServiceTypeCode, string> = {
+  internet: "Internet",
+  cable: "Cable",
+  combo: "Combo",
+};
+
 /** Upper bound for any single plan amount: P1,000,000 expressed in centavos. */
 export const MAX_PLAN_CENTAVOS = 100_000_000;
 

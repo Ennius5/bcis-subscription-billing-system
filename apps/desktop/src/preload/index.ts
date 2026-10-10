@@ -708,6 +708,14 @@ export interface ReceivablePageDto {
   pageSize: number;
 }
 
+export type ExportFormat = "pdf" | "xlsx";
+
+/** A report saved through the native Save dialog; the full path stays in the main process. */
+export interface SavedExportDto {
+  fileName: string;
+  format: ExportFormat;
+}
+
 export interface AgingQuery {
   collectorId?: string;
   areaId?: string;
@@ -988,6 +996,9 @@ const bcis = {
     list: (query: ReceivableListQuery): Promise<ApiResult<ReceivablePageDto>> =>
       ipcRenderer.invoke("receivables:list", query),
     aging: (query: AgingQuery): Promise<ApiResult<AgingReportDto>> => ipcRenderer.invoke("receivables:aging", query),
+    /** Opens the Save dialog, then downloads the export; CANCELLED if the dialog is closed. */
+    exportAging: (query: AgingQuery, format: ExportFormat): Promise<ApiResult<SavedExportDto>> =>
+      ipcRenderer.invoke("receivables:exportAging", query, format),
     filterOptions: (): Promise<ApiResult<ReceivableFilterOptionsDto>> => ipcRenderer.invoke("receivables:filterOptions"),
   },
   serviceControl: {
@@ -1008,6 +1019,10 @@ const bcis = {
     cancel: (reconnectionId: string, reason: string): Promise<ApiResult<ReconnectionDto>> =>
       ipcRenderer.invoke("serviceControl:cancel", reconnectionId, reason),
     technicians: (): Promise<ApiResult<TechnicianDto[]>> => ipcRenderer.invoke("serviceControl:technicians"),
+  },
+  exports: {
+    /** Opens the last saved export in its default program (e.g. to print a PDF). */
+    openLast: (): Promise<ApiResult<null>> => ipcRenderer.invoke("exports:openLast"),
   },
   settings: {
     receivables: (): Promise<ApiResult<ReceivableSettingsDto>> => ipcRenderer.invoke("settings:receivables"),

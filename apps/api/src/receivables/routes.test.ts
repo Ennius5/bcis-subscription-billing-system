@@ -1,4 +1,5 @@
 import { and, eq, sql } from "drizzle-orm";
+import ExcelJS from "exceljs";
 import type { FastifyInstance } from "fastify";
 import {
   planCreateSchema,
@@ -39,6 +40,7 @@ beforeAll(async () => {
   await createTestUser(db, "recv_owner", PASSWORD, "owner");
   await createTestUser(db, "recv_cashier", PASSWORD, "cashier");
   await createTestUser(db, "recv_viewer", PASSWORD, "viewer");
+  await createTestUser(db, "recv_auditor", PASSWORD, "auditor");
   technicianId = await createTestUser(db, "recv_tech", PASSWORD, "technician");
 
   const plan = await createPlan(
@@ -188,6 +190,61 @@ describe("receivable routes: lists", () => {
       expect(res.statusCode, url).toBe(400);
       expect(res.json().error).toBe("VALIDATION");
     }
+  });
+});
+
+describe("receivable routes: aging export", () => {
+  const exportUrl = (format: string) => `/receivables/aging/export?format=${format}&serviceType=internet`;
+
+  it("needs report.export on top of receivable.view, and audits nothing it refuses", async () => {
+    expect((await app.inject({ method: "GET", url: exportUrl("pdf") })).statusCode).toBe(401);
+    for (const username of ["recv_viewer", "recv_cashier", "recv_tech"]) {
+      const res = await app.inject({ method: "GET", url: exportUrl("pdf"), headers: bearer(await tokenFor(username)) });
+      expect(res.statusCode, username).toBe(403);
+    }
+    const auditor = bearer(await tokenFor("recv_auditor"));
+    for (const url of ["/receivables/aging/export", "/receivables/aging/export?format=csv", "/receivables/aging/export?format=pdf&serviceType=fiber"]) {
+      const res = await app.inject({ method: "GET", url, headers: auditor });
+      expect(res.statusCode, url).toBe(400);
+      expect(res.json().error).toBe("VALIDATION");
+    }
+    expect(await db.select().from(auditLogs).where(eq(auditLogs.action, "report.export"))).toEqual([]);
+  });
+
+  it("sends a PDF and an XLSX of the aging figures and audits each export", async () => {
+    const today = await dbToday(db);
+    const auditor = bearer(await tokenFor("recv_auditor"));
+
+    const pdf = await app.inject({ method: "GET", url: exportUrl("pdf"), headers: auditor });
+    expect(pdf.statusCode).toBe(200);
+    expect(pdf.headers["content-type"]).toBe("application/pdf");
+    expect(pdf.headers["content-disposition"]).toBe(`attachment; filename="ar-aging-${today}.pdf"`);
+    expect(pdf.headers["cache-control"]).toBe("no-store");
+    expect(pdf.rawPayload.subarray(0, 5).toString("latin1")).toBe("%PDF-");
+
+    const xlsx = await app.inject({ method: "GET", url: exportUrl("xlsx"), headers: bearer(await tokenFor("recv_admin")) });
+    expect(xlsx.statusCode).toBe(200);
+    expect(xlsx.headers["content-type"]).toBe("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    const book = new ExcelJS.Workbook();
+    await book.xlsx.load(xlsx.rawPayload as unknown as ArrayBuffer);
+    const sheet = book.getWorksheet("Report")!;
+    const cells = sheet.getSheetValues().flatMap((row) => (Array.isArray(row) ? row : []));
+    expect(cells).toContain("Accounts Receivable Aging");
+    expect(cells).toContain(`As of ${today}`);
+    expect(cells).toContain("Service type: Internet");
+    // The 1-30 bucket row: label, 1 invoice, 1 account, P999.00 as a number formatted in pesos.
+    const bucketRow = sheet.getRows(1, sheet.rowCount)!.find((r) => r.getCell(1).value === "1–30 days")!;
+    expect(bucketRow.getCell(4).value).toBe(999);
+    expect(bucketRow.getCell(4).numFmt).toContain("₱");
+
+    const audits = await db.select().from(auditLogs).where(eq(auditLogs.action, "report.export")).orderBy(auditLogs.occurredAt);
+    expect(audits).toHaveLength(2);
+    expect(audits[0]).toMatchObject({
+      entityType: "report",
+      entityId: "ar-aging",
+      newValues: { format: "pdf", fileName: `ar-aging-${today}.pdf`, filters: { serviceType: "internet" }, rows: 5 },
+    });
+    expect(audits[1]!.newValues).toMatchObject({ format: "xlsx", fileName: `ar-aging-${today}.xlsx` });
   });
 });
 

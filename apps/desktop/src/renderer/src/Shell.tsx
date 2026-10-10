@@ -186,7 +186,7 @@ export function Shell({ session, onSignOut }: ShellProps) {
                 onSessionExpired={onSignOut}
               />
             ) : active.id === "receivables.aging" ? (
-              <AgingScreen onSessionExpired={onSignOut} />
+              <AgingScreen canExport={permissions.includes("report.export")} onSessionExpired={onSignOut} />
             ) : active.id === "receivables.suspension" ? (
               <SuspensionScreen permissions={permissions} onSessionExpired={onSignOut} />
             ) : active.id === "admin.settings" ? (

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { formatPesos } from "@bcis/shared";
 import type { AgingBucketDto, AgingReportDto } from "../../../preload/index";
 import { DataTable, type Column } from "../ui/DataTable";
+import { ExportButtons } from "../ui/ExportButtons";
 import {
   BucketBadge,
   CountTile,
@@ -19,6 +20,8 @@ function share(part: number, whole: number): string {
 }
 
 interface AgingScreenProps {
+  /** report.export: shows Export PDF / Export Excel (the server checks it again). */
+  canExport: boolean;
   onSessionExpired: () => void;
 }
 
@@ -26,7 +29,7 @@ interface AgingScreenProps {
  * AR aging (spec 3.9) as of the server's today: each open invoice's balance sits in the
  * bucket of its own due date. Unapplied credit is shown beside it, not netted in.
  */
-export function AgingScreen({ onSessionExpired }: AgingScreenProps) {
+export function AgingScreen({ canExport, onSessionExpired }: AgingScreenProps) {
   const options = useFilterOptions(onSessionExpired);
   const [filters, setFilters] = useState<ReceivableFilters>(NO_FILTERS);
   const [report, setReport] = useState<AgingReportDto | null>(null);
@@ -65,10 +68,21 @@ export function AgingScreen({ onSessionExpired }: AgingScreenProps) {
 
   return (
     <div>
-      <h1 className="mb-1 text-xl font-semibold text-navy">Aging</h1>
-      <p className="mb-4 text-sm text-muted">
-        Unpaid invoice balances by how many days they are past due{report && `, as of ${report.asOf}`}.
-      </p>
+      <div className="mb-4 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="mb-1 text-xl font-semibold text-navy">Aging</h1>
+          <p className="text-sm text-muted">
+            Unpaid invoice balances by how many days they are past due{report && `, as of ${report.asOf}`}.
+          </p>
+        </div>
+        {canExport && (
+          <ExportButtons
+            onExport={(format) => window.bcis.receivables.exportAging(filters, format)}
+            onExpired={onSessionExpired}
+            disabled={!report}
+          />
+        )}
+      </div>
 
       <div className="mb-4 grid grid-cols-4 gap-3">
         <FilterBar value={filters} options={options} onChange={setFilters} />
