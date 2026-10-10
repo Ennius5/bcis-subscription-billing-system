@@ -3,6 +3,13 @@ import { z } from "zod";
 export const SUBSCRIBER_STATUSES = ["active", "inactive", "terminated", "archived"] as const;
 export type SubscriberStatus = (typeof SUBSCRIBER_STATUSES)[number];
 
+export const SUBSCRIBER_STATUS_LABELS: Record<SubscriberStatus, string> = {
+  active: "Active",
+  inactive: "Inactive",
+  terminated: "Terminated",
+  archived: "Archived",
+};
+
 export const CONTACT_TYPES = ["mobile", "landline", "email", "other"] as const;
 export type ContactType = (typeof CONTACT_TYPES)[number];
 

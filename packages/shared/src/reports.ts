@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { addMonths, billingPeriodSchema, ledgerQuerySchema, periodBounds, periodLabel, periodOf } from "./billing";
 import { agingQuerySchema } from "./receivables";
+import { SUBSCRIBER_STATUSES } from "./subscribers";
 
 /** Reports are exported as PDF (to read and print) or XLSX (to work with the figures). */
 export const REPORT_EXPORT_FORMATS = ["pdf", "xlsx"] as const;
@@ -187,3 +188,31 @@ export const revenueExportQuerySchema = checkMonthRange(z.object({ ...revenueSha
  */
 export const statementExportQuerySchema = ledgerQuerySchema.and(z.object({ format: reportExportFormatSchema }));
 export type StatementExportQuery = z.infer<typeof statementExportQuerySchema>;
+
+/* -------------------------- Subscriber master list -------------------------- */
+
+/** No status means every subscriber except archived ones; archived must be asked for. */
+const masterListShape = {
+  status: z.enum(SUBSCRIBER_STATUSES, { error: "Choose a subscriber status." }).optional(),
+  areaId: z.uuid().optional(),
+  collectorId: z.uuid().optional(),
+};
+export const masterListQuerySchema = z.object(masterListShape);
+export type MasterListQuery = z.infer<typeof masterListQuerySchema>;
+export const masterListExportQuerySchema = z.object({ ...masterListShape, format: reportExportFormatSchema });
+
+/* --------------------------- Exceptions register --------------------------- */
+
+/**
+ * Adjustments, reversed receipts and voided invoices made between two dates (the day each
+ * was made, not the date of the document it changed).
+ */
+const dateRangeShape = { from: isoDate, to: isoDate };
+const orderedRange = { message: "The start date must be on or before the end date.", path: ["to"] };
+export const exceptionsQuerySchema = z
+  .object(dateRangeShape)
+  .refine((q) => q.from <= q.to, orderedRange);
+export type ExceptionsQuery = z.infer<typeof exceptionsQuerySchema>;
+export const exceptionsExportQuerySchema = z
+  .object({ ...dateRangeShape, format: reportExportFormatSchema })
+  .refine((q) => q.from <= q.to, orderedRange);

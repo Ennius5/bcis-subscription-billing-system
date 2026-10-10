@@ -804,6 +804,90 @@ export interface RevenueReportDto {
   totals: RevenueAmountsDto;
 }
 
+export interface MasterListQuery {
+  status?: string;
+  areaId?: string;
+  collectorId?: string;
+}
+
+export interface MasterListRowDto {
+  subscriberId: string;
+  accountNumber: string;
+  fullName: string;
+  status: string;
+  area: string | null;
+  collector: string | null;
+  address: string | null;
+  contact: string | null;
+  activeServiceCount: number;
+  plans: string | null;
+  monthlyRateCentavos: number;
+  balanceCentavos: number;
+}
+
+export interface MasterListDto {
+  asOf: string;
+  rows: MasterListRowDto[];
+  statusCounts: Record<string, number>;
+  totals: { subscriberCount: number; activeServiceCount: number; monthlyRateCentavos: number; balanceCentavos: number };
+}
+
+export interface DateRangeQuery {
+  from: string;
+  to: string;
+}
+
+export interface ExceptionAdjustmentDto {
+  adjustmentNumber: string;
+  date: string;
+  invoiceNumber: string;
+  accountNumber: string;
+  subscriberName: string;
+  kind: string;
+  category: string;
+  /** Signed: debits positive, credits negative. */
+  amountCentavos: number;
+  reason: string;
+  by: string;
+}
+
+export interface ExceptionReversalDto {
+  receiptNumber: string;
+  paymentDate: string;
+  reversedOn: string;
+  accountNumber: string;
+  subscriberName: string;
+  method: string;
+  amountCentavos: number;
+  reason: string;
+  by: string;
+}
+
+export interface ExceptionVoidDto {
+  invoiceNumber: string;
+  period: string;
+  voidedOn: string;
+  accountNumber: string;
+  subscriberName: string;
+  amountCentavos: number;
+  reason: string;
+  by: string;
+}
+
+export interface ExceptionsRegisterDto {
+  from: string;
+  to: string;
+  adjustments: ExceptionAdjustmentDto[];
+  reversals: ExceptionReversalDto[];
+  voids: ExceptionVoidDto[];
+  totals: {
+    debitAdjustmentsCentavos: number;
+    creditAdjustmentsCentavos: number;
+    reversedCentavos: number;
+    voidedCentavos: number;
+  };
+}
+
 export interface AgingQuery {
   collectorId?: string;
   areaId?: string;
@@ -1127,6 +1211,12 @@ const bcis = {
     revenue: (query: RevenueQuery): Promise<ApiResult<RevenueReportDto>> => ipcRenderer.invoke("reports:revenue", query),
     exportRevenue: (query: RevenueQuery, format: ExportFormat): Promise<ApiResult<SavedExportDto>> =>
       ipcRenderer.invoke("reports:exportRevenue", query, format),
+    masterList: (query: MasterListQuery): Promise<ApiResult<MasterListDto>> => ipcRenderer.invoke("reports:masterList", query),
+    exportMasterList: (query: MasterListQuery, format: ExportFormat): Promise<ApiResult<SavedExportDto>> =>
+      ipcRenderer.invoke("reports:exportMasterList", query, format),
+    exceptions: (query: DateRangeQuery): Promise<ApiResult<ExceptionsRegisterDto>> => ipcRenderer.invoke("reports:exceptions", query),
+    exportExceptions: (query: DateRangeQuery, format: ExportFormat): Promise<ApiResult<SavedExportDto>> =>
+      ipcRenderer.invoke("reports:exportExceptions", query, format),
   },
   exports: {
     /** Opens the last saved export in its default program (e.g. to print a PDF). */

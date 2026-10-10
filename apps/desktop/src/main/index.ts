@@ -30,6 +30,8 @@ import type {
   CollectionsReportDto,
   BillingVsCollectionDto,
   RevenueReportDto,
+  MasterListDto,
+  ExceptionsRegisterDto,
   ExportFormat,
   SavedExportDto,
   ReceivableSettingsDto,
@@ -839,6 +841,39 @@ ipcMain.handle("reports:exportRevenue", (event, query: unknown, format: unknown)
         event,
         listPath("/reports/revenue/export", [...REVENUE_KEYS, "format"], { ...query, format }),
         `revenue-by-${query.dimension.replace("_", "-")}-${query.from}_to_${query.to}`,
+        format,
+      )
+    : BAD_INPUT,
+);
+
+const MASTER_LIST_KEYS = ["status", "areaId", "collectorId"] as const;
+const DATE_RANGE_KEYS = ["from", "to"] as const;
+
+ipcMain.handle("reports:masterList", (_event, query: unknown) =>
+  isRecord(query) ? authedRequest<MasterListDto>("GET", listPath("/reports/subscribers", MASTER_LIST_KEYS, query)) : BAD_INPUT,
+);
+
+ipcMain.handle("reports:exportMasterList", (event, query: unknown, format: unknown) =>
+  isRecord(query) && isExportFormat(format)
+    ? saveExport(
+        event,
+        listPath("/reports/subscribers/export", [...MASTER_LIST_KEYS, "format"], { ...query, format }),
+        `subscriber-master-list-${localToday()}`,
+        format,
+      )
+    : BAD_INPUT,
+);
+
+ipcMain.handle("reports:exceptions", (_event, query: unknown) =>
+  isRecord(query) ? authedRequest<ExceptionsRegisterDto>("GET", listPath("/reports/exceptions", DATE_RANGE_KEYS, query)) : BAD_INPUT,
+);
+
+ipcMain.handle("reports:exportExceptions", (event, query: unknown, format: unknown) =>
+  isRecord(query) && isIsoDate(query.from) && isIsoDate(query.to) && isExportFormat(format)
+    ? saveExport(
+        event,
+        listPath("/reports/exceptions/export", [...DATE_RANGE_KEYS, "format"], { ...query, format }),
+        `exceptions-register-${query.from}_to_${query.to}`,
         format,
       )
     : BAD_INPUT,

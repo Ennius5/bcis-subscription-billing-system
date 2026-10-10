@@ -5,7 +5,12 @@ import {
   billingVsCollectionQuerySchema,
   collectionsExportQuerySchema,
   collectionsReportQuerySchema,
+  exceptionsExportQuerySchema,
+  exceptionsQuerySchema,
   ledgerQuerySchema,
+  masterListExportQuerySchema,
+  masterListQuerySchema,
+  SUBSCRIBER_STATUS_LABELS,
   revenueExportQuerySchema,
   revenueQuerySchema,
   statementExportQuerySchema,
@@ -14,12 +19,16 @@ import { createAuthenticate } from "../auth/authenticate";
 import { requirePermission } from "../auth/guard";
 import type { Db } from "../db/client";
 import { sendValidationError } from "../http/errors";
+import { describeReceivableFilters } from "../receivables/aging-export";
+import { getReceivableFilterOptions } from "../receivables/service";
 import { SubscriberError } from "../subscribers/service";
 import { getBillingVsCollection, getRevenueReport } from "./billing";
 import { buildBillingVsCollectionDocument, buildRevenueDocument } from "./billing-export";
 import { getCollectionsReport } from "./collections";
 import { buildCollectionsDocument } from "./collections-export";
 import { sendReportExport } from "./export";
+import { getExceptionsRegister, getMasterList } from "./registers";
+import { buildExceptionsDocument, buildMasterListDocument } from "./registers-export";
 import { getStatementOfAccount } from "./statement";
 import { buildStatementDocument } from "./statement-export";
 
@@ -112,6 +121,38 @@ export function registerReportRoutes(app: FastifyInstance, db: Db): void {
     if (!query.success) return sendValidationError(reply, query.error);
     const { format, ...filters } = query.data;
     const doc = buildRevenueDocument(await getRevenueReport(db, filters));
+    return sendReportExport(reply, db, request.auth!, doc, format, filters);
+  });
+
+  app.get("/reports/subscribers", canView, async (request, reply) => {
+    const query = masterListQuerySchema.safeParse(request.query);
+    if (!query.success) return sendValidationError(reply, query.error);
+    return getMasterList(db, query.data);
+  });
+
+  app.get("/reports/subscribers/export", canExport, async (request, reply) => {
+    const query = masterListExportQuerySchema.safeParse(request.query);
+    if (!query.success) return sendValidationError(reply, query.error);
+    const { format, ...filters } = query.data;
+    const [list, options] = await Promise.all([getMasterList(db, filters), getReceivableFilterOptions(db)]);
+    const lines = [
+      ...(filters.status ? [{ label: "Status", value: SUBSCRIBER_STATUS_LABELS[filters.status] }] : []),
+      ...describeReceivableFilters(filters, options),
+    ];
+    return sendReportExport(reply, db, request.auth!, buildMasterListDocument(list, lines), format, filters);
+  });
+
+  app.get("/reports/exceptions", canView, async (request, reply) => {
+    const query = exceptionsQuerySchema.safeParse(request.query);
+    if (!query.success) return sendValidationError(reply, query.error);
+    return getExceptionsRegister(db, query.data);
+  });
+
+  app.get("/reports/exceptions/export", canExport, async (request, reply) => {
+    const query = exceptionsExportQuerySchema.safeParse(request.query);
+    if (!query.success) return sendValidationError(reply, query.error);
+    const { format, ...filters } = query.data;
+    const doc = buildExceptionsDocument(await getExceptionsRegister(db, filters));
     return sendReportExport(reply, db, request.auth!, doc, format, filters);
   });
 }

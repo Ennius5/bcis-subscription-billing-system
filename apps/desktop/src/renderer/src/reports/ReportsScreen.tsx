@@ -2,23 +2,28 @@ import { useState } from "react";
 import type { PermissionCode } from "@bcis/shared";
 import { BillingVsCollectionScreen } from "./BillingVsCollectionScreen";
 import { CollectionsReportScreen } from "./CollectionsReportScreen";
+import { ExceptionsScreen } from "./ExceptionsScreen";
+import { MasterListScreen } from "./MasterListScreen";
 import { RevenueScreen } from "./RevenueScreen";
 
-type ReportTab = "collections" | "billing" | "revenue";
+type ReportTab = "collections" | "billing" | "revenue" | "subscribers" | "exceptions";
 
 const TABS: { id: ReportTab; label: string }[] = [
   { id: "collections", label: "Collections" },
   { id: "billing", label: "Billing vs collection" },
   { id: "revenue", label: "Revenue" },
+  { id: "subscribers", label: "Subscriber master list" },
+  { id: "exceptions", label: "Adjustments & reversals" },
 ];
 
 interface ReportsScreenProps {
   permissions: readonly PermissionCode[];
+  onOpenSubscriber: (id: string) => void;
   onSessionExpired: () => void;
 }
 
 /** Reports (report.view). One tab per report; export buttons need report.export. */
-export function ReportsScreen({ permissions, onSessionExpired }: ReportsScreenProps) {
+export function ReportsScreen({ permissions, onOpenSubscriber, onSessionExpired }: ReportsScreenProps) {
   const [tab, setTab] = useState<ReportTab>("collections");
   const canExport = permissions.includes("report.export");
   return (
@@ -42,6 +47,14 @@ export function ReportsScreen({ permissions, onSessionExpired }: ReportsScreenPr
       {tab === "collections" && <CollectionsReportScreen canExport={canExport} onSessionExpired={onSessionExpired} />}
       {tab === "billing" && <BillingVsCollectionScreen canExport={canExport} onSessionExpired={onSessionExpired} />}
       {tab === "revenue" && <RevenueScreen canExport={canExport} onSessionExpired={onSessionExpired} />}
+      {tab === "subscribers" && (
+        <MasterListScreen
+          canExport={canExport}
+          {...(permissions.includes("subscriber.view") ? { onOpenSubscriber } : {})}
+          onSessionExpired={onSessionExpired}
+        />
+      )}
+      {tab === "exceptions" && <ExceptionsScreen canExport={canExport} onSessionExpired={onSessionExpired} />}
     </div>
   );
 }
