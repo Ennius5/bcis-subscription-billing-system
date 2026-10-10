@@ -768,6 +768,21 @@ ipcMain.handle("receivables:exportAging", (event, query: unknown, format: unknow
     : BAD_INPUT,
 );
 
+// The account number only shapes the suggested file name, so anything unexpected falls back.
+const fileSafe = (value: unknown): string =>
+  typeof value === "string" && /^[A-Za-z0-9-]{1,40}$/.test(value) ? value : "statement";
+
+ipcMain.handle("billing:exportStatement", (event, subscriberId: unknown, range: unknown, format: unknown, accountNumber: unknown) =>
+  typeof subscriberId === "string" && isRecord(range) && isExportFormat(format)
+    ? saveExport(
+        event,
+        listPath(`${subscriberPath(subscriberId)}/statement/export`, [...LEDGER_KEYS, "format"], { ...range, format }),
+        `soa-${fileSafe(accountNumber)}-${isIsoDate(range.to) ? range.to : localToday()}`,
+        format,
+      )
+    : BAD_INPUT,
+);
+
 ipcMain.handle("receivables:filterOptions", () =>
   authedRequest<ReceivableFilterOptionsDto>("GET", "/receivables/filter-options"),
 );

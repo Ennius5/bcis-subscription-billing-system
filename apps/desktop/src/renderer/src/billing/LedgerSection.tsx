@@ -4,6 +4,7 @@ import type { SubscriberLedgerDto } from "../../../preload/index";
 import { schemaErrors } from "../subscribers/ProfileForm";
 import { RowError, Section } from "../subscribers/ProfileParts";
 import { DateField } from "../ui/DateField";
+import { ExportButtons } from "../ui/ExportButtons";
 
 const ENTRY_LABELS: Record<string, string> = {
   invoice: "Invoice",
@@ -22,11 +23,12 @@ const th = "sticky top-0 border-b border-slate-200 bg-slate-50 px-3 py-2 font-me
 
 interface LedgerSectionProps {
   subscriberId: string;
+  accountNumber: string;
   onSessionExpired: () => void;
 }
 
 /** The subscriber ledger (spec 3.5): every debit and credit in posting order, with a running balance. */
-export function LedgerSection({ subscriberId, onSessionExpired }: LedgerSectionProps) {
+export function LedgerSection({ subscriberId, accountNumber, onSessionExpired }: LedgerSectionProps) {
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [ledger, setLedger] = useState<SubscriberLedgerDto | null>(null);
@@ -69,9 +71,24 @@ export function LedgerSection({ subscriberId, onSessionExpired }: LedgerSectionP
         )
       }
     >
-      <div className="mb-3 grid grid-cols-4 gap-3">
+      <div className="mb-3 grid grid-cols-4 items-start gap-3">
         <DateField label="From" value={from} onChange={setFrom} error={rangeErrors.from} hint="Blank for the beginning." />
         <DateField label="To" value={to} onChange={setTo} error={rangeErrors.to} hint="Blank for today." />
+        <div className="col-span-2 flex flex-col items-end gap-1">
+          <span className="text-xs text-muted">Statement of Account for this range, with unpaid bills and aging</span>
+          <ExportButtons
+            onExport={(format) =>
+              window.bcis.billing.exportStatement(
+                subscriberId,
+                { ...(from ? { from } : {}), ...(to ? { to } : {}) },
+                format,
+                accountNumber,
+              )
+            }
+            onExpired={onSessionExpired}
+            disabled={!ledger || Object.keys(rangeErrors).length > 0}
+          />
+        </div>
       </div>
 
       {error && <RowError message={`Could not load the ledger. ${error}`} />}

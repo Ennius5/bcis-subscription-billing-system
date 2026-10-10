@@ -7,6 +7,13 @@ import { type ReportDocument, rowCount } from "./document";
 import { renderPdf } from "./render-pdf";
 import { renderXlsx } from "./render-xlsx";
 
+/** Where an export is recorded; reports default to report.export on the report's slug. */
+export interface ExportAuditTarget {
+  action: string;
+  entityType: string;
+  entityId: string;
+}
+
 /**
  * Renders the report, records the export in the audit log, then sends the file as a download.
  * The audit row is written after rendering (a failed render is not an export) and before the
@@ -19,6 +26,7 @@ export async function sendReportExport(
   doc: ReportDocument,
   format: ReportExportFormat,
   filters: Record<string, unknown>,
+  target: ExportAuditTarget = { action: "report.export", entityType: "report", entityId: doc.slug },
 ): Promise<FastifyReply> {
   const meta = { generatedAt: new Date(), generatedBy: auth.fullName || auth.username };
   const file = format === "pdf" ? await renderPdf(doc, meta) : await renderXlsx(doc, meta);
@@ -26,10 +34,8 @@ export async function sendReportExport(
 
   await writeAudit(db, {
     actorUserId: auth.userId,
-    action: "report.export",
-    entityType: "report",
-    entityId: doc.slug,
-    newValues: { format, fileName, filters, rows: rowCount(doc), bytes: file.length },
+    ...target,
+    newValues: { report: doc.slug, format, fileName, filters, rows: rowCount(doc), bytes: file.length },
   });
 
   return reply

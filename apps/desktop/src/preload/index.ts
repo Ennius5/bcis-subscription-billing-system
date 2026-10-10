@@ -1011,6 +1011,13 @@ const bcis = {
       ipcRenderer.invoke("serviceAccounts:changeCollector", id, input),
   },
   billing: {
+    /** Statement of Account for the ledger range (to blank = today); billing.view is enough. */
+    exportStatement: (
+      subscriberId: string,
+      range: { from?: string; to?: string },
+      format: ExportFormat,
+      accountNumber: string,
+    ): Promise<ApiResult<SavedExportDto>> => ipcRenderer.invoke("billing:exportStatement", subscriberId, range, format, accountNumber),
     summary: (period: string): Promise<ApiResult<BillingSummaryDto>> => ipcRenderer.invoke("billing:summary", period),
     generate: (period: string): Promise<ApiResult<BillingSummaryDto>> => ipcRenderer.invoke("billing:generate", period),
     discardDrafts: (period: string): Promise<ApiResult<BillingSummaryDto>> =>

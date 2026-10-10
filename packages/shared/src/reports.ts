@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { addMonths, billingPeriodSchema, periodBounds, periodLabel, periodOf } from "./billing";
+import { addMonths, billingPeriodSchema, ledgerQuerySchema, periodBounds, periodLabel, periodOf } from "./billing";
 import { agingQuerySchema } from "./receivables";
 
 /** Reports are exported as PDF (to read and print) or XLSX (to work with the figures). */
@@ -178,3 +178,12 @@ const revenueShape = {
 export const revenueQuerySchema = checkMonthRange(z.object(revenueShape));
 export type RevenueQuery = z.infer<typeof revenueQuerySchema>;
 export const revenueExportQuerySchema = checkMonthRange(z.object({ ...revenueShape, format: reportExportFormatSchema }));
+
+/* ------------------------- Statement of Account ------------------------- */
+
+/**
+ * The same optional range as the profile's ledger: no start date means from the first entry
+ * (opening balance 0); no end date means as of today.
+ */
+export const statementExportQuerySchema = ledgerQuerySchema.and(z.object({ format: reportExportFormatSchema }));
+export type StatementExportQuery = z.infer<typeof statementExportQuerySchema>;

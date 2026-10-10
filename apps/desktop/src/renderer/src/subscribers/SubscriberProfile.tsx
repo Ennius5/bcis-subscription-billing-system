@@ -449,7 +449,9 @@ export function SubscriberProfile({
               />
             </Section>
 
-            {canViewBilling && <LedgerSection subscriberId={subscriberId} onSessionExpired={onSessionExpired} />}
+            {canViewBilling && (
+              <LedgerSection subscriberId={subscriberId} accountNumber={subscriber.accountNumber} onSessionExpired={onSessionExpired} />
+            )}
 
             <Section title="History">
               {history.length === 0 ? (
