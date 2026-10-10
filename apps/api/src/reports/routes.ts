@@ -27,6 +27,7 @@ import { SubscriberError } from "../subscribers/service";
 import { getBillingVsCollection, getRevenueReport } from "./billing";
 import { buildBillingVsCollectionDocument, buildRevenueDocument } from "./billing-export";
 import { getCollectionsReport } from "./collections";
+import { getDashboard } from "./dashboard";
 import { buildCollectionsDocument } from "./collections-export";
 import { sendReportExport } from "./export";
 import { getExceptionsRegister, getMasterList } from "./registers";
@@ -102,6 +103,9 @@ export function registerReportRoutes(app: FastifyInstance, db: Db): void {
       entityId: params.data.id,
     });
   });
+
+  // The dashboard is report.view, like the menu item; spec 2.2 gives viewers "dashboards and reports".
+  app.get("/dashboard", canView, async () => getDashboard(db));
 
   app.get("/reports/collections", canView, async (request, reply) => {
     const query = collectionsReportQuerySchema.safeParse(request.query);
