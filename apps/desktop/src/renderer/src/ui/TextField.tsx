@@ -8,6 +8,9 @@ interface TextFieldProps {
   hint?: string;
   inputMode?: "text" | "numeric" | "decimal";
   maxLength?: number;
+  /** "password" hides what is typed; autoComplete tells Windows/Chromium what the field holds. */
+  type?: "text" | "password";
+  autoComplete?: string;
 }
 
 export function TextField({
@@ -20,6 +23,8 @@ export function TextField({
   hint,
   inputMode = "text",
   maxLength,
+  type = "text",
+  autoComplete,
 }: TextFieldProps) {
   return (
     <label className="block text-sm font-medium text-ink">
@@ -35,8 +40,9 @@ export function TextField({
             ? "border-danger focus:ring-danger/30"
             : "border-slate-300 focus:border-accent focus:ring-accent/30"
         }`}
-        type="text"
+        type={type}
         inputMode={inputMode}
+        autoComplete={autoComplete}
         value={value}
         required={required}
         disabled={disabled}

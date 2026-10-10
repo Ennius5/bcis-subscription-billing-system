@@ -6,7 +6,8 @@ export interface HealthResult {
 }
 
 export interface SessionInfo {
-  user: { id: string; username: string; fullName: string };
+  /** mustChangePassword: the server refuses everything else until the user picks a new password. */
+  user: { id: string; username: string; fullName: string; mustChangePassword: boolean };
   permissions: string[];
 }
 
@@ -1126,6 +1127,22 @@ export interface TechnicianDto {
   username: string;
 }
 
+/* ------------------------------- Users ------------------------------- */
+
+export interface UserDto {
+  id: string;
+  username: string;
+  fullName: string;
+  isActive: boolean;
+  mustChangePassword: boolean;
+  isLocked: boolean;
+  lockedUntil: string | null;
+  lastLoginAt: string | null;
+  createdAt: string;
+  /** Role codes, sorted. */
+  roles: string[];
+}
+
 /* ------------------------------- Settings ------------------------------- */
 
 export interface ReceivableSettingsDto {
@@ -1139,6 +1156,24 @@ const bcis = {
     ipcRenderer.invoke("auth:login", username, password),
   me: (): Promise<AuthResult> => ipcRenderer.invoke("auth:me"),
   logout: (): Promise<void> => ipcRenderer.invoke("auth:logout"),
+  /** Own password: { currentPassword, newPassword }. Other sessions of this user are ended. */
+  changePassword: (input: Record<string, unknown>): Promise<ApiResult<{ status: string }>> =>
+    ipcRenderer.invoke("auth:changePassword", input),
+  users: {
+    list: (): Promise<ApiResult<UserDto[]>> => ipcRenderer.invoke("users:list"),
+    create: (input: Record<string, unknown>): Promise<ApiResult<UserDto>> => ipcRenderer.invoke("users:create", input),
+    /** Send only changed fields (plus an optional reason); a no-op is not audited. */
+    update: (id: string, input: Record<string, unknown>): Promise<ApiResult<UserDto>> =>
+      ipcRenderer.invoke("users:update", id, input),
+    changeRoles: (id: string, input: Record<string, unknown>): Promise<ApiResult<UserDto>> =>
+      ipcRenderer.invoke("users:changeRoles", id, input),
+    changeStatus: (id: string, input: Record<string, unknown>): Promise<ApiResult<UserDto>> =>
+      ipcRenderer.invoke("users:changeStatus", id, input),
+    unlock: (id: string, input: Record<string, unknown>): Promise<ApiResult<UserDto>> =>
+      ipcRenderer.invoke("users:unlock", id, input),
+    resetPassword: (id: string, input: Record<string, unknown>): Promise<ApiResult<UserDto>> =>
+      ipcRenderer.invoke("users:resetPassword", id, input),
+  },
   plans: {
     list: (includeInactive: boolean): Promise<ApiResult<PlanDto[]>> =>
       ipcRenderer.invoke("plans:list", includeInactive),

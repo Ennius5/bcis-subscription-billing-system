@@ -24,6 +24,8 @@ import { DashboardScreen } from "./dashboard/DashboardScreen";
 import { ReceivablesScreen } from "./receivables/ReceivablesScreen";
 import { SuspensionScreen } from "./receivables/SuspensionScreen";
 import { SettingsScreen } from "./admin/SettingsScreen";
+import { UsersScreen } from "./admin/UsersScreen";
+import { ChangePasswordPanel } from "./account/ChangePassword";
 
 const SEARCH_DELAY_MS = 300;
 
@@ -60,6 +62,9 @@ export function Shell({ session, onSignOut }: ShellProps) {
   const [searchText, setSearchText] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const searching = searchText.trim() !== "";
+  // Change my password replaces the main area like search does; the screen underneath stays mounted.
+  const [changingPassword, setChangingPassword] = useState(false);
+  const covered = searching || changingPassword;
 
   useEffect(() => {
     const timer = setTimeout(() => setSearchQuery(searchText.trim()), SEARCH_DELAY_MS);
@@ -87,12 +92,14 @@ export function Shell({ session, onSignOut }: ShellProps) {
 
   function selectScreen(id: string) {
     clearSearch();
+    setChangingPassword(false);
     setOpenSubscriberId(null);
     setActiveId(id);
   }
 
   function openSubscriber(id: string) {
     clearSearch();
+    setChangingPassword(false);
     setOpenSubscriberId(id);
     setOpenRequest((n) => n + 1);
     setActiveId("subscribers.all");
@@ -123,6 +130,15 @@ export function Shell({ session, onSignOut }: ShellProps) {
         <span className="flex shrink-0 items-center gap-4 text-sm">
           {session.user.fullName}
           <button
+            onClick={() => {
+              clearSearch();
+              setChangingPassword(true);
+            }}
+            className="text-white/80 hover:text-white hover:underline"
+          >
+            Change password
+          </button>
+          <button
             onClick={onSignOut}
             className="rounded border border-white/40 px-3 py-1 hover:bg-white/10"
           >
@@ -134,10 +150,13 @@ export function Shell({ session, onSignOut }: ShellProps) {
       <div className="flex min-h-0 flex-1 border-t border-white/10">
         {items.length > 0 && <Sidebar items={items} activeId={activeId} onSelect={selectScreen} />}
         <main className="flex-1 overflow-y-auto p-8">
+          {changingPassword && !searching && (
+            <ChangePasswordPanel onClose={() => setChangingPassword(false)} onExpired={onSignOut} />
+          )}
           {searching && (
             <SearchResults query={searchQuery} onOpen={openSubscriber} onSessionExpired={onSignOut} />
           )}
-          <div hidden={searching}>
+          <div hidden={covered}>
             {!active ? (
               <p className="text-muted">
                 Your account has no assigned permissions. Please contact the administrator.
@@ -204,6 +223,8 @@ export function Shell({ session, onSignOut }: ShellProps) {
               <ReportsScreen permissions={permissions} onOpenSubscriber={openSubscriber} onSessionExpired={onSignOut} />
             ) : active.id === "admin.audit" ? (
               <AuditLogScreen permissions={permissions} onOpenSubscriber={openSubscriber} onSessionExpired={onSignOut} />
+            ) : active.id === "admin.users" ? (
+              <UsersScreen currentUserId={session.user.id} onSessionExpired={onSignOut} />
             ) : active.id === "admin.settings" ? (
               <SettingsScreen onSessionExpired={onSignOut} />
             ) : (

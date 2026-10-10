@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import type { SessionInfo } from "../../preload/index";
+import { ForcedPasswordChange } from "./account/ChangePassword";
 import { Login } from "./Login";
 import { Shell } from "./Shell";
 
@@ -33,6 +34,22 @@ export function App() {
 
   if (state.kind === "signedOut") {
     return <Login onSignedIn={(session) => setState({ kind: "signedIn", session })} />;
+  }
+
+  if (state.session.user.mustChangePassword) {
+    return (
+      <ForcedPasswordChange
+        session={state.session}
+        // Same session, now cleared by the server: just mark the flag as done.
+        onChanged={() =>
+          setState({
+            kind: "signedIn",
+            session: { ...state.session, user: { ...state.session.user, mustChangePassword: false } },
+          })
+        }
+        onSignOut={handleSignOut}
+      />
+    );
   }
 
   return <Shell session={state.session} onSignOut={handleSignOut} />;

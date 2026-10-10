@@ -44,6 +44,7 @@ import type {
   ServiceControlHistoryDto,
   SuspensionCandidateListDto,
   TechnicianDto,
+  UserDto,
   ServiceAccountDetailDto,
   ServiceAccountPageDto,
   SessionInfo,
@@ -984,6 +985,48 @@ ipcMain.handle("serviceControl:cancel", (_event, id: unknown, reason: unknown) =
 ipcMain.handle("serviceControl:technicians", () => authedRequest<TechnicianDto[]>("GET", "/technicians"));
 
 /* ------------------------------- Settings ------------------------------- */
+
+/* ------------------------------- Users ------------------------------- */
+
+ipcMain.handle("auth:changePassword", (_event, input: unknown) =>
+  isRecord(input) ? authedRequest<{ status: string }>("POST", "/auth/password", input) : BAD_INPUT,
+);
+
+ipcMain.handle("users:list", () => authedRequest<UserDto[]>("GET", "/admin/users"));
+
+ipcMain.handle("users:create", (_event, input: unknown) =>
+  isRecord(input) ? authedRequest<UserDto>("POST", "/admin/users", input) : BAD_INPUT,
+);
+
+ipcMain.handle("users:update", (_event, id: unknown, input: unknown) =>
+  typeof id === "string" && isRecord(input)
+    ? authedRequest<UserDto>("PATCH", `/admin/users/${encodeURIComponent(id)}`, input)
+    : BAD_INPUT,
+);
+
+ipcMain.handle("users:changeRoles", (_event, id: unknown, input: unknown) =>
+  typeof id === "string" && isRecord(input)
+    ? authedRequest<UserDto>("POST", `/admin/users/${encodeURIComponent(id)}/roles`, input)
+    : BAD_INPUT,
+);
+
+ipcMain.handle("users:changeStatus", (_event, id: unknown, input: unknown) =>
+  typeof id === "string" && isRecord(input)
+    ? authedRequest<UserDto>("POST", `/admin/users/${encodeURIComponent(id)}/status`, input)
+    : BAD_INPUT,
+);
+
+ipcMain.handle("users:unlock", (_event, id: unknown, input: unknown) =>
+  typeof id === "string" && isRecord(input)
+    ? authedRequest<UserDto>("POST", `/admin/users/${encodeURIComponent(id)}/unlock`, input)
+    : BAD_INPUT,
+);
+
+ipcMain.handle("users:resetPassword", (_event, id: unknown, input: unknown) =>
+  typeof id === "string" && isRecord(input)
+    ? authedRequest<UserDto>("POST", `/admin/users/${encodeURIComponent(id)}/reset-password`, input)
+    : BAD_INPUT,
+);
 
 ipcMain.handle("settings:receivables", () => authedRequest<ReceivableSettingsDto>("GET", "/settings/receivables"));
 
