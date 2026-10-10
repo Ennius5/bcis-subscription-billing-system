@@ -1,17 +1,13 @@
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { loadConfig } from "../config";
 import { createDb } from "./client";
-
-const here = path.dirname(fileURLToPath(import.meta.url));
-const migrationsFolder = path.resolve(here, "../../../../database/migrations");
+import { MIGRATIONS_FOLDER } from "./migrations-folder";
 
 async function main() {
   const config = loadConfig();
   const { db, pool } = createDb(config.DATABASE_URL);
   try {
-    await migrate(db, { migrationsFolder });
+    await migrate(db, { migrationsFolder: MIGRATIONS_FOLDER });
     console.log("Migrations applied.");
   } finally {
     await pool.end();

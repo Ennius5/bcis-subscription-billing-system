@@ -35,7 +35,7 @@ beforeAll(async () => {
 });
 
 beforeEach(async () => {
-  await db.execute(sql`TRUNCATE backup_history`);
+  await db.execute(sql`TRUNCATE integrity_checks, backup_history`);
 });
 
 afterAll(async () => {

@@ -17,6 +17,14 @@ import { registerReportRoutes } from "./reports/routes";
 import { ProofStore } from "./payments/proof-storage";
 import { registerErrorHandling } from "./http/error-handler";
 import { loggerOptions, newRequestId } from "./http/logging";
+import { MaintenanceGate } from "./http/maintenance";
+
+declare module "fastify" {
+  interface FastifyInstance {
+    /** Locks everyone out during a restore; the backup routes use it. */
+    maintenance: MaintenanceGate;
+  }
+}
 
 export interface AppDeps {
   pool?: Pool;
@@ -33,6 +41,9 @@ export function buildApp(config: Config, deps: AppDeps = {}): FastifyInstance {
 
   app.decorateRequest("auth", null);
   registerErrorHandling(app);
+  const maintenance = new MaintenanceGate();
+  maintenance.register(app);
+  app.decorate("maintenance", maintenance);
 
   app.get("/health", async () => ({
     status: "ok",

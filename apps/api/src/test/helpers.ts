@@ -1,18 +1,16 @@
 import "dotenv/config";
 import os from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { eq, sql } from "drizzle-orm";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import type { RoleCode } from "@bcis/shared";
 import { hashPassword } from "../auth/password";
 import type { Config } from "../config";
 import { createDb, type Db } from "../db/client";
+import { MIGRATIONS_FOLDER } from "../db/migrations-folder";
 import { syncRolesAndPermissions } from "../db/rbac";
 import { roles, userRoles, users } from "../db/schema";
 
-const here = path.dirname(fileURLToPath(import.meta.url));
-const migrationsFolder = path.resolve(here, "../../../../database/migrations");
 
 /** App config for route tests. Proof images go to the OS temp folder, never into the repo. */
 export function testConfig(overrides: Partial<Config> = {}): Config {
@@ -42,7 +40,7 @@ export function createTestDb() {
 
 /** Applies migrations, syncs roles/permissions and clears users and sessions. */
 export async function prepareTestDatabase(db: Db): Promise<void> {
-  await migrate(db, { migrationsFolder });
+  await migrate(db, { migrationsFolder: MIGRATIONS_FOLDER });
   await syncRolesAndPermissions(db);
   await db.execute(sql`TRUNCATE sessions, user_roles, users CASCADE`);
 }

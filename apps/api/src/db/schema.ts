@@ -162,6 +162,28 @@ export const backupHistory = pgTable(
   ],
 );
 
+/**
+ * Every integrity check run (Phase 9 decision 5): on the live data, on a test restore of a
+ * backup, or right after a real restore. Append-only; `results` holds one entry per check.
+ */
+export const integrityChecks = pgTable(
+  "integrity_checks",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    scope: text("scope").notNull(), // live | test_restore | after_restore
+    backupId: uuid("backup_id").references(() => backupHistory.id),
+    passed: boolean("passed").notNull(),
+    results: jsonb("results").notNull(),
+    runByUserId: uuid("run_by_user_id").references(() => users.id),
+    ranAt: timestamp("ran_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    check("integrity_checks_scope_valid", sql`${t.scope} IN ('live', 'test_restore', 'after_restore')`),
+    check("integrity_checks_backup_for_restores", sql`${t.scope} = 'live' OR ${t.backupId} IS NOT NULL`),
+    index("integrity_checks_ran_idx").on(t.ranAt),
+  ],
+);
+
 export const serviceTypes = pgTable("service_types", {
   id: uuid("id").primaryKey().defaultRandom(),
   code: text("code").notNull().unique(), // internet | cable | combo

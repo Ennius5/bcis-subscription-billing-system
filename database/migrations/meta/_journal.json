@@ -183,6 +183,13 @@
       "when": 1791670835687,
       "tag": "0025_backup_integrity",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1791672695889,
+      "tag": "0026_integrity_checks",
+      "breakpoints": true
     }
   ]
 }
