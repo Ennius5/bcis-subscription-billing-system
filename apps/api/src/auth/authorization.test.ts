@@ -52,7 +52,7 @@ describe("AT-10: server-side authorization", () => {
     const userList = await app.inject({ method: "GET", url: "/admin/users", headers });
     expect(userList.statusCode).toBe(403);
 
-    const backup = await app.inject({ method: "POST", url: "/admin/backups", headers });
+    const backup = await app.inject({ method: "POST", url: "/backups", headers, payload: {} });
     expect(backup.statusCode).toBe(403);
   });
 

@@ -1145,6 +1145,66 @@ export interface UserDto {
   roles: string[];
 }
 
+/* ------------------------------- Backups ------------------------------- */
+
+export interface BackupDto {
+  id: string;
+  backupNumber: string;
+  kind: string;
+  status: string;
+  folderName: string;
+  note: string | null;
+  startedAt: string;
+  completedAt: string | null;
+  databaseBytes: number | null;
+  proofFileCount: number | null;
+  proofBytes: number | null;
+  verificationStatus: string | null;
+  verifiedAt: string | null;
+  verificationMessage: string | null;
+  errorMessage: string | null;
+}
+
+export interface BackupListItemDto extends BackupDto {
+  createdByName: string | null;
+  lastTestRestore: { passed: boolean; ranAt: string } | null;
+}
+
+export interface BackupListDto {
+  items: BackupListItemDto[];
+  lastGoodBackupAt: string | null;
+  /** No good backup within the last 24 hours. */
+  stale: boolean;
+}
+
+export interface IntegrityCheckDto {
+  code: string;
+  label: string;
+  passed: boolean;
+  detail: string;
+}
+
+export interface IntegrityReportDto {
+  passed: boolean;
+  checks: IntegrityCheckDto[];
+}
+
+export interface IntegrityCheckRunDto {
+  id: string;
+  scope: string;
+  backupNumber: string | null;
+  passed: boolean;
+  checks: IntegrityCheckDto[];
+  runByName: string | null;
+  ranAt: string;
+}
+
+export interface RestoreResultDto {
+  backupNumber: string;
+  safetyBackupNumber: string;
+  report: IntegrityReportDto;
+}
+
 /* ------------------------------- Settings ------------------------------- */
 
 export interface ReceivableSettingsDto {
@@ -1164,6 +1224,19 @@ const bcis = {
   /** Own password: { currentPassword, newPassword }. Other sessions of this user are ended. */
   changePassword: (input: Record<string, unknown>): Promise<ApiResult<{ status: string }>> =>
     ipcRenderer.invoke("auth:changePassword", input),
+  backups: {
+    list: (): Promise<ApiResult<BackupListDto>> => ipcRenderer.invoke("backups:list"),
+    create: (input: Record<string, unknown>): Promise<ApiResult<BackupDto>> => ipcRenderer.invoke("backups:create", input),
+    verify: (id: string): Promise<ApiResult<BackupDto>> => ipcRenderer.invoke("backups:verify", id),
+    testRestore: (id: string): Promise<ApiResult<IntegrityReportDto>> => ipcRenderer.invoke("backups:testRestore", id),
+    /** { confirmBackupNumber, reason }. Everyone, this user included, is signed out afterwards. */
+    restore: (id: string, input: Record<string, unknown>): Promise<ApiResult<RestoreResultDto>> =>
+      ipcRenderer.invoke("backups:restore", id, input),
+  },
+  integrity: {
+    list: (): Promise<ApiResult<IntegrityCheckRunDto[]>> => ipcRenderer.invoke("integrity:list"),
+    run: (): Promise<ApiResult<IntegrityReportDto>> => ipcRenderer.invoke("integrity:run"),
+  },
   users: {
     list: (): Promise<ApiResult<UserDto[]>> => ipcRenderer.invoke("users:list"),
     create: (input: Record<string, unknown>): Promise<ApiResult<UserDto>> => ipcRenderer.invoke("users:create", input),

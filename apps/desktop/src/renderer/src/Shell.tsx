@@ -25,6 +25,7 @@ import { ReceivablesScreen } from "./receivables/ReceivablesScreen";
 import { SuspensionScreen } from "./receivables/SuspensionScreen";
 import { SettingsScreen } from "./admin/SettingsScreen";
 import { UsersScreen } from "./admin/UsersScreen";
+import { BackupScreen } from "./admin/BackupScreen";
 import { ChangePasswordPanel } from "./account/ChangePassword";
 import { ErrorBoundary } from "./ui/ErrorBoundary";
 
@@ -227,6 +228,8 @@ export function Shell({ session, onSignOut }: ShellProps) {
                 <AuditLogScreen permissions={permissions} onOpenSubscriber={openSubscriber} onSessionExpired={onSignOut} />
               ) : active.id === "admin.users" ? (
                 <UsersScreen currentUserId={session.user.id} onSessionExpired={onSignOut} />
+              ) : active.id === "admin.backup" ? (
+                <BackupScreen canRestore={permissions.includes("backup.restore")} onSessionExpired={onSignOut} />
               ) : active.id === "admin.settings" ? (
                 <SettingsScreen onSessionExpired={onSignOut} />
               ) : (

@@ -14,6 +14,7 @@ import { registerServiceAccountRoutes } from "./service-accounts/routes";
 import { registerPaymentRoutes } from "./payments/routes";
 import { registerReceivableRoutes } from "./receivables/routes";
 import { registerReportRoutes } from "./reports/routes";
+import { registerBackupRoutes } from "./backup/routes";
 import { ProofStore } from "./payments/proof-storage";
 import { registerErrorHandling } from "./http/error-handler";
 import { loggerOptions, newRequestId } from "./http/logging";
@@ -77,6 +78,7 @@ export function buildApp(config: Config, deps: AppDeps = {}): FastifyInstance {
     registerPaymentRoutes(app, deps.db, new ProofStore(config.PROOF_STORAGE_DIR));
     registerReceivableRoutes(app, deps.db);
     registerReportRoutes(app, deps.db);
+    registerBackupRoutes(app, deps.db, config);
   }
 
   return app;

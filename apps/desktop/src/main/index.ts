@@ -45,6 +45,11 @@ import type {
   SuspensionCandidateListDto,
   TechnicianDto,
   UserDto,
+  BackupDto,
+  BackupListDto,
+  IntegrityCheckRunDto,
+  IntegrityReportDto,
+  RestoreResultDto,
   ServiceAccountDetailDto,
   ServiceAccountPageDto,
   SessionInfo,
@@ -1053,6 +1058,34 @@ ipcMain.handle("users:resetPassword", (_event, id: unknown, input: unknown) =>
     ? authedRequest<UserDto>("POST", `/admin/users/${encodeURIComponent(id)}/reset-password`, input)
     : BAD_INPUT,
 );
+
+/* ------------------------------- Backups ------------------------------- */
+
+ipcMain.handle("backups:list", () => authedRequest<BackupListDto>("GET", "/backups"));
+
+ipcMain.handle("backups:create", (_event, input: unknown) =>
+  isRecord(input) ? authedRequest<BackupDto>("POST", "/backups", input) : BAD_INPUT,
+);
+
+ipcMain.handle("backups:verify", (_event, id: unknown) =>
+  typeof id === "string" ? authedRequest<BackupDto>("POST", `/backups/${encodeURIComponent(id)}/verify`, {}) : BAD_INPUT,
+);
+
+ipcMain.handle("backups:testRestore", (_event, id: unknown) =>
+  typeof id === "string"
+    ? authedRequest<IntegrityReportDto>("POST", `/backups/${encodeURIComponent(id)}/test-restore`, {})
+    : BAD_INPUT,
+);
+
+ipcMain.handle("backups:restore", (_event, id: unknown, input: unknown) =>
+  typeof id === "string" && isRecord(input)
+    ? authedRequest<RestoreResultDto>("POST", `/backups/${encodeURIComponent(id)}/restore`, input)
+    : BAD_INPUT,
+);
+
+ipcMain.handle("integrity:list", () => authedRequest<IntegrityCheckRunDto[]>("GET", "/integrity-checks"));
+
+ipcMain.handle("integrity:run", () => authedRequest<IntegrityReportDto>("POST", "/integrity-checks", {}));
 
 ipcMain.handle("settings:receivables", () => authedRequest<ReceivableSettingsDto>("GET", "/settings/receivables"));
 

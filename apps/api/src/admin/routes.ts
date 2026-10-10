@@ -107,13 +107,4 @@ export function registerAdminRoutes(app: FastifyInstance, db: Db): void {
       return sendUserError(reply, err);
     }
   });
-
-  // Placeholder so the permission check can be tested now.
-  // The real implementation arrives in the backup phase.
-  app.post(
-    "/admin/backups",
-    { preHandler: [authenticate, requirePermission("backup.create")] },
-    async (_request, reply) =>
-      reply.code(501).send({ error: "NOT_IMPLEMENTED", message: "Backups are not implemented yet." }),
-  );
 }
