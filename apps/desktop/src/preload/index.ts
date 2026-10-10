@@ -894,6 +894,64 @@ export interface ExceptionsRegisterDto {
   };
 }
 
+export interface DashboardDto {
+  asOf: string;
+  /** "YYYY-MM" */
+  month: string;
+  kpis: {
+    billedThisMonthCentavos: number;
+    collectedThisMonthCentavos: number;
+    collectionRateBasisPoints: number | null;
+    receivableCentavos: number;
+    overdueCentavos: number;
+    overdueSubscriberCount: number;
+    suspensionCandidateCount: number;
+  };
+  billingVsCollection: Array<{
+    month: string;
+    label: string;
+    netBilledCentavos: number;
+    collectedCentavos: number;
+    collectionRateBasisPoints: number | null;
+  }>;
+  paymentMethods: Array<{ method: string; paymentCount: number; netCentavos: number }>;
+  aging: Array<{ bucket: string; amountCentavos: number; accountCount: number }>;
+  collectors: Array<{
+    collectorId: string;
+    code: string;
+    fullName: string;
+    batchCount: number;
+    expectedTotalDueCentavos: number;
+    collectedCentavos: number;
+    shortageCentavos: number;
+    collectionRateBasisPoints: number | null;
+  }>;
+  oldestOverdue: Array<{
+    subscriberId: string;
+    accountNumber: string;
+    subscriberName: string;
+    serviceAccountId: string;
+    serviceNumber: string;
+    planCode: string;
+    monthsUnpaid: number;
+    oldestDueDate: string;
+    daysPastDue: number;
+    arrearsCentavos: number;
+  }>;
+  latestPayments: Array<{
+    id: string;
+    receiptNumber: string;
+    status: string;
+    paymentDate: string;
+    postedAt: string;
+    method: string;
+    amountCentavos: number;
+    subscriberId: string;
+    accountNumber: string;
+    subscriberName: string;
+  }>;
+}
+
 export interface AuditLogQuery {
   from?: string;
   to?: string;
@@ -1287,6 +1345,9 @@ const bcis = {
     exceptions: (query: DateRangeQuery): Promise<ApiResult<ExceptionsRegisterDto>> => ipcRenderer.invoke("reports:exceptions", query),
     exportExceptions: (query: DateRangeQuery, format: ExportFormat): Promise<ApiResult<SavedExportDto>> =>
       ipcRenderer.invoke("reports:exportExceptions", query, format),
+  },
+  dashboard: {
+    get: (): Promise<ApiResult<DashboardDto>> => ipcRenderer.invoke("dashboard:get"),
   },
   audit: {
     list: (query: AuditLogQuery): Promise<ApiResult<AuditLogPageDto>> => ipcRenderer.invoke("audit:list", query),

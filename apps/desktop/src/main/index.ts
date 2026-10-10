@@ -35,6 +35,7 @@ import type {
   AuditLogPageDto,
   AuditFilterOptionsDto,
   UserActivityDto,
+  DashboardDto,
   ExportFormat,
   SavedExportDto,
   ReceivableSettingsDto,
@@ -909,6 +910,8 @@ ipcMain.handle("reports:exportUserActivity", (event, query: unknown, format: unk
       )
     : BAD_INPUT,
 );
+
+ipcMain.handle("dashboard:get", () => authedRequest<DashboardDto>("GET", "/dashboard"));
 
 /* ------------------------------- Audit log ------------------------------- */
 

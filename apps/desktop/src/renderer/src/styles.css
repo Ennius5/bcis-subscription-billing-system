@@ -10,6 +10,13 @@
   --color-success: #059669;
   --color-warning: #d97706;
   --color-danger: #dc2626;
+  /* Charts (dataviz reference palette, validated on the white card surface):
+     categorical slots 1-2, the same-ramp meter track, hairline grid and axis. */
+  --color-series-1: #2a78d6;
+  --color-series-2: #eb6834;
+  --color-series-track: #cde2fb;
+  --color-grid: #e2e8f0;
+  --color-axis: #cbd5e1;
   --font-sans: "Inter Variable","Inter", "Segoe UI", system-ui, sans-serif;
 }
 @import "tailwindcss";

@@ -20,6 +20,7 @@ import { GcashScreen } from "./payments/GcashScreen";
 import { AgingScreen } from "./receivables/AgingScreen";
 import { ReportsScreen } from "./reports/ReportsScreen";
 import { AuditLogScreen } from "./admin/AuditLogScreen";
+import { DashboardScreen } from "./dashboard/DashboardScreen";
 import { ReceivablesScreen } from "./receivables/ReceivablesScreen";
 import { SuspensionScreen } from "./receivables/SuspensionScreen";
 import { SettingsScreen } from "./admin/SettingsScreen";
@@ -141,6 +142,14 @@ export function Shell({ session, onSignOut }: ShellProps) {
               <p className="text-muted">
                 Your account has no assigned permissions. Please contact the administrator.
               </p>
+            ) : active.id === "dashboard" ? (
+              <DashboardScreen
+                canOpenSubscriber={permissions.includes("subscriber.view")}
+                onOpenSubscriber={openSubscriber}
+                canNavigate={(id) => findItem(items, id) !== null}
+                onNavigate={selectScreen}
+                onSessionExpired={onSignOut}
+              />
             ) : active.id === "subscribers.all" ? (
               <SubscribersScreen
                 key={openRequest}
