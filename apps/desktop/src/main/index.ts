@@ -32,6 +32,9 @@ import type {
   RevenueReportDto,
   MasterListDto,
   ExceptionsRegisterDto,
+  AuditLogPageDto,
+  AuditFilterOptionsDto,
+  UserActivityDto,
   ExportFormat,
   SavedExportDto,
   ReceivableSettingsDto,
@@ -850,7 +853,9 @@ const MASTER_LIST_KEYS = ["status", "areaId", "collectorId"] as const;
 const DATE_RANGE_KEYS = ["from", "to"] as const;
 
 ipcMain.handle("reports:masterList", (_event, query: unknown) =>
-  isRecord(query) ? authedRequest<MasterListDto>("GET", listPath("/reports/subscribers", MASTER_LIST_KEYS, query)) : BAD_INPUT,
+  isRecord(query)
+    ? authedRequest<MasterListDto>("GET", listPath("/reports/subscribers", [...MASTER_LIST_KEYS, "page", "pageSize"], query))
+    : BAD_INPUT,
 );
 
 ipcMain.handle("reports:exportMasterList", (event, query: unknown, format: unknown) =>
@@ -878,6 +883,31 @@ ipcMain.handle("reports:exportExceptions", (event, query: unknown, format: unkno
       )
     : BAD_INPUT,
 );
+
+ipcMain.handle("reports:userActivity", (_event, query: unknown) =>
+  isRecord(query) ? authedRequest<UserActivityDto>("GET", listPath("/reports/user-activity", DATE_RANGE_KEYS, query)) : BAD_INPUT,
+);
+
+ipcMain.handle("reports:exportUserActivity", (event, query: unknown, format: unknown) =>
+  isRecord(query) && isIsoDate(query.from) && isIsoDate(query.to) && isExportFormat(format)
+    ? saveExport(
+        event,
+        listPath("/reports/user-activity/export", [...DATE_RANGE_KEYS, "format"], { ...query, format }),
+        `user-activity-${query.from}_to_${query.to}`,
+        format,
+      )
+    : BAD_INPUT,
+);
+
+/* ------------------------------- Audit log ------------------------------- */
+
+const AUDIT_LOG_KEYS = ["from", "to", "actorUserId", "category", "action", "entityType", "entityId", "page", "pageSize"] as const;
+
+ipcMain.handle("audit:list", (_event, query: unknown) =>
+  isRecord(query) ? authedRequest<AuditLogPageDto>("GET", listPath("/audit-logs", AUDIT_LOG_KEYS, query)) : BAD_INPUT,
+);
+
+ipcMain.handle("audit:filterOptions", () => authedRequest<AuditFilterOptionsDto>("GET", "/audit-logs/filter-options"));
 
 /* --------------------------- Service control --------------------------- */
 

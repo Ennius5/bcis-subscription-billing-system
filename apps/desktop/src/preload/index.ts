@@ -808,6 +808,8 @@ export interface MasterListQuery {
   status?: string;
   areaId?: string;
   collectorId?: string;
+  /** Screen only; the export always has every matching row. */
+  page?: number;
 }
 
 export interface MasterListRowDto {
@@ -828,6 +830,10 @@ export interface MasterListRowDto {
 export interface MasterListDto {
   asOf: string;
   rows: MasterListRowDto[];
+  /** All matches; statusCounts and totals cover them all, rows is one page. */
+  total: number;
+  page: number;
+  pageSize: number;
   statusCounts: Record<string, number>;
   totals: { subscriberCount: number; activeServiceCount: number; monthlyRateCentavos: number; balanceCentavos: number };
 }
@@ -886,6 +892,65 @@ export interface ExceptionsRegisterDto {
     reversedCentavos: number;
     voidedCentavos: number;
   };
+}
+
+export interface AuditLogQuery {
+  from?: string;
+  to?: string;
+  actorUserId?: string;
+  category?: string;
+  action?: string;
+  entityType?: string;
+  entityId?: string;
+  page?: number;
+}
+
+export interface AuditLogRowDto {
+  id: string;
+  /** ISO timestamp. */
+  occurredAt: string;
+  actor: { id: string; username: string; fullName: string } | null;
+  action: string;
+  entityType: string;
+  entityId: string | null;
+  reason: string | null;
+  oldValues: unknown;
+  newValues: unknown;
+}
+
+export interface AuditLogPageDto {
+  items: AuditLogRowDto[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export interface AuditFilterOptionsDto {
+  users: Array<{ id: string; username: string; fullName: string; isActive: boolean }>;
+  actions: string[];
+  entityTypes: string[];
+}
+
+export interface UserActivityRowDto {
+  userId: string | null;
+  username: string;
+  fullName: string;
+  roles: string | null;
+  isActive: boolean;
+  loginCount: number;
+  lastLoginAt: string | null;
+  actionCount: number;
+  /** Keyed by audit category (subscribers, services, billing, ...). */
+  byCategory: Record<string, number>;
+  lastActionAt: string | null;
+}
+
+export interface UserActivityDto {
+  from: string;
+  to: string;
+  users: UserActivityRowDto[];
+  actions: Array<{ action: string; category: string; count: number; userCount: number }>;
+  totals: { loginCount: number; actionCount: number; byCategory: Record<string, number> };
 }
 
 export interface AgingQuery {
@@ -1214,9 +1279,16 @@ const bcis = {
     masterList: (query: MasterListQuery): Promise<ApiResult<MasterListDto>> => ipcRenderer.invoke("reports:masterList", query),
     exportMasterList: (query: MasterListQuery, format: ExportFormat): Promise<ApiResult<SavedExportDto>> =>
       ipcRenderer.invoke("reports:exportMasterList", query, format),
+    userActivity: (query: DateRangeQuery): Promise<ApiResult<UserActivityDto>> => ipcRenderer.invoke("reports:userActivity", query),
+    exportUserActivity: (query: DateRangeQuery, format: ExportFormat): Promise<ApiResult<SavedExportDto>> =>
+      ipcRenderer.invoke("reports:exportUserActivity", query, format),
     exceptions: (query: DateRangeQuery): Promise<ApiResult<ExceptionsRegisterDto>> => ipcRenderer.invoke("reports:exceptions", query),
     exportExceptions: (query: DateRangeQuery, format: ExportFormat): Promise<ApiResult<SavedExportDto>> =>
       ipcRenderer.invoke("reports:exportExceptions", query, format),
+  },
+  audit: {
+    list: (query: AuditLogQuery): Promise<ApiResult<AuditLogPageDto>> => ipcRenderer.invoke("audit:list", query),
+    filterOptions: (): Promise<ApiResult<AuditFilterOptionsDto>> => ipcRenderer.invoke("audit:filterOptions"),
   },
   exports: {
     /** Opens the last saved export in its default program (e.g. to print a PDF). */

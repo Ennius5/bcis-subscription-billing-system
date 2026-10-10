@@ -19,6 +19,7 @@ import { PaymentHistoryScreen } from "./payments/PaymentHistoryScreen";
 import { GcashScreen } from "./payments/GcashScreen";
 import { AgingScreen } from "./receivables/AgingScreen";
 import { ReportsScreen } from "./reports/ReportsScreen";
+import { AuditLogScreen } from "./admin/AuditLogScreen";
 import { ReceivablesScreen } from "./receivables/ReceivablesScreen";
 import { SuspensionScreen } from "./receivables/SuspensionScreen";
 import { SettingsScreen } from "./admin/SettingsScreen";
@@ -192,6 +193,8 @@ export function Shell({ session, onSignOut }: ShellProps) {
               <SuspensionScreen permissions={permissions} onSessionExpired={onSignOut} />
             ) : active.id === "reports" ? (
               <ReportsScreen permissions={permissions} onOpenSubscriber={openSubscriber} onSessionExpired={onSignOut} />
+            ) : active.id === "admin.audit" ? (
+              <AuditLogScreen permissions={permissions} onOpenSubscriber={openSubscriber} onSessionExpired={onSignOut} />
             ) : active.id === "admin.settings" ? (
               <SettingsScreen onSessionExpired={onSignOut} />
             ) : (

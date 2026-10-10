@@ -152,6 +152,14 @@ describe("subscriber master list", () => {
     expect(list.totals).toEqual({ subscriberCount: 2, activeServiceCount: 1, monthlyRateCentavos: 99_900, balanceCentavos: 94_900 });
   });
 
+  it("pages the screen's list while the totals cover every match", async () => {
+    const page2 = await getMasterList(db, {}, { page: 2, pageSize: 1 });
+    expect(page2.rows.map((r) => r.fullName)).toEqual(["Register Two"]);
+    expect(page2).toMatchObject({ total: 2, page: 2, pageSize: 1 });
+    expect(page2.totals).toMatchObject({ subscriberCount: 2, balanceCentavos: 94_900 });
+    expect(page2.statusCounts).toEqual({ active: 1, inactive: 1, terminated: 0, archived: 0 });
+  });
+
   it("filters by status (archived only when asked) and by area", async () => {
     const archived = await getMasterList(db, masterListQuerySchema.parse({ status: "archived" }));
     expect(archived.rows.map((r) => r.fullName)).toEqual(["Register Three"]);
@@ -197,6 +205,8 @@ describe("register routes", () => {
   it("serves both to report.view, exports to report.export, audited", async () => {
     const viewer = await bearer("reg_viewer");
     expect((await app.inject({ method: "GET", url: "/reports/subscribers?status=archived", headers: viewer })).json().rows).toHaveLength(1);
+    const paged = (await app.inject({ method: "GET", url: "/reports/subscribers?pageSize=1", headers: viewer })).json();
+    expect(paged).toMatchObject({ total: 2, pageSize: 1, rows: [expect.objectContaining({ fullName: "Register One" })] });
     const exceptions = await app.inject({ method: "GET", url: `/reports/exceptions?from=${today}&to=${today}`, headers: viewer });
     expect(exceptions.json().voids).toHaveLength(1);
     expect((await app.inject({ method: "GET", url: "/reports/subscribers/export?format=pdf", headers: viewer })).statusCode).toBe(403);
@@ -219,6 +229,7 @@ describe("register routes", () => {
     for (const url of [
       "/reports/subscribers?status=gone",
       "/reports/subscribers?areaId=zone",
+      "/reports/subscribers?pageSize=500",
       "/reports/exceptions?from=2026-10-31&to=2026-10-01",
       "/reports/exceptions?from=2026-10-01",
     ]) {

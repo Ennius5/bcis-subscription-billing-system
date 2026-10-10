@@ -191,13 +191,25 @@ export type StatementExportQuery = z.infer<typeof statementExportQuerySchema>;
 
 /* -------------------------- Subscriber master list -------------------------- */
 
-/** No status means every subscriber except archived ones; archived must be asked for. */
+export const REPORT_PAGE_SIZE_DEFAULT = 50;
+export const REPORT_PAGE_SIZE_MAX = 100;
+const paging = {
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(REPORT_PAGE_SIZE_MAX).default(REPORT_PAGE_SIZE_DEFAULT),
+};
+
+/**
+ * No status means every subscriber except archived ones; archived must be asked for.
+ * The screen pages through the list (spec 4.5); the export always has every matching row.
+ */
 const masterListShape = {
   status: z.enum(SUBSCRIBER_STATUSES, { error: "Choose a subscriber status." }).optional(),
   areaId: z.uuid().optional(),
   collectorId: z.uuid().optional(),
 };
-export const masterListQuerySchema = z.object(masterListShape);
+export const masterListFilterSchema = z.object(masterListShape);
+export type MasterListFilter = z.infer<typeof masterListFilterSchema>;
+export const masterListQuerySchema = z.object({ ...masterListShape, ...paging });
 export type MasterListQuery = z.infer<typeof masterListQuerySchema>;
 export const masterListExportQuerySchema = z.object({ ...masterListShape, format: reportExportFormatSchema });
 

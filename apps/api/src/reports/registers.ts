@@ -1,7 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
   type ExceptionsQuery,
-  type MasterListQuery,
+  type MasterListFilter,
   SUBSCRIBER_STATUSES,
   type SubscriberStatus,
 } from "@bcis/shared";
@@ -30,30 +30,19 @@ export interface MasterListRow {
 
 export interface MasterList {
   asOf: string;
+  /** One page for the screen, or every match for an export. */
   rows: MasterListRow[];
+  /** Matching subscribers; statusCounts and totals cover all of them, not just the page. */
+  total: number;
+  page: number;
+  pageSize: number;
   statusCounts: Record<SubscriberStatus, number>;
   totals: { subscriberCount: number; activeServiceCount: number; monthlyRateCentavos: number; balanceCentavos: number };
 }
 
-/**
- * Every subscriber with area, collector, primary address and contact, live services, monthly
- * rate and current balance (spec 3.11). Archived subscribers only when asked for by status.
- */
-export async function getMasterList(db: DbOrTx, query: MasterListQuery): Promise<MasterList> {
-  const result = await db.execute<{
-    id: string;
-    account_number: string;
-    full_name: string;
-    status: SubscriberStatus;
-    area: string | null;
-    collector: string | null;
-    address: string | null;
-    contact: string | null;
-    active_services: number;
-    plans: string | null;
-    monthly: string;
-    balance: string;
-  }>(sql`
+/** One row per matching subscriber with the computed columns; paged or aggregated by the callers. */
+function masterListRows(filter: MasterListFilter) {
+  return sql`
     SELECT s.id, s.account_number, s.full_name, s.status,
       a.code || ' ' || a.name AS area,
       c.code || ' ' || c.full_name AS collector,
@@ -71,11 +60,62 @@ export async function getMasterList(db: DbOrTx, query: MasterListQuery): Promise
     FROM subscribers s
     LEFT JOIN collection_areas a ON a.id = s.collection_area_id
     LEFT JOIN collectors c ON c.id = s.assigned_collector_id
-    WHERE ${query.status ? sql`s.status = ${query.status}` : sql`s.status <> 'archived'`}
-      ${query.areaId ? sql`AND s.collection_area_id = ${query.areaId}` : sql``}
-      ${query.collectorId ? sql`AND s.assigned_collector_id = ${query.collectorId}` : sql``}
-    ORDER BY s.account_number
+    WHERE ${filter.status ? sql`s.status = ${filter.status}` : sql`s.status <> 'archived'`}
+      ${filter.areaId ? sql`AND s.collection_area_id = ${filter.areaId}` : sql``}
+      ${filter.collectorId ? sql`AND s.assigned_collector_id = ${filter.collectorId}` : sql``}
+  `;
+}
+
+/**
+ * Every subscriber with area, collector, primary address and contact, live services, monthly
+ * rate and current balance (spec 3.11). Archived subscribers only when asked for by status.
+ * With `paging` it returns one page (the screen); without, every matching row (the export).
+ */
+export async function getMasterList(
+  db: DbOrTx,
+  filter: MasterListFilter,
+  paging?: { page: number; pageSize: number },
+): Promise<MasterList> {
+  const result = await db.execute<{
+    id: string;
+    account_number: string;
+    full_name: string;
+    status: SubscriberStatus;
+    area: string | null;
+    collector: string | null;
+    address: string | null;
+    contact: string | null;
+    active_services: number;
+    plans: string | null;
+    monthly: string;
+    balance: string;
+  }>(sql`
+    WITH m AS (${masterListRows(filter)})
+    SELECT * FROM m ORDER BY account_number
+    ${paging ? sql`LIMIT ${paging.pageSize} OFFSET ${(paging.page - 1) * paging.pageSize}` : sql``}
   `);
+  const summary = await db.execute<{
+    total: number;
+    active: number;
+    inactive: number;
+    terminated: number;
+    archived: number;
+    active_services: string;
+    monthly: string;
+    balance: string;
+  }>(sql`
+    WITH m AS (${masterListRows(filter)})
+    SELECT count(*)::int AS total,
+           count(*) FILTER (WHERE status = 'active')::int AS active,
+           count(*) FILTER (WHERE status = 'inactive')::int AS inactive,
+           count(*) FILTER (WHERE status = 'terminated')::int AS terminated,
+           count(*) FILTER (WHERE status = 'archived')::int AS archived,
+           coalesce(sum(active_services), 0)::bigint AS active_services,
+           coalesce(sum(monthly), 0)::bigint AS monthly,
+           coalesce(sum(balance), 0)::bigint AS balance
+    FROM m
+  `);
+  const sums = summary.rows[0]!;
 
   const rows = result.rows.map(
     (r): MasterListRow => ({
@@ -93,17 +133,18 @@ export async function getMasterList(db: DbOrTx, query: MasterListQuery): Promise
       balanceCentavos: Number(r.balance),
     }),
   );
-  const statusCounts = Object.fromEntries(SUBSCRIBER_STATUSES.map((st) => [st, 0])) as Record<SubscriberStatus, number>;
-  for (const r of rows) statusCounts[r.status] += 1;
   return {
     asOf: await dbToday(db),
     rows,
-    statusCounts,
+    total: sums.total,
+    page: paging?.page ?? 1,
+    pageSize: paging?.pageSize ?? sums.total,
+    statusCounts: Object.fromEntries(SUBSCRIBER_STATUSES.map((st) => [st, sums[st]])) as Record<SubscriberStatus, number>,
     totals: {
-      subscriberCount: rows.length,
-      activeServiceCount: rows.reduce((t, r) => t + r.activeServiceCount, 0),
-      monthlyRateCentavos: rows.reduce((t, r) => t + r.monthlyRateCentavos, 0),
-      balanceCentavos: rows.reduce((t, r) => t + r.balanceCentavos, 0),
+      subscriberCount: sums.total,
+      activeServiceCount: Number(sums.active_services),
+      monthlyRateCentavos: Number(sums.monthly),
+      balanceCentavos: Number(sums.balance),
     },
   };
 }

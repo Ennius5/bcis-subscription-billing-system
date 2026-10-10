@@ -6,6 +6,7 @@ import { RowError } from "../subscribers/ProfileParts";
 import { StatusBadge } from "../subscribers/status";
 import { DataTable, type Column } from "../ui/DataTable";
 import { ExportButtons } from "../ui/ExportButtons";
+import { Pager } from "../ui/Pager";
 import { SelectField } from "../ui/SelectField";
 
 const STATUS_OPTIONS = [
@@ -26,14 +27,24 @@ interface MasterListScreenProps {
 /** Every subscriber with area, collector, address, contact, plans, monthly rate and balance. */
 export function MasterListScreen({ canExport, onOpenSubscriber, onSessionExpired }: MasterListScreenProps) {
   const options = useFilterOptions(onSessionExpired);
-  const [query, setQuery] = useState<Required<MasterListQuery>>({ status: "", areaId: "", collectorId: "" });
+  const [query, setQuery] = useState<Required<Omit<MasterListQuery, "page">>>({ status: "", areaId: "", collectorId: "" });
+  const [page, setPage] = useState(1);
   const [list, setList] = useState<MasterListDto | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  // A new filter starts again at page 1.
+  const filter = (next: typeof query) => {
+    setQuery(next);
+    setPage(1);
+  };
 
   useEffect(() => {
     let cancelled = false;
-    void window.bcis.reports.masterList(query).then((r) => {
+    setLoading(true);
+    void window.bcis.reports.masterList({ ...query, page }).then((r) => {
       if (cancelled) return;
+      setLoading(false);
       if (r.ok) {
         setList(r.data);
         setError(null);
@@ -43,7 +54,7 @@ export function MasterListScreen({ canExport, onOpenSubscriber, onSessionExpired
     return () => {
       cancelled = true;
     };
-  }, [query, onSessionExpired]);
+  }, [query, page, onSessionExpired]);
 
   const columns: Column<MasterListRowDto>[] = [
     { key: "account", header: "Account", render: (r) => r.accountNumber },
@@ -74,7 +85,7 @@ export function MasterListScreen({ canExport, onOpenSubscriber, onSessionExpired
     <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="grid grid-cols-3 gap-3">
-          <SelectField label="Status" value={query.status} options={STATUS_OPTIONS} onChange={(status) => setQuery({ ...query, status })} />
+          <SelectField label="Status" value={query.status} options={STATUS_OPTIONS} onChange={(status) => filter({ ...query, status })} />
           <SelectField
             label="Area"
             value={query.areaId}
@@ -82,7 +93,7 @@ export function MasterListScreen({ canExport, onOpenSubscriber, onSessionExpired
               { value: "", label: "All areas" },
               ...(options?.areas ?? []).map((a) => ({ value: a.id, label: `${a.code} ${a.name}${inactive(a.isActive)}` })),
             ]}
-            onChange={(areaId) => setQuery({ ...query, areaId })}
+            onChange={(areaId) => filter({ ...query, areaId })}
           />
           <SelectField
             label="Collector"
@@ -91,7 +102,7 @@ export function MasterListScreen({ canExport, onOpenSubscriber, onSessionExpired
               { value: "", label: "All collectors" },
               ...(options?.collectors ?? []).map((c) => ({ value: c.id, label: `${c.code} ${c.fullName}${inactive(c.isActive)}` })),
             ]}
-            onChange={(collectorId) => setQuery({ ...query, collectorId })}
+            onChange={(collectorId) => filter({ ...query, collectorId })}
           />
         </div>
         {canExport && (
@@ -128,7 +139,7 @@ export function MasterListScreen({ canExport, onOpenSubscriber, onSessionExpired
             totals={{
               subscriberId: "",
               accountNumber: "Total",
-              fullName: `${list.totals.subscriberCount} subscribers`,
+              fullName: `${list.totals.subscriberCount} subscribers, all pages`,
               status: "",
               area: null,
               collector: null,
@@ -140,6 +151,7 @@ export function MasterListScreen({ canExport, onOpenSubscriber, onSessionExpired
               balanceCentavos: list.totals.balanceCentavos,
             }}
           />
+          <Pager page={list.page} pageSize={list.pageSize} total={list.total} loading={loading} onPage={setPage} />
         </>
       )}
     </div>

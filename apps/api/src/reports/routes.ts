@@ -14,6 +14,8 @@ import {
   revenueExportQuerySchema,
   revenueQuerySchema,
   statementExportQuerySchema,
+  userActivityExportQuerySchema,
+  userActivityQuerySchema,
 } from "@bcis/shared";
 import { createAuthenticate } from "../auth/authenticate";
 import { requirePermission } from "../auth/guard";
@@ -31,6 +33,8 @@ import { getExceptionsRegister, getMasterList } from "./registers";
 import { buildExceptionsDocument, buildMasterListDocument } from "./registers-export";
 import { getStatementOfAccount } from "./statement";
 import { buildStatementDocument } from "./statement-export";
+import { getUserActivity } from "./user-activity";
+import { buildUserActivityDocument } from "./user-activity-export";
 
 const idParams = z.object({ id: z.uuid() });
 
@@ -44,12 +48,29 @@ function sendSubscriberError(reply: FastifyReply, err: unknown) {
  * route (report.view + report.export) that renders the same data as PDF or XLSX.
  * The Statement of Account is a customer document printed at the counter, so it needs only
  * billing.view (Ethan's decision), and its export is audited against the subscriber.
+ * User activity is audit data, so it needs audit.view (and report.export to export).
  */
 export function registerReportRoutes(app: FastifyInstance, db: Db): void {
   const authenticate = createAuthenticate(db);
   const canView = { preHandler: [authenticate, requirePermission("report.view")] };
   const canExport = { preHandler: [authenticate, requirePermission("report.view", "report.export")] };
   const canViewBilling = { preHandler: [authenticate, requirePermission("billing.view")] };
+  const canViewAudit = { preHandler: [authenticate, requirePermission("audit.view")] };
+  const canExportAudit = { preHandler: [authenticate, requirePermission("audit.view", "report.export")] };
+
+  app.get("/reports/user-activity", canViewAudit, async (request, reply) => {
+    const query = userActivityQuerySchema.safeParse(request.query);
+    if (!query.success) return sendValidationError(reply, query.error);
+    return getUserActivity(db, query.data);
+  });
+
+  app.get("/reports/user-activity/export", canExportAudit, async (request, reply) => {
+    const query = userActivityExportQuerySchema.safeParse(request.query);
+    if (!query.success) return sendValidationError(reply, query.error);
+    const { format, ...filters } = query.data;
+    const doc = buildUserActivityDocument(await getUserActivity(db, filters));
+    return sendReportExport(reply, db, request.auth!, doc, format, filters);
+  });
 
   app.get("/subscribers/:id/statement", canViewBilling, async (request, reply) => {
     const params = idParams.safeParse(request.params);
@@ -127,7 +148,8 @@ export function registerReportRoutes(app: FastifyInstance, db: Db): void {
   app.get("/reports/subscribers", canView, async (request, reply) => {
     const query = masterListQuerySchema.safeParse(request.query);
     if (!query.success) return sendValidationError(reply, query.error);
-    return getMasterList(db, query.data);
+    const { page, pageSize, ...filter } = query.data;
+    return getMasterList(db, filter, { page, pageSize });
   });
 
   app.get("/reports/subscribers/export", canExport, async (request, reply) => {
