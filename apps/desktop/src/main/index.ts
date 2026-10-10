@@ -28,6 +28,8 @@ import type {
   ReceivableFilterOptionsDto,
   ReceivablePageDto,
   CollectionsReportDto,
+  BillingVsCollectionDto,
+  RevenueReportDto,
   ExportFormat,
   SavedExportDto,
   ReceivableSettingsDto,
@@ -784,6 +786,44 @@ ipcMain.handle("reports:exportCollections", (event, query: unknown, format: unkn
         event,
         listPath("/reports/collections/export", [...COLLECTIONS_KEYS, "format"], { ...query, format }),
         `collections-${query.from}_to_${query.to}`,
+        format,
+      )
+    : BAD_INPUT,
+);
+
+const isMonth = (value: unknown): value is string => typeof value === "string" && /^\d{4}-\d{2}$/.test(value);
+const MONTH_RANGE_KEYS = ["from", "to"] as const;
+const REVENUE_KEYS = [...MONTH_RANGE_KEYS, "dimension"] as const;
+const isRevenueDimension = (value: unknown): value is string =>
+  value === "plan" || value === "service_type" || value === "area";
+
+ipcMain.handle("reports:billingVsCollection", (_event, query: unknown) =>
+  isRecord(query)
+    ? authedRequest<BillingVsCollectionDto>("GET", listPath("/reports/billing-vs-collection", MONTH_RANGE_KEYS, query))
+    : BAD_INPUT,
+);
+
+ipcMain.handle("reports:exportBillingVsCollection", (event, query: unknown, format: unknown) =>
+  isRecord(query) && isMonth(query.from) && isMonth(query.to) && isExportFormat(format)
+    ? saveExport(
+        event,
+        listPath("/reports/billing-vs-collection/export", [...MONTH_RANGE_KEYS, "format"], { ...query, format }),
+        `billing-vs-collection-${query.from}_to_${query.to}`,
+        format,
+      )
+    : BAD_INPUT,
+);
+
+ipcMain.handle("reports:revenue", (_event, query: unknown) =>
+  isRecord(query) ? authedRequest<RevenueReportDto>("GET", listPath("/reports/revenue", REVENUE_KEYS, query)) : BAD_INPUT,
+);
+
+ipcMain.handle("reports:exportRevenue", (event, query: unknown, format: unknown) =>
+  isRecord(query) && isMonth(query.from) && isMonth(query.to) && isRevenueDimension(query.dimension) && isExportFormat(format)
+    ? saveExport(
+        event,
+        listPath("/reports/revenue/export", [...REVENUE_KEYS, "format"], { ...query, format }),
+        `revenue-by-${query.dimension.replace("_", "-")}-${query.from}_to_${query.to}`,
         format,
       )
     : BAD_INPUT,

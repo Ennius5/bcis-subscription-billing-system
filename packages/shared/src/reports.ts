@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { periodBounds, periodLabel, periodOf } from "./billing";
+import { addMonths, billingPeriodSchema, periodBounds, periodLabel, periodOf } from "./billing";
 import { agingQuerySchema } from "./receivables";
 
 /** Reports are exported as PDF (to read and print) or XLSX (to work with the figures). */
@@ -130,3 +130,51 @@ export type CollectionsReportQuery = z.infer<typeof collectionsReportQuerySchema
 
 export const collectionsExportQuerySchema = collectionsReportQuerySchema.and(z.object({ format: reportExportFormatSchema }));
 export type CollectionsExportQuery = z.infer<typeof collectionsExportQuerySchema>;
+
+/* ------------------------- Month-range reports ------------------------- */
+
+/*
+ * Billing reports work in billing months (YYYY-MM). Billed = finalized, non-void invoices of
+ * that billing month; adjustments count in the month they were posted (their ledger date).
+ */
+export const REPORT_MAX_MONTHS = 60;
+
+/** Every month from..to, both inclusive, oldest first. */
+export function monthsInRange(from: string, to: string): string[] {
+  const months: string[] = [];
+  for (let m = from; m <= to && months.length <= REPORT_MAX_MONTHS; m = addMonths(m, 1)) months.push(m);
+  return months;
+}
+
+const monthRangeShape = { from: billingPeriodSchema, to: billingPeriodSchema };
+
+function checkMonthRange<T extends z.ZodType<{ from: string; to: string }>>(schema: T) {
+  return schema
+    .refine((q) => q.from <= q.to, { message: "The start month must be on or before the end month.", path: ["to"] })
+    .refine((q) => q.from > q.to || monthsInRange(q.from, q.to).length <= REPORT_MAX_MONTHS, {
+      message: `Choose at most ${REPORT_MAX_MONTHS} months.`,
+      path: ["from"],
+    });
+}
+
+export const billingVsCollectionQuerySchema = checkMonthRange(z.object(monthRangeShape));
+export type BillingVsCollectionQuery = z.infer<typeof billingVsCollectionQuerySchema>;
+export const billingVsCollectionExportQuerySchema = checkMonthRange(
+  z.object({ ...monthRangeShape, format: reportExportFormatSchema }),
+);
+
+export const REVENUE_DIMENSIONS = ["plan", "service_type", "area"] as const;
+export type RevenueDimension = (typeof REVENUE_DIMENSIONS)[number];
+export const REVENUE_DIMENSION_LABELS: Record<RevenueDimension, string> = {
+  plan: "Plan",
+  service_type: "Service type",
+  area: "Area",
+};
+
+const revenueShape = {
+  ...monthRangeShape,
+  dimension: z.enum(REVENUE_DIMENSIONS, { error: "Choose plan, service type or area." }).default("plan"),
+};
+export const revenueQuerySchema = checkMonthRange(z.object(revenueShape));
+export type RevenueQuery = z.infer<typeof revenueQuerySchema>;
+export const revenueExportQuerySchema = checkMonthRange(z.object({ ...revenueShape, format: reportExportFormatSchema }));

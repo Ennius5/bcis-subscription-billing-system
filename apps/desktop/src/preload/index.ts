@@ -749,6 +749,61 @@ export interface CollectionsReportDto {
   totals: CollectionAmountsDto;
 }
 
+export interface MonthRangeQuery {
+  /** "YYYY-MM" */
+  from: string;
+  to: string;
+}
+
+export interface BillingVsCollectionAmountsDto {
+  invoiceCount: number;
+  billedCentavos: number;
+  adjustmentCount: number;
+  adjustmentsCentavos: number;
+  netBilledCentavos: number;
+  collectedCentavos: number;
+  collectionRateBasisPoints: number | null;
+  gapCentavos: number;
+}
+
+export interface BillingVsCollectionDto {
+  from: string;
+  to: string;
+  months: (BillingVsCollectionAmountsDto & { month: string; label: string })[];
+  totals: BillingVsCollectionAmountsDto;
+}
+
+export type RevenueDimension = "plan" | "service_type" | "area";
+
+export interface RevenueQuery extends MonthRangeQuery {
+  dimension: RevenueDimension;
+}
+
+export interface RevenueAmountsDto {
+  invoiceCount: number;
+  subscriptionCentavos: number;
+  installationCentavos: number;
+  reconnectionCentavos: number;
+  otherCentavos: number;
+  billedCentavos: number;
+  adjustmentsCentavos: number;
+  netCentavos: number;
+}
+
+export interface RevenueRowDto extends RevenueAmountsDto {
+  key: string;
+  label: string;
+  shareBasisPoints: number | null;
+}
+
+export interface RevenueReportDto {
+  from: string;
+  to: string;
+  dimension: RevenueDimension;
+  rows: RevenueRowDto[];
+  totals: RevenueAmountsDto;
+}
+
 export interface AgingQuery {
   collectorId?: string;
   areaId?: string;
@@ -1058,6 +1113,13 @@ const bcis = {
       ipcRenderer.invoke("reports:collections", query),
     exportCollections: (query: CollectionsReportQuery, format: ExportFormat): Promise<ApiResult<SavedExportDto>> =>
       ipcRenderer.invoke("reports:exportCollections", query, format),
+    billingVsCollection: (query: MonthRangeQuery): Promise<ApiResult<BillingVsCollectionDto>> =>
+      ipcRenderer.invoke("reports:billingVsCollection", query),
+    exportBillingVsCollection: (query: MonthRangeQuery, format: ExportFormat): Promise<ApiResult<SavedExportDto>> =>
+      ipcRenderer.invoke("reports:exportBillingVsCollection", query, format),
+    revenue: (query: RevenueQuery): Promise<ApiResult<RevenueReportDto>> => ipcRenderer.invoke("reports:revenue", query),
+    exportRevenue: (query: RevenueQuery, format: ExportFormat): Promise<ApiResult<SavedExportDto>> =>
+      ipcRenderer.invoke("reports:exportRevenue", query, format),
   },
   exports: {
     /** Opens the last saved export in its default program (e.g. to print a PDF). */

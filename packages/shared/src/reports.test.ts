@@ -2,6 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   addDays,
   agingExportQuerySchema,
+  billingVsCollectionExportQuerySchema,
+  billingVsCollectionQuerySchema,
+  monthsInRange,
+  revenueQuerySchema,
   collectionsExportQuerySchema,
   collectionsReportQuerySchema,
   periodStartOf,
@@ -82,5 +86,26 @@ describe("collectionsReportQuerySchema", () => {
       groupBy: "day",
       format: "pdf",
     });
+  });
+});
+
+describe("month-range reports", () => {
+  it("lists months across a year end", () => {
+    expect(monthsInRange("2025-11", "2026-02")).toEqual(["2025-11", "2025-12", "2026-01", "2026-02"]);
+    expect(monthsInRange("2026-10", "2026-10")).toEqual(["2026-10"]);
+  });
+
+  it("checks order and the 60-month cap", () => {
+    expect(billingVsCollectionQuerySchema.safeParse({ from: "2026-01", to: "2026-12" }).success).toBe(true);
+    expect(billingVsCollectionQuerySchema.safeParse({ from: "2026-12", to: "2026-01" }).success).toBe(false);
+    expect(billingVsCollectionQuerySchema.safeParse({ from: "2020-01", to: "2024-12" }).success).toBe(true);
+    expect(billingVsCollectionQuerySchema.safeParse({ from: "2020-01", to: "2025-01" }).success).toBe(false);
+    expect(billingVsCollectionQuerySchema.safeParse({ from: "2026-13", to: "2026-12" }).success).toBe(false);
+    expect(billingVsCollectionExportQuerySchema.safeParse({ from: "2026-01", to: "2026-12" }).success).toBe(false);
+  });
+
+  it("defaults revenue to by-plan", () => {
+    expect(revenueQuerySchema.parse({ from: "2026-01", to: "2026-03" })).toEqual({ from: "2026-01", to: "2026-03", dimension: "plan" });
+    expect(revenueQuerySchema.safeParse({ from: "2026-01", to: "2026-03", dimension: "collector" }).success).toBe(false);
   });
 });

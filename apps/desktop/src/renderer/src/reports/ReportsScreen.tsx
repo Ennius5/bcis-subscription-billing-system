@@ -1,10 +1,16 @@
 import { useState } from "react";
 import type { PermissionCode } from "@bcis/shared";
+import { BillingVsCollectionScreen } from "./BillingVsCollectionScreen";
 import { CollectionsReportScreen } from "./CollectionsReportScreen";
+import { RevenueScreen } from "./RevenueScreen";
 
-type ReportTab = "collections";
+type ReportTab = "collections" | "billing" | "revenue";
 
-const TABS: { id: ReportTab; label: string }[] = [{ id: "collections", label: "Collections" }];
+const TABS: { id: ReportTab; label: string }[] = [
+  { id: "collections", label: "Collections" },
+  { id: "billing", label: "Billing vs collection" },
+  { id: "revenue", label: "Revenue" },
+];
 
 interface ReportsScreenProps {
   permissions: readonly PermissionCode[];
@@ -34,6 +40,8 @@ export function ReportsScreen({ permissions, onSessionExpired }: ReportsScreenPr
         ))}
       </div>
       {tab === "collections" && <CollectionsReportScreen canExport={canExport} onSessionExpired={onSessionExpired} />}
+      {tab === "billing" && <BillingVsCollectionScreen canExport={canExport} onSessionExpired={onSessionExpired} />}
+      {tab === "revenue" && <RevenueScreen canExport={canExport} onSessionExpired={onSessionExpired} />}
     </div>
   );
 }
