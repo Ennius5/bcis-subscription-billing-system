@@ -28,6 +28,9 @@ export function registerErrorHandling(app: FastifyInstance): void {
   // Every reply carries its reference, so even a successful call can be traced in the log.
   app.addHook("onSend", async (request, reply) => {
     reply.header("x-request-id", request.id);
+    // Replies are data for the desktop app, never pages: no sniffing, no caching of financial data.
+    reply.header("x-content-type-options", "nosniff");
+    reply.header("cache-control", "no-store");
   });
 
   app.setNotFoundHandler(async (request, reply) =>

@@ -1,6 +1,6 @@
 import { appendFile, mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, session, shell } from "electron";
 import type {
   ApiFailure,
   ApiResult,
@@ -1094,6 +1094,12 @@ ipcMain.handle("settings:updateReceivables", (_event, input: unknown) =>
 );
 
 void app.whenReady().then(() => {
+  // The app never needs the camera, microphone, location, notifications and the like:
+  // refuse every such request instead of letting a page ask for it.
+  session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false));
+  session.defaultSession.setPermissionCheckHandler(() => false);
+  // The installed app has no developer menu; copy and paste keep working in text fields.
+  if (app.isPackaged) Menu.setApplicationMenu(null);
   createWindow();
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

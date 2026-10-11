@@ -189,6 +189,24 @@ describe("pending password change", () => {
     expect((await app.inject({ method: "GET", url: "/auth/me", headers })).json().user.mustChangePassword).toBe(false);
   });
 
+  it("five wrong current passwords lock the account and end the session, like sign-in", async () => {
+    await readyUser("guessing.game");
+    const headers = bearer(await tokenFor("guessing.game"));
+    const attempt = () =>
+      app.inject({
+        method: "POST",
+        url: "/auth/password",
+        headers,
+        payload: { currentPassword: "not-my-password", newPassword: "whatever-new-1" },
+      });
+    for (let i = 0; i < 4; i++) expect((await attempt()).json().error).toBe("WRONG_PASSWORD");
+    const fifth = await attempt();
+    expect(fifth.statusCode).toBe(423);
+    expect(fifth.json().error).toBe("ACCOUNT_LOCKED");
+    expect((await app.inject({ method: "GET", url: "/auth/me", headers })).statusCode).toBe(401);
+    expect((await login("guessing.game")).statusCode).toBe(423);
+  });
+
   it("changing your own password keeps this session and ends the others", async () => {
     const user = await readyUser("two.sessions");
     const first = bearer(await tokenFor("two.sessions"));

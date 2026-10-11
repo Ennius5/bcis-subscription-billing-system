@@ -24,6 +24,8 @@ declare module "fastify" {
   interface FastifyInstance {
     /** Locks everyone out during a restore; the backup routes use it. */
     maintenance: MaintenanceGate;
+    /** Every route as registered, so the security test can walk all of them. */
+    routeTable: { method: string; url: string }[];
   }
 }
 
@@ -38,6 +40,17 @@ export function buildApp(config: Config, deps: AppDeps = {}): FastifyInstance {
   const app = Fastify({
     ...(deps.logger ? { loggerInstance: deps.logger } : { logger: loggerOptions(config) }),
     genReqId: newRequestId,
+    // Fastify's default, written out: JSON bodies over 1 MB are refused (413).
+    // Proof images have their own 5 MB limit on their one upload route.
+    bodyLimit: 1024 * 1024,
+  });
+
+  const routeTable: { method: string; url: string }[] = [];
+  app.decorate("routeTable", routeTable);
+  app.addHook("onRoute", (route) => {
+    for (const method of [route.method].flat()) {
+      if (method !== "HEAD") routeTable.push({ method, url: route.url });
+    }
   });
 
   app.decorateRequest("auth", null);

@@ -11,6 +11,7 @@ import type {
 } from "@bcis/shared";
 import { writeAudit } from "../audit/audit";
 import { hashPassword, verifyPassword } from "../auth/password";
+import { LOCKOUT_MS, MAX_FAILED_ATTEMPTS } from "../auth/service";
 import { revokeUserSessions } from "../auth/session";
 import type { Db } from "../db/client";
 import { changedFields, type Tx, violatedConstraint } from "../db/query_helpers";
@@ -25,7 +26,8 @@ export class UserError extends Error {
       | "CANNOT_REMOVE_OWN_OWNER_ROLE"
       | "LAST_OWNER"
       | "USE_CHANGE_PASSWORD"
-      | "WRONG_PASSWORD",
+      | "WRONG_PASSWORD"
+      | "ACCOUNT_LOCKED",
     public readonly status: number,
     message: string,
   ) {
@@ -373,6 +375,29 @@ export async function changeOwnPassword(
     .limit(1);
   if (!current) throw new UserError("NOT_FOUND", 404, "User not found.");
   if (!(await verifyPassword(current.passwordHash, input.currentPassword))) {
+    // Same limit as signing in (auth/service.ts), so an unattended session cannot be used to
+    // guess the password: the 5th wrong try locks the account and ends every session.
+    const locked = await db.transaction(async (tx) => {
+      const [row] = await tx
+        .update(users)
+        .set({ failedLoginAttempts: sql`${users.failedLoginAttempts} + 1`, updatedAt: new Date() })
+        .where(eq(users.id, userId))
+        .returning({ attempts: users.failedLoginAttempts });
+      if (!row || row.attempts < MAX_FAILED_ATTEMPTS) return false;
+      await tx
+        .update(users)
+        .set({ lockedUntil: new Date(Date.now() + LOCKOUT_MS), failedLoginAttempts: 0 })
+        .where(eq(users.id, userId));
+      await revokeUserSessions(tx, userId);
+      return true;
+    });
+    if (locked) {
+      throw new UserError(
+        "ACCOUNT_LOCKED",
+        423,
+        "Too many wrong passwords. You have been signed out; try again in 15 minutes or ask the owner to unlock you.",
+      );
+    }
     throw new UserError("WRONG_PASSWORD", 422, "The current password is not correct.");
   }
 
