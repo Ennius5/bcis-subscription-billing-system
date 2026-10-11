@@ -11,6 +11,9 @@ import {
 const UUID = "00000000-0000-4000-8000-000000000001";
 const UUID2 = "00000000-0000-4000-8000-000000000002";
 
+/** The bytes of a plain ASCII string, for fake file contents. */
+const ascii = (text: string) => Uint8Array.from(text, (c) => c.charCodeAt(0));
+
 describe("GCash reference normalization (AT-05)", () => {
   it("treats spacing and letter case as the same reference", () => {
     expect(normalizeGcashReference(" 1012 345 678901 ")).toBe("1012345678901");
@@ -30,8 +33,8 @@ describe("proof file type detection", () => {
   });
 
   it("rejects anything else, whatever the file is called", () => {
-    expect(detectProofType(new TextEncoder().encode("%PDF-1.7 fake"))).toBeNull();
-    expect(detectProofType(new TextEncoder().encode("<svg></svg>"))).toBeNull();
+    expect(detectProofType(ascii("%PDF-1.7 fake"))).toBeNull();
+    expect(detectProofType(ascii("<svg></svg>"))).toBeNull();
     // A RIFF file that is not WebP (e.g. a WAV).
     expect(detectProofType(withTail([0x52, 0x49, 0x46, 0x46, 1, 2, 3, 4, 0x57, 0x41, 0x56, 0x45]))).toBeNull();
     expect(detectProofType(new Uint8Array([0x89, 0x50]))).toBeNull();

@@ -1214,6 +1214,12 @@ export interface ReceivableSettingsDto {
 
 const bcis = {
   getHealth: (): Promise<HealthResult> => ipcRenderer.invoke("api:health"),
+  server: {
+    /** The API address this PC uses; fixedByEnvironment when BCIS_API_URL decides it. */
+    get: (): Promise<{ apiUrl: string; fixedByEnvironment: boolean }> => ipcRenderer.invoke("server:get"),
+    /** Tests the address (it must answer as a BCIS API) and saves it for this PC. Signs out. */
+    set: (address: string): Promise<ApiResult<{ apiUrl: string }>> => ipcRenderer.invoke("server:set", address),
+  },
   /** Records a screen crash in this PC's log folder. */
   logRendererError: (message: string, stack: string | null): Promise<void> =>
     ipcRenderer.invoke("app:logRendererError", message, stack),

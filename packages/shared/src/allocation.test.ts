@@ -43,7 +43,7 @@ describe("AT-01: exact payment", () => {
       { invoiceId: "sep", invoiceNumber: "INV-000002", balanceBeforeCentavos: 99_900, amountCentavos: 99_900, balanceAfterCentavos: 0 },
     ]);
     expect(plan.creditCentavos).toBe(0);
-    expect(invoicePaymentStatus(99_900, plan.lines[0].amountCentavos)).toBe("paid");
+    expect(invoicePaymentStatus(99_900, plan.lines[0]!.amountCentavos)).toBe("paid");
   });
 });
 
@@ -51,10 +51,10 @@ describe("AT-02: partial payment", () => {
   it("leaves ₱499 on the invoice", () => {
     const plan = allocateOldestFirst(parsePesos("500"), [september]);
     expect(plan.lines).toHaveLength(1);
-    expect(plan.lines[0].amountCentavos).toBe(parsePesos("500"));
-    expect(plan.lines[0].balanceAfterCentavos).toBe(parsePesos("499"));
+    expect(plan.lines[0]!.amountCentavos).toBe(parsePesos("500"));
+    expect(plan.lines[0]!.balanceAfterCentavos).toBe(parsePesos("499"));
     expect(plan.creditCentavos).toBe(0);
-    expect(invoicePaymentStatus(99_900, plan.lines[0].amountCentavos)).toBe("partially_paid");
+    expect(invoicePaymentStatus(99_900, plan.lines[0]!.amountCentavos)).toBe("partially_paid");
   });
 });
 
@@ -77,7 +77,7 @@ describe("AT-03: advance payment", () => {
     expect(first.creditCentavos).toBe(parsePesos("1000"));
     const december = inv("dec", "INV-000030", "2026-12-05", "1000");
     const second = allocateOldestFirst(first.creditCentavos, [december]);
-    expect(second.lines[0].balanceAfterCentavos).toBe(0);
+    expect(second.lines[0]!.balanceAfterCentavos).toBe(0);
     expect(second.creditCentavos).toBe(0);
   });
 });

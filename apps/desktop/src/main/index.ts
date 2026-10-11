@@ -58,7 +58,56 @@ import type {
   SubscriberPageDto,
 } from "../preload/index";
 
-const API_URL = process.env.BCIS_API_URL ?? "http://localhost:3000";
+/*
+ * Where the API server is (spec 2.1: three PCs, one server on the LAN). Chosen on the login
+ * screen and saved per PC in <userData>/config.json; BCIS_API_URL, when set, wins and cannot
+ * be changed from the app (useful for development and for locked-down installs).
+ */
+const DEFAULT_API_URL = "http://localhost:3000";
+const API_URL_FROM_ENV = process.env.BCIS_API_URL ?? null;
+let apiUrl = API_URL_FROM_ENV ?? DEFAULT_API_URL;
+
+const configFile = () => path.join(app.getPath("userData"), "config.json");
+
+/**
+ * "192.168.1.10" -> "http://192.168.1.10:3000". Only http(s), no user name or path:
+ * the result is always just scheme, host and port. Returns null when it is not an address.
+ */
+function normalizeServerAddress(input: string): string | null {
+  const text = input.trim();
+  if (text === "") return null;
+  try {
+    const url = new URL(/^[a-z]+:\/\//i.test(text) ? text : `http://${text}`);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return null;
+    if (url.username || url.password) return null;
+    if (url.port === "" && url.protocol === "http:") url.port = "3000";
+    return url.origin;
+  } catch {
+    return null;
+  }
+}
+
+async function loadServerAddress(): Promise<void> {
+  if (API_URL_FROM_ENV) return;
+  try {
+    const saved = JSON.parse(await readFile(configFile(), "utf8")) as { apiUrl?: unknown };
+    const normalized = typeof saved.apiUrl === "string" ? normalizeServerAddress(saved.apiUrl) : null;
+    if (normalized) apiUrl = normalized;
+  } catch {
+    // First start on this PC: no file yet, use the default.
+  }
+}
+
+/** True when the address answers like a BCIS API, so a typo never gets saved. */
+async function isBcisServer(url: string): Promise<boolean> {
+  try {
+    const res = await fetch(`${url}/health`, { signal: AbortSignal.timeout(5000) });
+    const body = (await res.json()) as { service?: unknown };
+    return res.ok && body.service === "bcis-api";
+  } catch {
+    return false;
+  }
+}
 
 function createWindow(): void {
   const win = new BrowserWindow({
@@ -87,9 +136,27 @@ function createWindow(): void {
   }
 }
 
+ipcMain.handle("server:get", () => ({ apiUrl, fixedByEnvironment: API_URL_FROM_ENV !== null }));
+
+ipcMain.handle("server:set", async (_event, input: unknown): Promise<ApiResult<{ apiUrl: string }>> => {
+  if (API_URL_FROM_ENV) {
+    return { ok: false, code: "FIXED", message: "The server address is set by BCIS_API_URL on this PC." };
+  }
+  const url = typeof input === "string" ? normalizeServerAddress(input) : null;
+  if (!url) return { ok: false, code: "VALIDATION", message: "Enter an address like 192.168.1.10 or http://server:3000." };
+  if (!(await isBcisServer(url))) {
+    return { ok: false, code: "UNREACHABLE", message: `No BCIS server answered at ${url}. Check the address and that the server is running.` };
+  }
+  await mkdir(app.getPath("userData"), { recursive: true });
+  await writeFile(configFile(), JSON.stringify({ apiUrl: url }, null, 2));
+  apiUrl = url;
+  currentToken = null; // a session belongs to the server that issued it
+  return { ok: true, data: { apiUrl: url } };
+});
+
 ipcMain.handle("api:health", async () => {
   try {
-    const res = await fetch(`${API_URL}/health/db`);
+    const res = await fetch(`${apiUrl}/health/db`);
     const data: unknown = await res.json();
     return { ok: res.ok, data };
   } catch {
@@ -158,7 +225,7 @@ ipcMain.handle(
       return { ok: false, code: "VALIDATION", message: "Username and password are required." };
     }
     try {
-      const res = await fetch(`${API_URL}/auth/login`, {
+      const res = await fetch(`${apiUrl}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password }),
@@ -178,7 +245,7 @@ ipcMain.handle("auth:me", async (): Promise<AuthResult> => {
     return { ok: false, code: "UNAUTHENTICATED", message: "Please sign in." };
   }
   try {
-    const res = await fetch(`${API_URL}/auth/me`, {
+    const res = await fetch(`${apiUrl}/auth/me`, {
       headers: { Authorization: `Bearer ${currentToken}` },
     });
     if (!res.ok) {
@@ -197,7 +264,7 @@ ipcMain.handle("auth:logout", async (): Promise<void> => {
   currentToken = null; // signed out locally even if the network call fails
   if (!token) return;
   try {
-    await fetch(`${API_URL}/auth/logout`, {
+    await fetch(`${apiUrl}/auth/logout`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}` },
     });
@@ -218,7 +285,7 @@ async function authedFetch<T>(
     return { ok: false, code: "UNAUTHENTICATED", message: "Please sign in." };
   }
   try {
-    const res = await fetch(`${API_URL}${urlPath}`, {
+    const res = await fetch(`${apiUrl}${urlPath}`, {
       method: init.method,
       headers: { ...init.headers, Authorization: `Bearer ${currentToken}` },
       ...(init.body !== undefined ? { body: init.body } : {}),
@@ -1093,13 +1160,14 @@ ipcMain.handle("settings:updateReceivables", (_event, input: unknown) =>
   isRecord(input) ? authedRequest<ReceivableSettingsDto>("PATCH", "/settings/receivables", input) : BAD_INPUT,
 );
 
-void app.whenReady().then(() => {
+void app.whenReady().then(async () => {
   // The app never needs the camera, microphone, location, notifications and the like:
   // refuse every such request instead of letting a page ask for it.
   session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false));
   session.defaultSession.setPermissionCheckHandler(() => false);
   // The installed app has no developer menu; copy and paste keep working in text fields.
   if (app.isPackaged) Menu.setApplicationMenu(null);
+  await loadServerAddress();
   createWindow();
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

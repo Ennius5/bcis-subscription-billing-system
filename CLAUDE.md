@@ -35,6 +35,10 @@ Drizzle ORM + drizzle-kit, Zod 4, Vitest 5, pino, argon2id
   `pnpm --filter ./apps/api db:migrate`. Tests migrate `bcis_test`
   automatically through `prepareTestDatabase`.
 - Config lives in `apps/api/.env` (never commit secrets).
+- Production: `pnpm --filter ./apps/api build` (esbuild bundle in
+  `apps/api/dist`: server.js, backup.js, migrate.js); installer:
+  `pnpm --filter @bcis/desktop dist` (NSIS in `apps/desktop/release`).
+  Server setup and tasks: `docs/deployment-guide.md`, `deploy/*.ps1`.
 
 ## Money
 
@@ -113,7 +117,12 @@ Drizzle ORM + drizzle-kit, Zod 4, Vitest 5, pino, argon2id
 
 ## Known gotchas
 
-- Electron needed `pnpm approve-builds`.
+- Electron needed `pnpm approve-builds`. pnpm 11 reads build permission
+  from `allowBuilds` in `pnpm-workspace.yaml`. If adding a dependency
+  makes pnpm create a new Electron store copy without `dist/`, run
+  `node install.js` inside that copy (`node_modules/.pnpm/electron@*`).
+- `bcis_app` has no CREATEDB: `bcis_verify` / `bcis_test_verify` were
+  created once by `postgres` (test restore needs them).
 - PowerShell POSTs need `-ContentType "application/json"`.
 - Windows PowerShell 5.1 shows the peso sign garbled; files are UTF-8
   and fine.

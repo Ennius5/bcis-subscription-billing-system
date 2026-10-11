@@ -4,6 +4,9 @@ packages:
 
 allowBuilds:
   esbuild: true
+  electron: true
+  # Only used by electron-builder's Squirrel target; the installer is NSIS.
+  electron-winstaller: false
 
 onlyBuiltDependencies:
   - electron
