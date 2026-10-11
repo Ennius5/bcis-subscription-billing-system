@@ -55,7 +55,7 @@ interface TabBarProps {
 
 export function ProfileTabBar({ tabs, active, onSelect }: TabBarProps) {
   return (
-    <div role="tablist" aria-label="Subscriber profile" className="flex flex-wrap gap-1 border-b border-slate-200">
+    <div role="tablist" aria-label="Subscriber profile" className="flex flex-wrap gap-1 border-b border-[#c9d8e8]">
       {tabs.map((tab) => {
         const selected = tab === active;
         return (
@@ -64,9 +64,7 @@ export function ProfileTabBar({ tabs, active, onSelect }: TabBarProps) {
             role="tab"
             aria-selected={selected}
             onClick={() => onSelect(tab)}
-            className={`-mb-px border-b-2 px-3 py-2 text-sm ${
-              selected ? "border-accent font-semibold text-navy" : "border-transparent text-muted hover:text-ink"
-            }`}
+            className="tab-line"
           >
             {LABELS[tab]}
           </button>

@@ -19,7 +19,7 @@ export function balanceText(centavos: number): string {
   return centavos < 0 ? `${formatPesos(-centavos)} CR` : formatPesos(centavos);
 }
 
-const th = "sticky top-0 border-b border-slate-200 bg-slate-50 px-3 py-2 font-medium text-muted";
+const th = "table-head px-3 py-2 font-medium text-muted";
 
 interface LedgerSectionProps {
   subscriberId: string;

@@ -74,7 +74,7 @@ export function RestoreForm({ backup, onRestored, onCancel, onExpired }: Restore
       onSubmit={submit}
       onCancel={onCancel}
     >
-      <div className="rounded border border-danger/30 bg-danger/5 px-3 py-2 text-sm text-ink">
+      <div className="rounded border border-danger/30 tint-danger px-3 py-2 text-sm text-ink">
         <p className="font-semibold text-danger">This replaces the data on every PC with the backup.</p>
         <ul className="mt-1 list-disc pl-5">
           <li>Everything recorded after {backup.backupNumber} was made disappears from the system.</li>

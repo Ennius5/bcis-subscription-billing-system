@@ -182,7 +182,7 @@ function LogView({ onOpenSubscriber, onSessionExpired }: { onOpenSubscriber?: (i
     });
 
   const actionOptions = (options?.actions ?? []).filter((a) => !filters.category || auditCategory(a) === filters.category);
-  const th = "sticky top-0 border-b border-slate-200 bg-slate-50 px-3 py-2 text-left font-medium text-muted";
+  const th = "table-head px-3 py-2 text-left font-medium text-muted";
   const td = "px-3 py-2 align-top";
 
   return (

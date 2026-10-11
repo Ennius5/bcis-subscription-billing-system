@@ -227,7 +227,7 @@ export function GenerateBillingScreen({ permissions, onSessionExpired }: Generat
           )}
 
           {confirming === "discard" && (
-            <div className="rounded-lg border border-warning/30 bg-warning/5 p-4">
+            <div className="rounded-lg border border-warning/30 tint-warning p-4">
               <p className="text-sm text-ink">
                 Discard all {drafts} draft{drafts === 1 ? "" : "s"} for {periodLabel(period)}? Finalized invoices are not
                 affected. You can generate the drafts again afterwards, for example after correcting a rate.

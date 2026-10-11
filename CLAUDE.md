@@ -88,6 +88,12 @@ Drizzle ORM + drizzle-kit, Zod 4, Vitest 5, pino, argon2id
   `Sidebar`/`Shell`. New screens follow the `PlanForm`/`PlansScreen`
   pattern (send only changed fields, map server issues to field errors,
   `UNAUTHENTICATED` calls `onExpired`).
+- Theme (Frutiger Aero) lives only in `renderer/src/styles.css`. Use its
+  component classes instead of utility strings: `btn` + `btn-primary|
+  accent|secondary|danger` (+ `btn-sm|btn-xs`), `tab-pill` / `tab-line`
+  (selected via `aria-selected`), `panel`, `alert` + `alert-*`, `tint-*`,
+  `field` / `field-box` (+ `field-error`), `table-head`, `empty-state`,
+  `badge`. Data stays on solid white panels; text >= 4.5:1 contrast.
 - UI standard: clean, dense, professional. Financial values right-aligned
   with tabular numerals. Status shown with text plus color, never color
   alone.

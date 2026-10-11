@@ -177,7 +177,7 @@ export function UsersScreen({ currentUserId, onSessionExpired }: UsersScreenProp
       </div>
 
       {notice && (
-        <div role="status" className="mb-4 rounded-lg border border-success/30 bg-success/5 px-4 py-3 text-sm text-ink">
+        <div role="status" className="mb-4 rounded-lg border border-success/30 tint-success px-4 py-3 text-sm text-ink">
           <div className="flex items-start justify-between gap-4">
             <p>{notice.text}</p>
             <button className="text-xs text-muted hover:underline" onClick={() => setNotice(null)}>

@@ -228,6 +228,76 @@
     @apply border-slate-200 bg-slate-50 text-muted;
   }
 
+  /* Solid tinted backgrounds for boxes that sit on the glass sheet (a transparent tint like
+     bg-warning/5 would pick up the sky and turn grey). The text color stays at the call site. */
+  .tint-success {
+    background-color: color-mix(in srgb, var(--color-success) 6%, white);
+  }
+  .tint-warning {
+    background-color: color-mix(in srgb, var(--color-warning) 6%, white);
+  }
+  .tint-danger {
+    background-color: color-mix(in srgb, var(--color-danger) 6%, white);
+  }
+  .tint-accent {
+    background-color: color-mix(in srgb, var(--color-accent) 6%, white);
+  }
+
+  /* "Nothing here yet" boxes. */
+  .empty-state {
+    @apply rounded-[0.625rem] border border-dashed px-3 text-center text-sm text-muted;
+    border-color: var(--gel-edge);
+    background: rgb(255 255 255 / 0.6);
+  }
+
+  /* Status badges: a tone class from Badge.tsx plus a soft gloss on the upper half. */
+  .badge {
+    @apply inline-block rounded-md border px-2 py-0.5 text-xs font-medium;
+    background-image: linear-gradient(to bottom, rgb(255 255 255 / 0.6), rgb(255 255 255 / 0) 55%);
+  }
+
+  /* Table header cells: sticky, with a light glassy gradient. */
+  .table-head {
+    position: sticky;
+    top: 0;
+    border-bottom: 1px solid #c9d8e8;
+    background: linear-gradient(to bottom, #fbfdff 0%, #f0f5fa 50%, #e7eff7 51%, #eef4fa 100%);
+  }
+
+  /* Folder tabs (the subscriber profile): the selected tab joins the white page below it. */
+  .tab-line {
+    @apply -mb-px rounded-t-md border border-transparent px-3 py-2 text-sm text-muted;
+    &:hover {
+      @apply text-ink;
+      background: rgb(255 255 255 / 0.6);
+    }
+    &[aria-selected="true"] {
+      @apply font-semibold text-navy;
+      border-color: #c9d8e8;
+      border-bottom-color: white;
+      background: linear-gradient(to bottom, #f3f8fd, #ffffff 60%);
+      box-shadow: inset 0 2px 0 var(--color-accent);
+    }
+  }
+
+  /* The glossy globe on the sign-in page. Decorative only. */
+  .aero-orb {
+    @apply mx-auto mb-3 size-14 rounded-full;
+    position: relative;
+    background:
+      radial-gradient(circle at 50% 120%, #8fd46a 0%, #4fa83a 35%, transparent 36%),
+      radial-gradient(circle at 50% 35%, #6cc1f5 0%, #2a83cf 55%, #12508f 100%);
+    border: 1px solid #0e4a85;
+    box-shadow: 0 4px 12px rgb(15 39 71 / 0.3), inset 0 -4px 8px rgb(0 0 0 / 0.2);
+    &::after {
+      content: "";
+      position: absolute;
+      inset: 3px 10px 50% 10px;
+      border-radius: 50%;
+      background: linear-gradient(to bottom, rgb(255 255 255 / 0.85), rgb(255 255 255 / 0.1));
+    }
+  }
+
   /* Text inputs, selects and textareas; .field-box wraps an input with a prefix (MoneyField).
      Slightly inset, with a soft aqua glow on focus. */
   .field {

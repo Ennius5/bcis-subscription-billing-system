@@ -245,7 +245,7 @@ export function BackupScreen({ canRestore, onSessionExpired }: BackupScreenProps
       </div>
 
       {list?.stale && (
-        <p role="alert" className="mb-4 rounded border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-ink">
+        <p role="alert" className="mb-4 rounded border border-warning/40 tint-warning px-3 py-2 text-sm text-ink">
           <strong className="text-warning">No good backup in the last {BACKUP_STALE_AFTER_HOURS} hours.</strong>{" "}
           {list.lastGoodBackupAt ? `The last verified backup is from ${formatDateTime(list.lastGoodBackupAt)}.` : "There is no verified backup yet."}{" "}
           Make one now, and check that the scheduled task is running.
@@ -280,7 +280,7 @@ export function BackupScreen({ canRestore, onSessionExpired }: BackupScreenProps
       </form>
 
       {busy && (
-        <p role="status" className="mb-4 rounded border border-accent/30 bg-accent/5 px-3 py-2 text-sm text-ink">
+        <p role="status" className="mb-4 rounded border border-accent/30 tint-accent px-3 py-2 text-sm text-ink">
           {busy}… This can take a minute. Other staff can keep working.
         </p>
       )}
@@ -289,7 +289,7 @@ export function BackupScreen({ canRestore, onSessionExpired }: BackupScreenProps
         <div
           role="status"
           className={`mb-4 rounded-lg border px-4 py-3 text-sm ${
-            outcome.tone === "success" ? "border-success/30 bg-success/5" : "border-danger/30 bg-danger/5"
+            outcome.tone === "success" ? "border-success/30 tint-success" : "border-danger/30 tint-danger"
           }`}
         >
           <p className={outcome.tone === "success" ? "text-ink" : "text-danger"}>{outcome.text}</p>

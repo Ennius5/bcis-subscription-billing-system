@@ -87,7 +87,7 @@ export function CollectorReportScreen({ canExport, onSessionExpired }: { canExpo
     });
   }
 
-  const th = "sticky top-0 border-b border-slate-200 bg-slate-50 px-3 py-2 font-medium text-muted";
+  const th = "table-head px-3 py-2 font-medium text-muted";
   const td = "border-b border-slate-100 px-3 py-2";
   const num = `${td} money`;
 

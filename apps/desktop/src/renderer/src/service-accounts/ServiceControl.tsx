@@ -182,7 +182,7 @@ function OpenReconnection({ reconnection, canControl, onChanged, onExpired }: Op
   const formProps = { reconnection, onSaved: done, onCancel: () => setStep(null), onExpired };
 
   return (
-    <div className="mb-4 rounded-lg border border-warning/30 bg-warning/5 p-3">
+    <div className="mb-4 rounded-lg border border-warning/30 tint-warning p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="text-sm">
           <span className="font-semibold text-ink">Reconnection in progress</span>{" "}

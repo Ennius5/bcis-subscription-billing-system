@@ -228,7 +228,7 @@ export function GcashDetail({ submissionId, canAttach, canVerify, onChanged, onS
         {proofId ? (
           <ProofImage key={proofId} proofId={proofId} onSessionExpired={onSessionExpired} />
         ) : (
-          <p className="rounded-lg border border-dashed border-slate-300 px-3 py-8 text-center text-sm text-muted">
+          <p className="empty-state py-8">
             No proof image yet.{pending && canAttach ? " Use Attach image to add the customer's screenshot." : ""}
           </p>
         )}

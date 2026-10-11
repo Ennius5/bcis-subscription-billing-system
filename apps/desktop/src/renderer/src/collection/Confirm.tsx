@@ -12,7 +12,7 @@ interface ConfirmProps {
 /** An inline "are you sure" box for a batch step that cannot be undone. */
 export function Confirm({ title, confirmLabel, busy, onConfirm, onCancel, children }: ConfirmProps) {
   return (
-    <div className="rounded-lg border border-warning/30 bg-warning/5 p-4">
+    <div className="rounded-lg border border-warning/30 tint-warning p-4">
       <h3 className="text-sm font-semibold text-navy">{title}</h3>
       <div className="mt-1 text-sm text-ink">{children}</div>
       <div className="mt-3 flex gap-3">

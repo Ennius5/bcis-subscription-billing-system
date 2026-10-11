@@ -58,8 +58,9 @@ export function Login({ onSignedIn }: LoginProps) {
 
   return (
     <div className="flex min-h-screen items-center justify-center p-6">
-      <div className="w-full max-w-sm">
+      <div className="aero-sheet w-full max-w-sm p-6">
         <div className="mb-6 text-center">
+          <div className="aero-orb" aria-hidden="true" />
           <h1 className="text-2xl font-semibold text-navy">BCIS Billing</h1>
           <p className="mt-1 text-sm text-muted">
             Subscription Billing and Collection System
@@ -68,7 +69,7 @@ export function Login({ onSignedIn }: LoginProps) {
 
         <form
           onSubmit={(e) => void handleSubmit(e)}
-          className="panel p-6 shadow-sm"
+          className="panel p-6"
         >
           <label className="block text-sm font-medium text-ink">
             Username <span className="text-danger" aria-hidden="true">*</span>

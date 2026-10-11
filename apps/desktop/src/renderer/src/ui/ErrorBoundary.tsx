@@ -27,7 +27,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
   override render() {
     if (!this.state.failed) return this.props.children;
     return (
-      <div role="alert" className="max-w-xl rounded-lg border border-danger/30 bg-danger/5 p-4 text-sm text-ink">
+      <div role="alert" className="max-w-xl rounded-lg border border-danger/30 tint-danger p-4 text-sm text-ink">
         <p>
           <strong className="text-danger">This screen could not be shown.</strong> The problem has been recorded on
           this PC. Your saved data is not affected.

@@ -168,7 +168,7 @@ export function GcashScreen({ permissions, onSessionExpired }: GcashScreenProps)
               onSessionExpired={onSessionExpired}
             />
           ) : (
-            <p className="rounded-lg border border-dashed border-slate-300 px-3 py-12 text-center text-sm text-muted">
+            <p className="empty-state py-12">
               Select a submission to review its proof, or record a new one.
             </p>
           )}

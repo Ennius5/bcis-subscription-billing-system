@@ -84,7 +84,7 @@ interface ForcedPasswordChangeProps {
 export function ForcedPasswordChange({ session, onChanged, onSignOut }: ForcedPasswordChangeProps) {
   return (
     <div className="flex min-h-screen items-center justify-center p-6">
-      <div className="w-full max-w-md">
+      <div className="aero-sheet w-full max-w-md p-6">
         <div className="mb-6 text-center">
           <h1 className="text-2xl font-semibold text-navy">Choose a new password</h1>
           <p className="mt-1 text-sm text-muted">
@@ -118,7 +118,7 @@ export function ChangePasswordPanel({ onClose, onExpired }: ChangePasswordPanelP
     <div className="max-w-md">
       <h1 className="mb-4 text-xl font-semibold text-navy">Change my password</h1>
       {done ? (
-        <div className="rounded-lg border border-success/30 bg-success/5 p-4 text-sm text-ink">
+        <div className="rounded-lg border border-success/30 tint-success p-4 text-sm text-ink">
           <p>
             <strong className="text-success">Password changed.</strong> You stay signed in here. If you were signed in
             on another PC, that session has been ended.

@@ -27,7 +27,7 @@ export function DataTable<T>({ columns, rows, getRowKey, emptyMessage, totals }:
               <th
                 key={col.key}
                 scope="col"
-                className={`sticky top-0 border-b border-slate-200 bg-slate-50 px-3 py-2 font-medium text-muted ${
+                className={`table-head px-3 py-2 font-medium text-muted ${
                   col.align === "right" ? "text-right" : "text-left"
                 }`}
               >
