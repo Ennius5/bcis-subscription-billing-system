@@ -12,7 +12,8 @@
     "db:seed": "tsx src/db/seed-rbac.ts",
     "db:seed-demo": "tsx src/db/seed-demo-users.ts",
     "db:seed-data": "tsx src/db/seed-demo-data.ts",
-    "backup": "tsx src/backup/cli.ts"
+    "backup": "tsx src/backup/cli.ts",
+    "concurrency": "tsx src/concurrency/three-clients.ts"
   },
   "dependencies": {
     "@bcis/shared": "workspace:*",
