@@ -17,14 +17,14 @@ export function Confirm({ title, confirmLabel, busy, onConfirm, onCancel, childr
       <div className="mt-1 text-sm text-ink">{children}</div>
       <div className="mt-3 flex gap-3">
         <button
-          className="rounded bg-navy px-4 py-2 text-sm font-medium text-white hover:bg-navy/90 disabled:opacity-60"
+          className="btn btn-primary"
           disabled={busy}
           onClick={onConfirm}
         >
           {busy ? "Working…" : confirmLabel}
         </button>
         <button
-          className="rounded border border-slate-300 px-4 py-2 text-sm text-ink hover:bg-white disabled:opacity-60"
+          className="btn btn-secondary"
           disabled={busy}
           onClick={onCancel}
         >

@@ -153,7 +153,7 @@ export function NewSubscriberScreen({ onCreated, onSessionExpired }: NewSubscrib
       <h1 className="text-xl font-semibold text-navy">New Subscriber</h1>
 
       <fieldset disabled={saving} className="space-y-6">
-        <section className="rounded-lg border border-slate-200 bg-surface p-5">
+        <section className="panel p-5">
           <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted">Subscriber</h2>
           <div className="grid grid-cols-3 gap-4">
             <div className="col-span-2">
@@ -173,7 +173,7 @@ export function NewSubscriberScreen({ onCreated, onSessionExpired }: NewSubscrib
           <p className="mt-2 text-xs text-muted">The account number is assigned automatically when you save.</p>
         </section>
 
-        <section className="rounded-lg border border-slate-200 bg-surface p-5">
+        <section className="panel p-5">
           <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted">Service address</h2>
           <div className="grid grid-cols-3 gap-4">
             <TextField label="Label" value={label} onChange={setLabel} error={errors["address.label"]} hint="e.g. Home" maxLength={50} />
@@ -189,7 +189,7 @@ export function NewSubscriberScreen({ onCreated, onSessionExpired }: NewSubscrib
           </div>
         </section>
 
-        <section className="rounded-lg border border-slate-200 bg-surface p-5">
+        <section className="panel p-5">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-xs font-semibold uppercase tracking-wide text-muted">
               Contacts ({contacts.length} of {SUBSCRIBER_CONTACTS_MAX})
@@ -197,7 +197,7 @@ export function NewSubscriberScreen({ onCreated, onSessionExpired }: NewSubscrib
             {contacts.length < SUBSCRIBER_CONTACTS_MAX && (
               <button
                 type="button"
-                className="rounded border border-slate-300 px-2 py-1 text-xs hover:bg-slate-100"
+                className="btn btn-secondary btn-xs"
                 onClick={addContact}
               >
                 Add contact
@@ -244,7 +244,7 @@ export function NewSubscriberScreen({ onCreated, onSessionExpired }: NewSubscrib
                   </label>
                   <button
                     type="button"
-                    className="mt-6 rounded border border-slate-300 px-2 py-1 text-xs hover:bg-slate-100"
+                    className="btn btn-secondary btn-xs mt-6"
                     onClick={() => removeContact(row.key)}
                     aria-label={`Remove contact ${i + 1}`}
                   >
@@ -257,7 +257,7 @@ export function NewSubscriberScreen({ onCreated, onSessionExpired }: NewSubscrib
         </section>
 
         {(areaOptions || collectorOptions) && (
-          <section className="rounded-lg border border-slate-200 bg-surface p-5">
+          <section className="panel p-5">
             <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted">Collection assignment</h2>
             <div className="grid grid-cols-2 gap-4">
               {areaOptions && (
@@ -276,13 +276,13 @@ export function NewSubscriberScreen({ onCreated, onSessionExpired }: NewSubscrib
           </section>
         )}
 
-        <section className="rounded-lg border border-slate-200 bg-surface p-5">
+        <section className="panel p-5">
           <TextAreaField label="Notes" value={notes} onChange={setNotes} error={errors.notes} maxLength={1000} />
         </section>
       </fieldset>
 
       {formError && (
-        <p role="alert" className="rounded border border-danger/30 bg-danger/5 px-3 py-2 text-sm text-danger">
+        <p role="alert" className="alert alert-danger">
           {formError}
         </p>
       )}
@@ -290,7 +290,7 @@ export function NewSubscriberScreen({ onCreated, onSessionExpired }: NewSubscrib
       <button
         type="submit"
         disabled={saving}
-        className="rounded bg-navy px-4 py-2 text-sm font-medium text-white hover:bg-navy/90 disabled:opacity-60"
+        className="btn btn-primary"
       >
         {saving ? "Creating…" : "Create subscriber"}
       </button>

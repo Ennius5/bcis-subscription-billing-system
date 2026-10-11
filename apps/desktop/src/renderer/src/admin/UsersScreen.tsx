@@ -24,7 +24,7 @@ interface UsersScreenProps {
 
 const roleLabel = (code: string) => ROLE_LABELS[code as RoleCode] ?? code;
 
-const actionClass = "rounded border border-slate-300 px-2 py-1 text-xs hover:bg-slate-100";
+const actionClass = "btn btn-secondary btn-xs";
 
 export function UsersScreen({ currentUserId, onSessionExpired }: UsersScreenProps) {
   const [users, setUsers] = useState<UserDto[]>([]);
@@ -168,7 +168,7 @@ export function UsersScreen({ currentUserId, onSessionExpired }: UsersScreenProp
             Show inactive{inactiveCount > 0 ? ` (${inactiveCount})` : ""}
           </label>
           <button
-            className="rounded bg-accent px-3 py-2 text-sm font-medium text-white hover:bg-accent/90"
+            className="btn btn-accent"
             onClick={() => open({ kind: "create" })}
           >
             New user

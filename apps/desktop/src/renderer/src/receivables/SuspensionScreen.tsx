@@ -46,9 +46,7 @@ export function SuspensionScreen({ permissions, onSessionExpired }: SuspensionSc
               key={t.id}
               role="tab"
               aria-selected={tab === t.id}
-              className={`rounded px-3 py-1 text-sm ${
-                tab === t.id ? "bg-navy text-white" : "border border-slate-300 text-ink hover:bg-slate-50"
-              }`}
+              className="tab-pill"
               onClick={() => setTab(t.id)}
             >
               {t.label}
@@ -188,7 +186,7 @@ function CandidateList({ reloadKey, onOpen, onSessionExpired }: ListProps) {
       </div>
 
       {loadError && (
-        <p role="alert" className="mb-4 rounded border border-danger/30 bg-danger/5 px-3 py-2 text-sm text-danger">
+        <p role="alert" className="alert alert-danger mb-4">
           Could not load the candidates. {loadError}
         </p>
       )}
@@ -322,7 +320,7 @@ export function ReconnectionList({ reloadKey, onOpen, onSessionExpired }: ListPr
       </div>
 
       {loadError && (
-        <p role="alert" className="mb-4 rounded border border-danger/30 bg-danger/5 px-3 py-2 text-sm text-danger">
+        <p role="alert" className="alert alert-danger mb-4">
           Could not load reconnections. {loadError}
         </p>
       )}
@@ -341,7 +339,7 @@ export function ReconnectionList({ reloadKey, onOpen, onSessionExpired }: ListPr
             <span aria-live="polite">{total === 0 ? "No results" : `${total} reconnection${total === 1 ? "" : "s"}`}</span>
             <span className="flex items-center gap-2">
               <button
-                className="rounded border border-slate-300 px-3 py-1 hover:bg-slate-100 disabled:opacity-50"
+                className="btn btn-secondary btn-sm"
                 disabled={page <= 1}
                 onClick={() => setPage((p) => p - 1)}
               >
@@ -351,7 +349,7 @@ export function ReconnectionList({ reloadKey, onOpen, onSessionExpired }: ListPr
                 Page {page} of {lastPage}
               </span>
               <button
-                className="rounded border border-slate-300 px-3 py-1 hover:bg-slate-100 disabled:opacity-50"
+                className="btn btn-secondary btn-sm"
                 disabled={page >= lastPage}
                 onClick={() => setPage((p) => p + 1)}
               >

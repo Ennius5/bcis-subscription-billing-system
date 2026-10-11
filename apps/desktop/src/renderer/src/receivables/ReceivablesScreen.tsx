@@ -264,7 +264,7 @@ function ReceivableList({
       </div>
 
       {loadError && (
-        <p role="alert" className="mb-4 rounded border border-danger/30 bg-danger/5 px-3 py-2 text-sm text-danger">
+        <p role="alert" className="alert alert-danger mb-4">
           Could not load the list. {loadError}
         </p>
       )}
@@ -289,7 +289,7 @@ function ReceivableList({
             <span aria-live="polite">{total === 0 ? "No results" : `Showing ${first}–${last} of ${total}`}</span>
             <span className="flex items-center gap-2">
               <button
-                className="rounded border border-slate-300 px-3 py-1 hover:bg-slate-100 disabled:opacity-50"
+                className="btn btn-secondary btn-sm"
                 disabled={page <= 1 || loading}
                 onClick={() => setPage((p) => p - 1)}
               >
@@ -299,7 +299,7 @@ function ReceivableList({
                 Page {page} of {lastPage}
               </span>
               <button
-                className="rounded border border-slate-300 px-3 py-1 hover:bg-slate-100 disabled:opacity-50"
+                className="btn btn-secondary btn-sm"
                 disabled={page >= lastPage || loading}
                 onClick={() => setPage((p) => p + 1)}
               >

@@ -42,7 +42,7 @@ export function PaymentView({ paymentId, canReverse, onBack, onSessionExpired }:
       </button>
 
       {loadError && (
-        <p role="alert" className="rounded border border-danger/30 bg-danger/5 px-3 py-2 text-sm text-danger">
+        <p role="alert" className="alert alert-danger">
           Could not load the payment. {loadError}
         </p>
       )}
@@ -64,7 +64,7 @@ export function PaymentView({ paymentId, canReverse, onBack, onSessionExpired }:
           </div>
 
           {notice && (
-            <p aria-live="polite" className="rounded border border-success/30 bg-success/5 px-3 py-2 text-sm text-success">
+            <p aria-live="polite" className="alert alert-success">
               {notice}
             </p>
           )}
@@ -116,7 +116,7 @@ function ReverseForm({ payment, onSaved, onCancel, onExpired }: ReverseFormProps
       onSubmit={submit}
       onCancel={onCancel}
     >
-      <div className="rounded border border-warning/30 bg-warning/5 px-3 py-2 text-sm text-warning">
+      <div className="alert alert-warning">
         <p>Reversing is final. The payment and its receipt number stay on record, marked void.</p>
         <ul className="mt-1 list-disc pl-5">
           <li>

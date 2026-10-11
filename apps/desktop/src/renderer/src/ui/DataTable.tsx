@@ -19,7 +19,7 @@ interface DataTableProps<T> {
 
 export function DataTable<T>({ columns, rows, getRowKey, emptyMessage, totals }: DataTableProps<T>) {
   return (
-    <div className="max-h-full overflow-auto rounded-lg border border-slate-200 bg-surface">
+    <div className="panel max-h-full overflow-auto">
       <table className="w-full border-collapse text-sm">
         <thead>
           <tr>

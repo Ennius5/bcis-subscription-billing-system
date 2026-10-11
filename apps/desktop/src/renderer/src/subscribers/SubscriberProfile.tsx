@@ -239,7 +239,7 @@ export function SubscriberProfile({ subscriberId, permissions, onBack, onSession
         </button>
 
         {loadError && (
-          <p role="alert" className="rounded border border-danger/30 bg-danger/5 px-3 py-2 text-sm text-danger">
+          <p role="alert" className="alert alert-danger">
             Could not load the subscriber. {loadError}
           </p>
         )}
@@ -259,7 +259,7 @@ export function SubscriberProfile({ subscriberId, permissions, onBack, onSession
             </div>
 
             {subscriber.status === "archived" && (
-              <p className="rounded border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-muted">
+              <p className="alert alert-note">
                 This account is archived. Its record is read-only.
               </p>
             )}

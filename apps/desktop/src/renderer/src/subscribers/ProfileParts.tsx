@@ -7,7 +7,7 @@ export const formatDateTime = (iso: string) => DATE_TIME.format(new Date(iso));
 
 export function Section({ title, action, children }: { title: string; action?: ReactNode; children: ReactNode }) {
   return (
-    <section className="rounded-lg border border-slate-200 bg-surface p-4">
+    <section className="panel p-4">
       <div className="mb-3 flex items-center justify-between gap-2">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">{title}</h2>
         {action}
@@ -19,7 +19,7 @@ export function Section({ title, action, children }: { title: string; action?: R
 
 export function ActionButton({ label, onClick }: { label: string; onClick: () => void }) {
   return (
-    <button className="rounded border border-slate-300 px-2 py-1 text-xs hover:bg-slate-100" onClick={onClick}>
+    <button className="btn btn-secondary btn-xs" onClick={onClick}>
       {label}
     </button>
   );
@@ -36,7 +36,7 @@ export function Field({ label, children }: { label: string; children: ReactNode 
 
 export function RowError({ message }: { message: string }) {
   return (
-    <p role="alert" className="mb-3 rounded border border-danger/30 bg-danger/5 px-3 py-2 text-sm text-danger">
+    <p role="alert" className="alert alert-danger mb-3">
       {message}
     </p>
   );

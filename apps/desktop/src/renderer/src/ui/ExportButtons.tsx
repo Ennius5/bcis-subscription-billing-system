@@ -10,7 +10,7 @@ interface ExportButtonsProps {
 
 type Status = { kind: "idle" } | { kind: "busy"; format: ExportFormat } | { kind: "saved"; file: SavedExportDto } | { kind: "error"; message: string };
 
-const BUTTON = "rounded border border-slate-300 px-2 py-1 text-xs hover:bg-slate-100 disabled:opacity-50";
+const BUTTON = "btn btn-secondary btn-xs";
 
 /**
  * "Export PDF" / "Export Excel" for report screens. Main asks where to save, the server builds

@@ -57,7 +57,7 @@ export function ChartCard({ title, subtitle, legend, chart, table, className = "
         </div>
         {chart && (
           <button
-            className="shrink-0 rounded border border-slate-300 px-2 py-0.5 text-xs text-ink hover:bg-slate-100"
+            className="btn btn-secondary btn-xs shrink-0"
             aria-pressed={showTable}
             onClick={() => setShowTable((v) => !v)}
           >

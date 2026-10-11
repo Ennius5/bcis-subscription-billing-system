@@ -11,7 +11,7 @@ export function Pager({ page, pageSize, total, loading = false, onPage }: PagerP
   const lastPage = Math.max(1, Math.ceil(total / pageSize));
   const first = total === 0 ? 0 : (page - 1) * pageSize + 1;
   const last = Math.min(total, page * pageSize);
-  const button = "rounded border border-slate-300 px-3 py-1 hover:bg-slate-100 disabled:opacity-50";
+  const button = "btn btn-secondary btn-sm";
   return (
     <div className="mt-3 flex items-center justify-between text-sm text-muted">
       <span aria-live="polite">

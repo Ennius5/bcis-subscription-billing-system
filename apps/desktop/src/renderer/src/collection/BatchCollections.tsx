@@ -92,7 +92,7 @@ export function CollectionsSection({ batch, canRecord, onReload, onSessionExpire
       }
     >
       {notice && (
-        <p aria-live="polite" className="mb-3 rounded border border-success/30 bg-success/5 px-3 py-2 text-sm text-success">
+        <p aria-live="polite" className="alert alert-success mb-3">
           {notice}
         </p>
       )}

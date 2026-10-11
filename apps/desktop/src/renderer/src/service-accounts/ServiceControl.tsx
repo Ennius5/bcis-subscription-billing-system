@@ -73,7 +73,7 @@ export function SuspendForm({ account, onSaved, onCancel, onExpired }: SuspendFo
 
   return (
     <ProfileForm title="Suspend service" submitLabel="Suspend" saving={saving} error={formError} onSubmit={submit} onCancel={onCancel}>
-      <p className="rounded border border-warning/30 bg-warning/5 px-3 py-2 text-sm text-warning">
+      <p className="alert alert-warning">
         A suspended service is not billed. It comes back only through a reconnection, once its past-due bills are
         paid.
       </p>

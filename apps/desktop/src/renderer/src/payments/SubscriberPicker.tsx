@@ -51,7 +51,7 @@ export function SubscriberPicker({ onPick, onSessionExpired }: SubscriberPickerP
         <input
           ref={input}
           type="search"
-          className="mt-1 block w-full rounded border border-slate-300 bg-surface px-3 py-2 font-normal text-ink focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+          className="field"
           placeholder="Account no., name, phone or address"
           value={text}
           maxLength={100}
@@ -69,7 +69,7 @@ export function SubscriberPicker({ onPick, onSessionExpired }: SubscriberPickerP
       )}
       {!tooShort && hits.length === 0 && !error && <p className="mt-2 text-sm text-muted">No matching subscribers.</p>}
       {hits.length > 0 && (
-        <ul className="mt-2 divide-y divide-slate-100 rounded-lg border border-slate-200 bg-surface">
+        <ul className="panel mt-2 divide-y divide-slate-100">
           {hits.map((hit) => (
             <li key={hit.id}>
               <button

@@ -60,7 +60,7 @@ export function SearchResults({ query, onOpen, onSessionExpired }: SearchResults
       {tooShort ? (
         <p className="text-muted">Type at least {GLOBAL_SEARCH_MIN_LENGTH} characters to search.</p>
       ) : error ? (
-        <p role="alert" className="rounded border border-danger/30 bg-danger/5 px-3 py-2 text-sm text-danger">
+        <p role="alert" className="alert alert-danger">
           Search failed. {error}
         </p>
       ) : !result || (loading && result.query !== query) ? (
@@ -69,7 +69,7 @@ export function SearchResults({ query, onOpen, onSessionExpired }: SearchResults
         <p className="text-muted">No subscribers match “{result.query}”.</p>
       ) : (
         <>
-          <ul className="divide-y divide-slate-100 rounded-lg border border-slate-200 bg-surface" aria-live="polite">
+          <ul className="panel divide-y divide-slate-100" aria-live="polite">
             {result.items.map((hit) => (
               <li key={hit.id}>
                 <button

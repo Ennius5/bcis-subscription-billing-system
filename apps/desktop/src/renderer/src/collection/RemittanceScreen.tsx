@@ -32,9 +32,7 @@ export function RemittanceScreen({ permissions, onSessionExpired }: RemittanceSc
               key={t.status}
               role="tab"
               aria-selected={tab === t.status}
-              className={`rounded px-3 py-1 text-sm ${
-                tab === t.status ? "bg-navy text-white" : "border border-slate-300 text-ink hover:bg-slate-50"
-              }`}
+              className="tab-pill"
               onClick={() => setTab(t.status)}
             >
               {t.label}

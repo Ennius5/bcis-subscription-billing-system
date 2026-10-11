@@ -154,7 +154,7 @@ function PaymentForm({ subscriberId, canAllocate, onPosted, onChangeSubscriber, 
 
   if (loadError) {
     return (
-      <p role="alert" className="rounded border border-danger/30 bg-danger/5 px-3 py-2 text-sm text-danger">
+      <p role="alert" className="alert alert-danger">
         Could not load the subscriber's balance. {loadError}
       </p>
     );
@@ -181,7 +181,7 @@ function PaymentForm({ subscriberId, canAllocate, onPosted, onChangeSubscriber, 
       </div>
 
       {archived && (
-        <p role="alert" className="rounded border border-warning/30 bg-warning/5 px-3 py-2 text-sm text-warning">
+        <p role="alert" className="alert alert-warning">
           This subscriber is archived and cannot receive payments.
         </p>
       )}
@@ -232,7 +232,7 @@ function PaymentForm({ subscriberId, canAllocate, onPosted, onChangeSubscriber, 
           </fieldset>
 
           {formError && (
-            <p role="alert" className="rounded border border-danger/30 bg-danger/5 px-3 py-2 text-sm text-danger">
+            <p role="alert" className="alert alert-danger">
               {formError}
             </p>
           )}
@@ -240,7 +240,7 @@ function PaymentForm({ subscriberId, canAllocate, onPosted, onChangeSubscriber, 
           <button
             type="submit"
             disabled={saving || archived || amount === null || amount <= 0 || (preview !== null && !preview.ok)}
-            className="w-full rounded bg-navy px-4 py-2 text-sm font-medium text-white hover:bg-navy/90 disabled:opacity-50"
+            className="btn btn-primary w-full"
           >
             {saving ? "Posting…" : amount !== null && amount > 0 ? `Post payment of ${formatPesos(amount)}` : "Post payment"}
           </button>
@@ -269,7 +269,7 @@ function PaymentForm({ subscriberId, canAllocate, onPosted, onChangeSubscriber, 
             )}
           </div>
 
-          <div className="overflow-auto rounded-lg border border-slate-200 bg-surface">
+          <div className="panel overflow-auto">
             <table className="w-full border-collapse text-sm">
               <thead>
                 <tr className="bg-slate-50 text-muted">
@@ -353,7 +353,7 @@ function PaymentForm({ subscriberId, canAllocate, onPosted, onChangeSubscriber, 
 
 function Tile({ label, value, plain }: { label: string; value: string; plain?: boolean }) {
   return (
-    <div className="rounded-lg border border-slate-200 bg-surface p-3">
+    <div className="panel p-3">
       <div className="text-xs font-medium uppercase tracking-wide text-muted">{label}</div>
       <div className={`mt-1 text-lg font-semibold text-ink ${plain ? "" : "money text-left"}`}>{value}</div>
     </div>
@@ -374,12 +374,12 @@ function PostedPanel({ payment, onAnotherForSame, onNewSubscriber }: PostedPanel
 
   return (
     <div className="space-y-4">
-      <p aria-live="polite" className="rounded border border-success/30 bg-success/5 px-3 py-2 text-sm text-success">
+      <p aria-live="polite" className="alert alert-success">
         Payment posted as {payment.receiptNumber}: {formatPesos(payment.amountCentavos)} from {payment.subscriberName}.
       </p>
       <div className="flex flex-wrap gap-3">
         <button
-          className="rounded bg-navy px-4 py-2 text-sm font-medium text-white hover:bg-navy/90"
+          className="btn btn-primary"
           onClick={() => {
             window.print();
             setPrinted((n) => n + 1);
@@ -387,10 +387,10 @@ function PostedPanel({ payment, onAnotherForSame, onNewSubscriber }: PostedPanel
         >
           {printed === 0 ? "Print receipt" : "Print again (reprint)"}
         </button>
-        <button className="rounded border border-slate-300 px-4 py-2 text-sm text-ink hover:bg-slate-50" onClick={onAnotherForSame}>
+        <button className="btn btn-secondary" onClick={onAnotherForSame}>
           Another payment for this subscriber
         </button>
-        <button className="rounded border border-slate-300 px-4 py-2 text-sm text-ink hover:bg-slate-50" onClick={onNewSubscriber}>
+        <button className="btn btn-secondary" onClick={onNewSubscriber}>
           New subscriber
         </button>
       </div>

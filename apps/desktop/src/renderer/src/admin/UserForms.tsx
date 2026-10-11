@@ -62,7 +62,7 @@ function TemporaryPasswordField({
       <button
         type="button"
         onClick={() => onChange(generateTemporaryPassword())}
-        className="mb-6 rounded border border-slate-300 px-3 py-2 text-sm hover:bg-white"
+        className="btn btn-secondary mb-6"
       >
         Generate
       </button>
@@ -215,7 +215,7 @@ export function StatusForm({ user, onSaved, onCancel, onExpired }: UserFormProps
       onCancel={onCancel}
     >
       {deactivating && (
-        <p className="rounded border border-warning/30 bg-warning/5 px-3 py-2 text-sm text-warning">
+        <p className="alert alert-warning">
           The user is signed out on every PC at once and cannot sign in again until reactivated. Their past work and
           audit history stay.
         </p>

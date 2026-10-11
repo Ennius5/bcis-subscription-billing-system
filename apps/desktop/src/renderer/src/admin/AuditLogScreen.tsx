@@ -52,9 +52,7 @@ export function AuditLogScreen({ permissions, onOpenSubscriber, onSessionExpired
             key={t.id}
             role="tab"
             aria-selected={tab === t.id}
-            className={`rounded px-3 py-1 text-sm ${
-              tab === t.id ? "bg-navy text-white" : "border border-slate-300 text-ink hover:bg-slate-50"
-            }`}
+            className="tab-pill"
             onClick={() => setTab(t.id)}
           >
             {t.label}
@@ -235,7 +233,7 @@ function LogView({ onOpenSubscriber, onSessionExpired }: { onOpenSubscriber?: (i
 
       {result && (
         <>
-          <div className="overflow-auto rounded-lg border border-slate-200 bg-surface">
+          <div className="panel overflow-auto">
             <table className="w-full border-collapse text-sm">
               <thead>
                 <tr>
@@ -300,7 +298,7 @@ function LogView({ onOpenSubscriber, onSessionExpired }: { onOpenSubscriber?: (i
                         <td className={td}>{row.reason ?? <span className="text-muted">—</span>}</td>
                         <td className={`${td} text-right`}>
                           <button
-                            className="rounded border border-slate-300 px-2 py-0.5 text-xs hover:bg-slate-100"
+                            className="btn btn-secondary btn-xs"
                             aria-expanded={expanded.has(row.id)}
                             onClick={() => toggle(row.id)}
                           >

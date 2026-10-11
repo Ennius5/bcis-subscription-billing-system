@@ -31,7 +31,7 @@ const SCOPE_TEXT: Record<string, (backupNumber: string | null) => string> = {
   after_restore: (n) => `After restoring ${n ?? "?"}`,
 };
 
-const actionClass = "rounded border border-slate-300 px-2 py-1 text-xs hover:bg-slate-100 disabled:opacity-50";
+const actionClass = "btn btn-secondary btn-xs";
 
 export function BackupScreen({ canRestore, onSessionExpired }: BackupScreenProps) {
   const [list, setList] = useState<BackupListDto | null>(null);
@@ -100,7 +100,7 @@ export function BackupScreen({ canRestore, onSessionExpired }: BackupScreenProps
         <IntegrityReportView report={restored.report} />
         <button
           onClick={onSessionExpired}
-          className="mt-4 rounded bg-navy px-4 py-2 text-sm font-medium text-white hover:bg-navy/90"
+          className="btn btn-primary mt-4"
         >
           Sign in again
         </button>
@@ -199,7 +199,7 @@ export function BackupScreen({ canRestore, onSessionExpired }: BackupScreenProps
               </button>
               {canRestore && (
                 <button
-                  className={`${actionClass} text-danger`}
+                  className="btn btn-danger btn-xs"
                   disabled={disabled || !canRestoreFrom(b)}
                   onClick={() => {
                     setOutcome(null);
@@ -230,7 +230,7 @@ export function BackupScreen({ canRestore, onSessionExpired }: BackupScreenProps
           </p>
         </div>
         <button
-          className="shrink-0 rounded border border-slate-300 px-3 py-2 text-sm hover:bg-slate-100 disabled:opacity-50"
+          className="btn btn-secondary shrink-0"
           disabled={disabled}
           onClick={() =>
             void run("Checking the live data", () => window.bcis.integrity.run(), (report) => ({
@@ -253,7 +253,7 @@ export function BackupScreen({ canRestore, onSessionExpired }: BackupScreenProps
       )}
 
       <form
-        className="mb-4 flex items-end gap-3 rounded-lg border border-slate-200 bg-surface p-3"
+        className="panel mb-4 flex items-end gap-3 p-3"
         onSubmit={(e) => {
           e.preventDefault();
           backUpNow();
@@ -262,7 +262,7 @@ export function BackupScreen({ canRestore, onSessionExpired }: BackupScreenProps
         <label className="block flex-1 text-sm font-medium text-ink">
           Note (optional)
           <input
-            className="mt-1 block w-full rounded border border-slate-300 px-3 py-2 font-normal focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+            className="field"
             value={note}
             maxLength={200}
             disabled={disabled}
@@ -273,7 +273,7 @@ export function BackupScreen({ canRestore, onSessionExpired }: BackupScreenProps
         <button
           type="submit"
           disabled={disabled}
-          className="rounded bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent/90 disabled:opacity-50"
+          className="btn btn-accent"
         >
           Back up now
         </button>
@@ -319,7 +319,7 @@ export function BackupScreen({ canRestore, onSessionExpired }: BackupScreenProps
       )}
 
       {detailRow && (
-        <dl className="mt-3 grid grid-cols-[10rem_1fr] gap-x-4 gap-y-1 rounded-lg border border-slate-200 bg-surface p-4 text-sm">
+        <dl className="panel mt-3 grid grid-cols-[10rem_1fr] gap-x-4 gap-y-1 p-4 text-sm">
           <dt className="text-muted">Folder</dt>
           <dd className="font-mono text-xs">{detailRow.folderName}</dd>
           <dt className="text-muted">Note</dt>

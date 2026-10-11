@@ -33,7 +33,7 @@ export const BUCKET_OPTIONS: SelectOption[] = [
 
 export function MoneyTile({ label, centavos, note }: { label: string; centavos: number; note?: string }) {
   return (
-    <div className="rounded-lg border border-slate-200 bg-surface p-3">
+    <div className="panel p-3">
       <div className="text-xs font-medium uppercase tracking-wide text-muted">{label}</div>
       <div className="money mt-1 text-lg font-semibold text-ink">{formatPesos(centavos)}</div>
       {note && <div className="text-xs text-muted">{note}</div>}
@@ -43,7 +43,7 @@ export function MoneyTile({ label, centavos, note }: { label: string; centavos: 
 
 export function CountTile({ label, count, note }: { label: string; count: number; note?: string }) {
   return (
-    <div className="rounded-lg border border-slate-200 bg-surface p-3">
+    <div className="panel p-3">
       <div className="text-xs font-medium uppercase tracking-wide text-muted">{label}</div>
       <div className="mt-1 text-lg font-semibold tabular-nums text-ink">{count}</div>
       {note && <div className="text-xs text-muted">{note}</div>}

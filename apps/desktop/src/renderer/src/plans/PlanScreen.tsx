@@ -83,7 +83,7 @@ export function PlansScreen({ permissions, onSessionExpired }: PlansScreenProps)
       header: "",
       render: (p) => (
         <button
-          className="rounded border border-slate-300 px-2 py-1 text-xs hover:bg-slate-100"
+          className="btn btn-secondary btn-xs"
           onClick={() => setForm({ kind: "edit", plan: p })}
         >
           Edit
@@ -107,7 +107,7 @@ export function PlansScreen({ permissions, onSessionExpired }: PlansScreenProps)
           </label>
           {canManage && (
             <button
-              className="rounded bg-accent px-3 py-2 text-sm font-medium text-white hover:bg-accent/90"
+              className="btn btn-accent"
               onClick={() => setForm({ kind: "create" })}
             >
               New plan
@@ -130,7 +130,7 @@ export function PlansScreen({ permissions, onSessionExpired }: PlansScreenProps)
       )}
 
       {loadError && (
-        <p role="alert" className="mb-4 rounded border border-danger/30 bg-danger/5 px-3 py-2 text-sm text-danger">
+        <p role="alert" className="alert alert-danger mb-4">
           Could not load plans. {loadError}
         </p>
       )}

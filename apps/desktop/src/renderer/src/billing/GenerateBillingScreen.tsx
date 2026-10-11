@@ -15,7 +15,7 @@ interface GenerateBillingScreenProps {
 
 function Tile({ label, count, totalCentavos }: { label: string; count: number; totalCentavos?: number }) {
   return (
-    <div className="rounded-lg border border-slate-200 bg-surface p-3">
+    <div className="panel p-3">
       <div className="text-xs font-medium uppercase tracking-wide text-muted">{label}</div>
       <div className="mt-1 text-lg font-semibold text-ink">{count}</div>
       {totalCentavos !== undefined && <div className="money text-sm text-muted">{formatPesos(totalCentavos)}</div>}
@@ -143,17 +143,17 @@ export function GenerateBillingScreen({ permissions, onSessionExpired }: Generat
       </div>
 
       {error && (
-        <p role="alert" className="rounded border border-danger/30 bg-danger/5 px-3 py-2 text-sm text-danger">
+        <p role="alert" className="alert alert-danger">
           {error}
         </p>
       )}
       {notice && (
-        <p aria-live="polite" className="rounded border border-success/30 bg-success/5 px-3 py-2 text-sm text-success">
+        <p aria-live="polite" className="alert alert-success">
           {notice}
         </p>
       )}
       {skipped.length > 0 && (
-        <div role="alert" className="rounded border border-warning/30 bg-warning/5 px-3 py-2 text-sm text-warning">
+        <div role="alert" className="alert alert-warning">
           {skipped.length} draft{skipped.length === 1 ? " was" : "s were"} left unfinalized because the service account is
           no longer active: {skipped.map((s) => `${s.serviceNumber} (${s.accountStatus})`).join(", ")}. Discard drafts to
           remove {skipped.length === 1 ? "it" : "them"}.
@@ -174,7 +174,7 @@ export function GenerateBillingScreen({ permissions, onSessionExpired }: Generat
           {confirming === null && (
             <div className="flex flex-wrap gap-3">
               <button
-                className="rounded bg-navy px-4 py-2 text-sm font-medium text-white hover:bg-navy/90 disabled:opacity-50"
+                className="btn btn-primary"
                 disabled={busy || summary.notYetBilled === 0}
                 onClick={() => void generate()}
                 title={summary.notYetBilled === 0 ? "Every billable account already has an invoice for this month." : undefined}
@@ -182,14 +182,14 @@ export function GenerateBillingScreen({ permissions, onSessionExpired }: Generat
                 {busy ? "Working…" : `Generate drafts (${summary.notYetBilled})`}
               </button>
               <button
-                className="rounded bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent/90 disabled:opacity-50"
+                className="btn btn-accent"
                 disabled={busy || drafts === 0}
                 onClick={() => setConfirming("finalize")}
               >
                 Finalize {drafts} draft{drafts === 1 ? "" : "s"}
               </button>
               <button
-                className="rounded border border-slate-300 px-4 py-2 text-sm text-ink hover:bg-slate-50 disabled:opacity-50"
+                className="btn btn-secondary"
                 disabled={busy || drafts === 0}
                 onClick={() => setConfirming("discard")}
               >
@@ -211,13 +211,13 @@ export function GenerateBillingScreen({ permissions, onSessionExpired }: Generat
               </p>
               <div className="mt-3 flex gap-3">
                 <button
-                  className="rounded bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent/90"
+                  className="btn btn-accent"
                   onClick={() => void finalize()}
                 >
                   Yes, finalize
                 </button>
                 <button
-                  className="rounded border border-slate-300 px-4 py-2 text-sm text-ink hover:bg-white"
+                  className="btn btn-secondary"
                   onClick={() => setConfirming(null)}
                 >
                   Cancel
@@ -234,13 +234,13 @@ export function GenerateBillingScreen({ permissions, onSessionExpired }: Generat
               </p>
               <div className="mt-3 flex gap-3">
                 <button
-                  className="rounded bg-navy px-4 py-2 text-sm font-medium text-white hover:bg-navy/90"
+                  className="btn btn-primary"
                   onClick={() => void discard()}
                 >
                   Yes, discard drafts
                 </button>
                 <button
-                  className="rounded border border-slate-300 px-4 py-2 text-sm text-ink hover:bg-white"
+                  className="btn btn-secondary"
                   onClick={() => setConfirming(null)}
                 >
                   Cancel

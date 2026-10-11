@@ -61,7 +61,7 @@ export function CollectorsScreen({ permissions, onSessionExpired }: CollectorsSc
       header: "",
       render: (c) => (
         <button
-          className="rounded border border-slate-300 px-2 py-1 text-xs hover:bg-slate-100"
+          className="btn btn-secondary btn-xs"
           onClick={() => setForm({ kind: "edit", collector: c })}
         >
           Edit
@@ -85,7 +85,7 @@ export function CollectorsScreen({ permissions, onSessionExpired }: CollectorsSc
           </label>
           {canManage && (
             <button
-              className="rounded bg-accent px-3 py-2 text-sm font-medium text-white hover:bg-accent/90"
+              className="btn btn-accent"
               onClick={() => setForm({ kind: "create" })}
             >
               New collector
@@ -108,7 +108,7 @@ export function CollectorsScreen({ permissions, onSessionExpired }: CollectorsSc
       )}
 
       {loadError && (
-        <p role="alert" className="mb-4 rounded border border-danger/30 bg-danger/5 px-3 py-2 text-sm text-danger">
+        <p role="alert" className="alert alert-danger mb-4">
           Could not load collectors. {loadError}
         </p>
       )}

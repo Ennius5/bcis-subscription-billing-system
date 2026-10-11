@@ -16,7 +16,7 @@ interface ReceiptProps {
 export function Receipt({ payment, reprint }: ReceiptProps) {
   const reversed = payment.status === "reversed";
   return (
-    <article className="print-area relative mx-auto max-w-md rounded-lg border border-slate-200 bg-surface p-6 text-sm text-ink">
+    <article className="panel print-area relative mx-auto max-w-md p-6 text-sm text-ink">
       {reversed && (
         <div
           aria-hidden="true"

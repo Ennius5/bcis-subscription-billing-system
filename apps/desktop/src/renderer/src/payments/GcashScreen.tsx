@@ -54,7 +54,7 @@ export function GcashScreen({ permissions, onSessionExpired }: GcashScreenProps)
         <h1 className="text-xl font-semibold text-navy">GCash Verification</h1>
         {canRecord && !recording && (
           <button
-            className="rounded bg-navy px-4 py-2 text-sm font-medium text-white hover:bg-navy/90"
+            className="btn btn-primary"
             onClick={() => {
               setRecording(true);
               setSelectedId(null);
@@ -73,9 +73,7 @@ export function GcashScreen({ permissions, onSessionExpired }: GcashScreenProps)
                 key={tab.value}
                 role="tab"
                 aria-selected={status === tab.value}
-                className={`rounded px-3 py-1 text-sm ${
-                  status === tab.value ? "bg-navy text-white" : "border border-slate-300 text-ink hover:bg-slate-50"
-                }`}
+                className="tab-pill"
                 onClick={() => {
                   setStatus(tab.value);
                   setPage(1);
@@ -89,12 +87,12 @@ export function GcashScreen({ permissions, onSessionExpired }: GcashScreenProps)
           {loadError && <RowError message={`Could not load the queue. ${loadError}`} />}
           {!result && !loadError && <p className="text-muted">Loading…</p>}
           {result && result.items.length === 0 && (
-            <p className="rounded-lg border border-slate-200 bg-surface px-3 py-6 text-center text-sm text-muted">
+            <p className="panel px-3 py-6 text-center text-sm text-muted">
               {status === "pending" ? "Nothing waiting for verification." : "No submissions here."}
             </p>
           )}
           {result && result.items.length > 0 && (
-            <ul className="divide-y divide-slate-100 rounded-lg border border-slate-200 bg-surface">
+            <ul className="panel divide-y divide-slate-100">
               {result.items.map((item) => (
                 <li key={item.id}>
                   <button
@@ -128,7 +126,7 @@ export function GcashScreen({ permissions, onSessionExpired }: GcashScreenProps)
               <span>{total} total</span>
               <span className="flex items-center gap-2">
                 <button
-                  className="rounded border border-slate-300 px-2 py-0.5 hover:bg-slate-100 disabled:opacity-50"
+                  className="btn btn-secondary btn-xs"
                   disabled={page <= 1}
                   onClick={() => setPage((p) => p - 1)}
                 >
@@ -136,7 +134,7 @@ export function GcashScreen({ permissions, onSessionExpired }: GcashScreenProps)
                 </button>
                 {page} / {lastPage}
                 <button
-                  className="rounded border border-slate-300 px-2 py-0.5 hover:bg-slate-100 disabled:opacity-50"
+                  className="btn btn-secondary btn-xs"
                   disabled={page >= lastPage}
                   onClick={() => setPage((p) => p + 1)}
                 >

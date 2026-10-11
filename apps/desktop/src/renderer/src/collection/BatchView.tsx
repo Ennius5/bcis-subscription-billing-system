@@ -28,7 +28,7 @@ interface BatchViewProps {
 
 function Tile({ label, centavos, note }: { label: string; centavos: number; note?: string }) {
   return (
-    <div className="rounded-lg border border-slate-200 bg-surface p-3">
+    <div className="panel p-3">
       <div className="text-xs font-medium uppercase tracking-wide text-muted">{label}</div>
       <div className="mt-1 text-lg font-semibold tabular-nums text-ink">{formatPesos(centavos)}</div>
       {note && <div className="text-xs text-muted">{note}</div>}
@@ -224,13 +224,13 @@ export function BatchView({
       </div>
 
       {skipped.length > 0 && (
-        <div role="alert" className="rounded border border-warning/30 bg-warning/5 px-3 py-2 text-sm text-warning">
+        <div role="alert" className="alert alert-warning">
           Left out because already on another open or in-progress batch:{" "}
           {skipped.map((s) => `${s.accountNumber} ${s.fullName} (${s.batchNumber})`).join(", ")}.
         </div>
       )}
       {notice && (
-        <p aria-live="polite" className="rounded border border-success/30 bg-success/5 px-3 py-2 text-sm text-success">
+        <p aria-live="polite" className="alert alert-success">
           {notice}
         </p>
       )}
@@ -295,7 +295,7 @@ export function BatchView({
             onSessionExpired={onSessionExpired}
           />
           <button
-            className="mt-3 rounded border border-slate-300 px-4 py-2 text-sm text-ink hover:bg-white"
+            className="btn btn-secondary mt-3"
             onClick={() => setPanel(null)}
           >
             Done
@@ -304,7 +304,7 @@ export function BatchView({
       )}
 
       {batch.cancelled && (
-        <p className="rounded border border-danger/30 bg-danger/5 px-3 py-2 text-sm text-danger">
+        <p className="alert alert-danger">
           Cancelled {formatDateTime(batch.cancelled.at)} by {batch.cancelled.byName}: {batch.cancelled.reason}
         </p>
       )}

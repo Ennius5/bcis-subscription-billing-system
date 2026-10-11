@@ -56,10 +56,6 @@ export function Login({ onSignedIn }: LoginProps) {
     setSubmitting(false);
   }
 
-  const inputClass =
-    "mt-1 block w-full rounded border border-slate-300 bg-surface px-3 py-2 text-ink " +
-    "focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30 disabled:opacity-60";
-
   return (
     <div className="flex min-h-screen items-center justify-center p-6">
       <div className="w-full max-w-sm">
@@ -72,12 +68,12 @@ export function Login({ onSignedIn }: LoginProps) {
 
         <form
           onSubmit={(e) => void handleSubmit(e)}
-          className="rounded-lg border border-slate-200 bg-surface p-6 shadow-sm"
+          className="panel p-6 shadow-sm"
         >
           <label className="block text-sm font-medium text-ink">
             Username <span className="text-danger" aria-hidden="true">*</span>
             <input
-              className={inputClass}
+              className="field"
               type="text"
               autoComplete="username"
               autoFocus
@@ -92,7 +88,7 @@ export function Login({ onSignedIn }: LoginProps) {
           <label className="mt-4 block text-sm font-medium text-ink">
             Password <span className="text-danger" aria-hidden="true">*</span>
             <input
-              className={inputClass}
+              className="field"
               type="password"
               autoComplete="current-password"
               required
@@ -106,7 +102,7 @@ export function Login({ onSignedIn }: LoginProps) {
           {error && (
             <p
               role="alert"
-              className="mt-4 rounded border border-danger/30 bg-danger/5 px-3 py-2 text-sm text-danger"
+              className="alert alert-danger mt-4"
             >
               <strong>Sign-in failed.</strong> {error}
             </p>
@@ -115,7 +111,7 @@ export function Login({ onSignedIn }: LoginProps) {
           <button
             type="submit"
             disabled={submitting}
-            className="mt-6 w-full rounded bg-navy px-4 py-2 text-sm font-medium text-white hover:bg-navy/90 disabled:opacity-60"
+            className="btn btn-primary mt-6 w-full"
           >
             {submitting ? "Signing in…" : "Sign in"}
           </button>
@@ -155,12 +151,12 @@ export function Login({ onSignedIn }: LoginProps) {
           {editingServer && (
             <form
               onSubmit={(e) => void saveServerAddress(e)}
-              className="mt-3 rounded-lg border border-slate-200 bg-surface p-3 text-left"
+              className="panel mt-3 p-3 text-left"
             >
               <label className="block text-sm font-medium text-ink">
                 Server address
                 <input
-                  className={inputClass}
+                  className="field"
                   value={addressInput}
                   maxLength={200}
                   autoFocus
@@ -179,7 +175,7 @@ export function Login({ onSignedIn }: LoginProps) {
                 <button
                   type="submit"
                   disabled={testingAddress}
-                  className="rounded bg-navy px-3 py-1.5 text-sm font-medium text-white hover:bg-navy/90 disabled:opacity-60"
+                  className="btn btn-primary btn-sm"
                 >
                   {testingAddress ? "Testing…" : "Test and save"}
                 </button>
@@ -187,7 +183,7 @@ export function Login({ onSignedIn }: LoginProps) {
                   type="button"
                   disabled={testingAddress}
                   onClick={() => setEditingServer(false)}
-                  className="rounded border border-slate-300 px-3 py-1.5 text-sm text-ink hover:bg-slate-50"
+                  className="btn btn-secondary btn-sm"
                 >
                   Cancel
                 </button>

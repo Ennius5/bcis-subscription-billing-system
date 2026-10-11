@@ -101,7 +101,7 @@ export function ServiceStatusForm({ account, onSaved, onCancel, onExpired }: Ser
         </div>
       )}
       {warning && (
-        <p className="rounded border border-warning/30 bg-warning/5 px-3 py-2 text-sm text-warning">{warning}</p>
+        <p className="alert alert-warning">{warning}</p>
       )}
       <TextField
         label="Reason"

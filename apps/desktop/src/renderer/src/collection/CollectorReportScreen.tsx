@@ -32,9 +32,7 @@ export function CollectorsHub({ permissions, onSessionExpired }: CollectorsHubPr
             key={t.id}
             role="tab"
             aria-selected={tab === t.id}
-            className={`rounded px-3 py-1 text-sm ${
-              tab === t.id ? "bg-navy text-white" : "border border-slate-300 text-ink hover:bg-slate-50"
-            }`}
+            className="tab-pill"
             onClick={() => setTab(t.id)}
           >
             {t.label}
@@ -119,7 +117,7 @@ export function CollectorReportScreen({ canExport, onSessionExpired }: { canExpo
 
       {report && (
         <>
-          <div className="overflow-auto rounded-lg border border-slate-200 bg-surface">
+          <div className="panel overflow-auto">
             <table className="w-full border-collapse text-sm">
               <thead>
                 <tr>

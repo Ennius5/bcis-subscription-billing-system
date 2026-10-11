@@ -89,7 +89,7 @@ export function AgingScreen({ canExport, onSessionExpired }: AgingScreenProps) {
       </div>
 
       {loadError && (
-        <p role="alert" className="mb-4 rounded border border-danger/30 bg-danger/5 px-3 py-2 text-sm text-danger">
+        <p role="alert" className="alert alert-danger mb-4">
           Could not load the aging report. {loadError}
         </p>
       )}

@@ -62,7 +62,7 @@ export function InvoiceView({ invoiceId, canVoid, canAdjust, backLabel, onBack, 
       </button>
 
       {loadError && (
-        <p role="alert" className="rounded border border-danger/30 bg-danger/5 px-3 py-2 text-sm text-danger">
+        <p role="alert" className="alert alert-danger">
           Could not load the invoice. {loadError}
         </p>
       )}
@@ -90,19 +90,19 @@ export function InvoiceView({ invoiceId, canVoid, canAdjust, backLabel, onBack, 
           </div>
 
           {invoice.status === "draft" && (
-            <p className="rounded border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-muted">
+            <p className="alert alert-note">
               This is a draft. It has no number and is not on the subscriber's ledger until the month is finalized.
             </p>
           )}
           {invoice.status === "void" && (
-            <p className="rounded border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-muted">
+            <p className="alert alert-note">
               Voided{invoice.voidedAt ? ` on ${formatDateTime(invoice.voidedAt)}` : ""}. Reason: {invoice.voidReason}. The
               ledger carries a matching credit; the invoice number stays reserved.
             </p>
           )}
 
           {invoice.status === "credited" && (
-            <p className="rounded border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-muted">
+            <p className="alert alert-note">
               Credited in full by adjustment. Nothing is owed on this invoice.
             </p>
           )}
@@ -335,7 +335,7 @@ function VoidForm({ invoice, onSaved, onCancel, onExpired }: VoidFormProps) {
       onSubmit={submit}
       onCancel={onCancel}
     >
-      <p className="rounded border border-warning/30 bg-warning/5 px-3 py-2 text-sm text-warning">
+      <p className="alert alert-warning">
         Voiding is final. The invoice stays on record with its number, the ledger gets a credit of{" "}
         {formatPesos(invoice.totalCentavos)}, and the month can be billed again.
       </p>

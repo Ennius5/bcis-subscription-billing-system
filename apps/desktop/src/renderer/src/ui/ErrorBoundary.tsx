@@ -35,7 +35,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
         <p className="mt-2 text-muted">Pick another item in the menu, or try this screen again.</p>
         <button
           onClick={() => this.setState({ failed: false })}
-          className="mt-3 rounded border border-slate-300 px-3 py-1.5 text-sm hover:bg-white"
+          className="btn btn-secondary btn-sm mt-3"
         >
           Try again
         </button>

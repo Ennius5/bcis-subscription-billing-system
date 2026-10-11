@@ -43,11 +43,7 @@ export function MoneyField({ label, value, onChange, required, disabled, error }
         </span>
       )}
       <span
-        className={`mt-1 flex items-center rounded border bg-surface focus-within:ring-2 ${
-          shownError
-            ? "border-danger focus-within:ring-danger/30"
-            : "border-slate-300 focus-within:border-accent focus-within:ring-accent/30"
-        }`}
+        className={shownError ? "field-box field-error" : "field-box"}
       >
         <span className="pl-3 text-muted" aria-hidden="true">
           {"\u20B1"}

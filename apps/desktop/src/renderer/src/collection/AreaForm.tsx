@@ -87,7 +87,7 @@ export function AreaForm({ mode, onSaved, onCancel, onExpired }: AreaFormProps) 
   return (
     <form
       onSubmit={(e) => void handleSubmit(e)}
-      className="mb-6 rounded-lg border border-slate-200 bg-surface p-5"
+      className="panel mb-6 p-5"
     >
       <h2 className="text-base font-semibold text-navy">
         {editing ? `Edit area ${editing.code}` : "New collection area"}
@@ -150,7 +150,7 @@ export function AreaForm({ mode, onSaved, onCancel, onExpired }: AreaFormProps) 
       {formError && (
         <p
           role="alert"
-          className="mt-4 rounded border border-danger/30 bg-danger/5 px-3 py-2 text-sm text-danger"
+          className="alert alert-danger mt-4"
         >
           {formError}
         </p>
@@ -160,7 +160,7 @@ export function AreaForm({ mode, onSaved, onCancel, onExpired }: AreaFormProps) 
         <button
           type="submit"
           disabled={saving}
-          className="rounded bg-navy px-4 py-2 text-sm font-medium text-white hover:bg-navy/90 disabled:opacity-60"
+          className="btn btn-primary"
         >
           {saving ? "Saving…" : editing ? "Save changes" : "Create area"}
         </button>
@@ -168,7 +168,7 @@ export function AreaForm({ mode, onSaved, onCancel, onExpired }: AreaFormProps) 
           type="button"
           onClick={onCancel}
           disabled={saving}
-          className="rounded border border-slate-300 px-4 py-2 text-sm text-ink hover:bg-slate-50 disabled:opacity-60"
+          className="btn btn-secondary"
         >
           Cancel
         </button>

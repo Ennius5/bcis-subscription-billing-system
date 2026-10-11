@@ -106,7 +106,7 @@ export function SettingsScreen({ onSessionExpired }: SettingsScreenProps) {
       {!saved && !formError && <p className="text-muted">Loading…</p>}
 
       {saved && (
-        <form onSubmit={(e) => void submit(e)} className="rounded-lg border border-slate-200 bg-surface p-4">
+        <form onSubmit={(e) => void submit(e)} className="panel p-4">
           <h2 className="text-sm font-semibold text-navy">Suspension candidates</h2>
           <fieldset className="mt-3 space-y-3" disabled={saving}>
             <div className="grid grid-cols-2 gap-3">
@@ -152,12 +152,12 @@ export function SettingsScreen({ onSessionExpired }: SettingsScreenProps) {
           </fieldset>
 
           {formError && (
-            <p role="alert" className="mt-3 rounded border border-danger/30 bg-danger/5 px-3 py-2 text-sm text-danger">
+            <p role="alert" className="alert alert-danger mt-3">
               {formError}
             </p>
           )}
           {notice && (
-            <p role="status" className="mt-3 rounded border border-success/30 bg-success/5 px-3 py-2 text-sm text-success">
+            <p role="status" className="alert alert-success mt-3">
               {notice}
             </p>
           )}
@@ -166,14 +166,14 @@ export function SettingsScreen({ onSessionExpired }: SettingsScreenProps) {
             <button
               type="submit"
               disabled={!dirty || saving}
-              className="rounded bg-navy px-4 py-2 text-sm font-medium text-white hover:bg-navy/90 disabled:opacity-60"
+              className="btn btn-primary"
             >
               {saving ? "Saving…" : "Save settings"}
             </button>
             <button
               type="button"
               disabled={!dirty || saving}
-              className="rounded border border-slate-300 px-4 py-2 text-sm hover:bg-slate-100 disabled:opacity-60"
+              className="btn btn-secondary"
               onClick={() => {
                 show(saved);
                 setErrors({});

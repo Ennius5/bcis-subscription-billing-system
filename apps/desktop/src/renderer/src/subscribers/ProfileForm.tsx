@@ -47,7 +47,7 @@ export function ProfileForm({ title, submitLabel, saving, error, onSubmit, onCan
       </fieldset>
 
       {error && (
-        <p role="alert" className="mt-3 rounded border border-danger/30 bg-danger/5 px-3 py-2 text-sm text-danger">
+        <p role="alert" className="alert alert-danger mt-3">
           {error}
         </p>
       )}
@@ -56,7 +56,7 @@ export function ProfileForm({ title, submitLabel, saving, error, onSubmit, onCan
         <button
           type="submit"
           disabled={saving}
-          className="rounded bg-navy px-4 py-2 text-sm font-medium text-white hover:bg-navy/90 disabled:opacity-60"
+          className="btn btn-primary"
         >
           {saving ? "Saving…" : submitLabel}
         </button>
@@ -64,7 +64,7 @@ export function ProfileForm({ title, submitLabel, saving, error, onSubmit, onCan
           type="button"
           onClick={onCancel}
           disabled={saving}
-          className="rounded border border-slate-300 px-4 py-2 text-sm text-ink hover:bg-white disabled:opacity-60"
+          className="btn btn-secondary"
         >
           Cancel
         </button>
@@ -86,9 +86,7 @@ export function TextAreaField({ label, value, onChange, error, maxLength }: Text
     <label className="block text-sm font-medium text-ink">
       {label}
       <textarea
-        className={`mt-1 block w-full rounded border bg-surface px-3 py-2 font-normal text-ink focus:outline-none focus:ring-2 ${
-          error ? "border-danger focus:ring-danger/30" : "border-slate-300 focus:border-accent focus:ring-accent/30"
-        }`}
+        className={error ? "field field-error" : "field"}
         rows={3}
         value={value}
         maxLength={maxLength}

@@ -46,9 +46,7 @@ export function ServicesHub({ permissions, onSessionExpired }: ServicesHubProps)
               key={t.id}
               role="tab"
               aria-selected={tab === t.id}
-              className={`rounded px-3 py-1 text-sm ${
-                tab === t.id ? "bg-navy text-white" : "border border-slate-300 text-ink hover:bg-slate-50"
-              }`}
+              className="tab-pill"
               onClick={() => setTab(t.id)}
             >
               {t.label}

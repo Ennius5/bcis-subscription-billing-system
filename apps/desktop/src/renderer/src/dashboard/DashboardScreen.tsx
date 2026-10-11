@@ -39,7 +39,7 @@ interface KpiTileProps {
 /** Stat tile: proportional figures for the big value (tabular only in columns). */
 function KpiTile({ label, value, note, action }: KpiTileProps) {
   return (
-    <div className="rounded-lg border border-slate-200 bg-surface p-4">
+    <div className="panel p-4">
       <div className="text-xs font-medium text-muted">{label}</div>
       <div className="mt-1 text-2xl font-semibold text-ink">{value}</div>
       <div className="mt-0.5 flex items-center justify-between gap-2 text-xs text-muted">
@@ -116,7 +116,7 @@ export function DashboardScreen({ canOpenSubscriber, onOpenSubscriber, canNaviga
           )}
         </div>
         <button
-          className="rounded border border-slate-300 px-3 py-1 text-sm hover:bg-slate-100 disabled:opacity-50"
+          className="btn btn-secondary btn-sm"
           disabled={loading}
           onClick={() => void load()}
         >

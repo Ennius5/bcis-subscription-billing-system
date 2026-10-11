@@ -89,7 +89,7 @@ export function BillingVsCollectionScreen({ canExport, onSessionExpired }: Billi
           <div className="grid grid-cols-4 gap-3">
             <MoneyTile label="Net billed" centavos={report.totals.netBilledCentavos} note={`${report.totals.invoiceCount} invoices`} />
             <MoneyTile label="Collected" centavos={report.totals.collectedCentavos} note="Less reversals" />
-            <div className="rounded-lg border border-slate-200 bg-surface p-3">
+            <div className="panel p-3">
               <div className="text-xs font-medium uppercase tracking-wide text-muted">Collection rate</div>
               <div className="mt-1 text-lg font-semibold tabular-nums text-ink">{formatRate(report.totals.collectionRateBasisPoints)}</div>
               <div className="text-xs text-muted">Collected ÷ net billed</div>

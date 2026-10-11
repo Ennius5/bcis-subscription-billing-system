@@ -23,11 +23,7 @@ export function SelectField({ label, value, onChange, options, required, disable
         </span>
       )}
       <select
-        className={`mt-1 block w-full rounded border bg-surface px-3 py-2 font-normal text-ink focus:outline-none focus:ring-2 disabled:bg-slate-100 disabled:opacity-70 ${
-          error
-            ? "border-danger focus:ring-danger/30"
-            : "border-slate-300 focus:border-accent focus:ring-accent/30"
-        }`}
+        className={error ? "field field-error" : "field"}
         value={value}
         required={required}
         disabled={disabled}

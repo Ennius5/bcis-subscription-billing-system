@@ -87,7 +87,7 @@ export function ServiceAccountScreen({
       </button>
 
       {loadError && (
-        <p role="alert" className="rounded border border-danger/30 bg-danger/5 px-3 py-2 text-sm text-danger">
+        <p role="alert" className="alert alert-danger">
           Could not load the service account. {loadError}
         </p>
       )}
@@ -171,7 +171,7 @@ function ServiceAccountDetail({
       </div>
 
       {terminated && (
-        <p className="rounded border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-muted">
+        <p className="alert alert-note">
           This service is terminated. Its record is read-only.
         </p>
       )}

@@ -103,7 +103,7 @@ export function GcashDetail({ submissionId, canAttach, canVerify, onChanged, onS
           <div className="flex flex-wrap gap-2">
             {canAttach && (
               <button
-                className="rounded border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50 disabled:opacity-50"
+                className="btn btn-secondary btn-sm"
                 disabled={busy}
                 onClick={() => void attach()}
               >
@@ -113,7 +113,7 @@ export function GcashDetail({ submissionId, canAttach, canVerify, onChanged, onS
             {canVerify && (
               <>
                 <button
-                  className="rounded bg-navy px-3 py-1.5 text-sm font-medium text-white hover:bg-navy/90 disabled:opacity-50"
+                  className="btn btn-primary btn-sm"
                   disabled={busy || submission.proofCount === 0}
                   title={submission.proofCount === 0 ? "Attach the proof image first." : undefined}
                   onClick={() => setMode("confirmVerify")}
@@ -121,7 +121,7 @@ export function GcashDetail({ submissionId, canAttach, canVerify, onChanged, onS
                   Verify…
                 </button>
                 <button
-                  className="rounded border border-danger/40 px-3 py-1.5 text-sm text-danger hover:bg-danger/5 disabled:opacity-50"
+                  className="btn btn-danger btn-sm"
                   disabled={busy}
                   onClick={() => setMode("reject")}
                 >
@@ -135,7 +135,7 @@ export function GcashDetail({ submissionId, canAttach, canVerify, onChanged, onS
 
       {actionError && <RowError message={actionError} />}
       {notice && (
-        <p aria-live="polite" className="rounded border border-success/30 bg-success/5 px-3 py-2 text-sm text-success">
+        <p aria-live="polite" className="alert alert-success">
           {notice}
         </p>
       )}
@@ -153,14 +153,14 @@ export function GcashDetail({ submissionId, canAttach, canVerify, onChanged, onS
           </p>
           <div className="mt-3 flex gap-3">
             <button
-              className="rounded bg-navy px-4 py-2 font-medium text-white hover:bg-navy/90 disabled:opacity-50"
+              className="btn btn-primary"
               disabled={busy}
               onClick={() => void verify()}
             >
               {busy ? "Posting…" : "Yes, verify and post"}
             </button>
             <button
-              className="rounded border border-slate-300 px-4 py-2 text-ink hover:bg-white"
+              className="btn btn-secondary"
               disabled={busy}
               onClick={() => setMode("view")}
             >
@@ -179,7 +179,7 @@ export function GcashDetail({ submissionId, canAttach, canVerify, onChanged, onS
         />
       )}
 
-      <dl className="grid grid-cols-3 gap-3 rounded-lg border border-slate-200 bg-surface p-4">
+      <dl className="panel grid grid-cols-3 gap-3 p-4">
         <Field label="Subscriber">
           {submission.subscriberName}
           <span className="block text-xs text-muted">{submission.accountNumber}</span>
@@ -217,7 +217,8 @@ export function GcashDetail({ submissionId, canAttach, canVerify, onChanged, onS
             submission.proofs.map((p, i) => (
               <button
                 key={p.id}
-                className={`rounded px-2 py-0.5 text-xs ${p.id === proofId ? "bg-navy text-white" : "border border-slate-300 hover:bg-slate-50"}`}
+                className={`btn btn-xs ${p.id === proofId ? "btn-primary" : "btn-secondary"}`}
+                aria-pressed={p.id === proofId}
                 onClick={() => setShownProofId(p.id)}
               >
                 Image {i + 1}
