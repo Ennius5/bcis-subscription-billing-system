@@ -7,6 +7,7 @@ import {
   contactUpdateSchema,
   globalSearchQuerySchema,
   subscriberAssignmentSchema,
+  subscriberAuditQuerySchema,
   subscriberCreateSchema,
   subscriberListQuerySchema,
   subscriberStatusChangeSchema,
@@ -16,6 +17,8 @@ import { createAuthenticate } from "../auth/authenticate";
 import { requirePermission } from "../auth/guard";
 import type { Db } from "../db/client";
 import { sendValidationError } from "../http/errors";
+import { listSubscriberAudit } from "../audit/log";
+import { listSubscriberCollections } from "../collection/subscriber-collections";
 import { globalSearch } from "./search";
 import {
   addSubscriberAddress,
@@ -84,6 +87,29 @@ export function registerSubscriberRoutes(app: FastifyInstance, db: Db): void {
       return sendSubscriberError(reply, err);
     }
   });
+
+  // Profile tabs that show other modules' records need that module's permission too.
+  app.get(
+    "/subscribers/:id/collections",
+    { preHandler: [authenticate, requirePermission("subscriber.view", "collection.view")] },
+    async (request, reply) => {
+      const params = idParams.safeParse(request.params);
+      if (!params.success) return sendValidationError(reply, params.error);
+      return listSubscriberCollections(db, params.data.id);
+    },
+  );
+
+  app.get(
+    "/subscribers/:id/audit",
+    { preHandler: [authenticate, requirePermission("subscriber.view", "audit.view")] },
+    async (request, reply) => {
+      const params = idParams.safeParse(request.params);
+      if (!params.success) return sendValidationError(reply, params.error);
+      const query = subscriberAuditQuerySchema.safeParse(request.query);
+      if (!query.success) return sendValidationError(reply, query.error);
+      return listSubscriberAudit(db, params.data.id, query.data);
+    },
+  );
 
   app.post("/subscribers", canManage, async (request, reply) => {
     const body = subscriberCreateSchema.safeParse(request.body);

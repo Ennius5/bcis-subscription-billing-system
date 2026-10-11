@@ -68,6 +68,13 @@ export const auditLogQuerySchema = z
   .refine((q) => !q.from || !q.to || q.from <= q.to, orderedRange);
 export type AuditLogQuery = z.infer<typeof auditLogQuerySchema>;
 
+/** The subscriber profile's Audit tab: everything about one subscriber, newest first. */
+export const subscriberAuditQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(REPORT_PAGE_SIZE_MAX).default(REPORT_PAGE_SIZE_DEFAULT),
+});
+export type SubscriberAuditQuery = z.infer<typeof subscriberAuditQuerySchema>;
+
 /** User activity over a date range: logins and audited actions per user. */
 export const userActivityQuerySchema = z
   .object({ from: isoDate, to: isoDate })

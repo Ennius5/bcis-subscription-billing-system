@@ -62,6 +62,11 @@ export async function listAuditLogs(db: DbOrTx, query: AuditLogQuery): Promise<A
     sql` AND `,
   );
 
+  return auditPage(db, where, query.page, query.pageSize);
+}
+
+/** One page of audit rows matching `where` (alias al), newest first, with the actor's name. */
+async function auditPage(db: DbOrTx, where: SQL, page: number, pageSize: number): Promise<AuditLogPage> {
   const total = await db.execute<{ total: number }>(sql`SELECT count(*)::int AS total FROM audit_logs al WHERE ${where}`);
   const rows = await db.execute<{
     id: string;
@@ -82,7 +87,7 @@ export async function listAuditLogs(db: DbOrTx, query: AuditLogQuery): Promise<A
     LEFT JOIN users u ON u.id = al.actor_user_id
     WHERE ${where}
     ORDER BY al.occurred_at DESC, al.id DESC
-    LIMIT ${query.pageSize} OFFSET ${(query.page - 1) * query.pageSize}
+    LIMIT ${pageSize} OFFSET ${(page - 1) * pageSize}
   `);
 
   return {
@@ -98,9 +103,31 @@ export async function listAuditLogs(db: DbOrTx, query: AuditLogQuery): Promise<A
       newValues: r.new_values,
     })),
     total: total.rows[0]?.total ?? 0,
-    page: query.page,
-    pageSize: query.pageSize,
+    page,
+    pageSize,
   };
+}
+
+/**
+ * Everything the audit log says about one subscriber (the profile's Audit tab): the subscriber
+ * record itself and the records that belong to it. Adjustments are audited on their invoice;
+ * suspensions and reconnections on their service account.
+ */
+export async function listSubscriberAudit(
+  db: DbOrTx,
+  subscriberId: string,
+  paging: { page: number; pageSize: number },
+): Promise<AuditLogPage> {
+  const owned = (entityType: string, table: SQL) =>
+    sql`(al.entity_type = ${entityType} AND al.entity_id IN (SELECT id::text FROM ${table} WHERE subscriber_id = ${subscriberId}))`;
+  const where = sql`(
+    (al.entity_type = 'subscriber' AND al.entity_id = ${subscriberId})
+    OR ${owned("service_account", sql`service_accounts`)}
+    OR ${owned("invoice", sql`invoices`)}
+    OR ${owned("payment", sql`payments`)}
+    OR ${owned("gcash_submission", sql`gcash_submissions`)}
+  )`;
+  return auditPage(db, where, paging.page, paging.pageSize);
 }
 
 export interface AuditFilterOptions {
