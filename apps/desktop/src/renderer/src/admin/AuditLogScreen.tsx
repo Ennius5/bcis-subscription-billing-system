@@ -86,7 +86,8 @@ function valueText(value: unknown): string {
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 
 /** Field / before / after, from the old and new values recorded with the entry. */
-function Changes({ row }: { row: AuditLogRowDto }) {
+/** The before/after values of one audit row; also used by the subscriber profile's Audit tab. */
+export function AuditChanges({ row }: { row: AuditLogRowDto }) {
   const before = isObject(row.oldValues) ? row.oldValues : {};
   const after = isObject(row.newValues) ? row.newValues : {};
   const keys = [...new Set([...Object.keys(before), ...Object.keys(after)])];
@@ -310,7 +311,7 @@ function LogView({ onOpenSubscriber, onSessionExpired }: { onOpenSubscriber?: (i
                       {expanded.has(row.id) && (
                         <tr className="border-b border-slate-100 bg-slate-50/60">
                           <td colSpan={6} className="px-6 py-3">
-                            <Changes row={row} />
+                            <AuditChanges row={row} />
                           </td>
                         </tr>
                       )}

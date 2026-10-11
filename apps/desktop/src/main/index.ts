@@ -45,6 +45,7 @@ import type {
   SuspensionCandidateListDto,
   TechnicianDto,
   UserDto,
+  SubscriberBatchDto,
   BackupDto,
   BackupListDto,
   IntegrityCheckRunDto,
@@ -1015,6 +1016,21 @@ ipcMain.handle("dashboard:get", () => authedRequest<DashboardDto>("GET", "/dashb
 /* ------------------------------- Audit log ------------------------------- */
 
 const AUDIT_LOG_KEYS = ["from", "to", "actorUserId", "category", "action", "entityType", "entityId", "page", "pageSize"] as const;
+
+ipcMain.handle("subscribers:collections", (_event, id: unknown) =>
+  typeof id === "string"
+    ? authedRequest<SubscriberBatchDto[]>("GET", `/subscribers/${encodeURIComponent(id)}/collections`)
+    : BAD_INPUT,
+);
+
+ipcMain.handle("subscribers:audit", (_event, id: unknown, query: unknown) =>
+  typeof id === "string" && isRecord(query)
+    ? authedRequest<AuditLogPageDto>(
+        "GET",
+        listPath(`/subscribers/${encodeURIComponent(id)}/audit`, ["page", "pageSize"] as const, query),
+      )
+    : BAD_INPUT,
+);
 
 ipcMain.handle("audit:list", (_event, query: unknown) =>
   isRecord(query) ? authedRequest<AuditLogPageDto>("GET", listPath("/audit-logs", AUDIT_LOG_KEYS, query)) : BAD_INPUT,

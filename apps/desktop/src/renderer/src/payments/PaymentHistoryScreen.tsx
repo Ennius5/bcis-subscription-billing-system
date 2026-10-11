@@ -55,11 +55,13 @@ export function PaymentHistoryScreen({ permissions, onSessionExpired }: PaymentH
 
 interface PaymentListProps {
   reloadKey: number;
+  /** Only this subscriber's payments (the profile's Payments tab); the Subscriber column is dropped. */
+  subscriberId?: string;
   onOpen: (id: string) => void;
   onSessionExpired: () => void;
 }
 
-function PaymentList({ reloadKey, onOpen, onSessionExpired }: PaymentListProps) {
+export function PaymentList({ reloadKey, subscriberId, onOpen, onSessionExpired }: PaymentListProps) {
   const [searchText, setSearchText] = useState("");
   const [search, setSearch] = useState("");
   const [method, setMethod] = useState("");
@@ -84,7 +86,16 @@ function PaymentList({ reloadKey, onOpen, onSessionExpired }: PaymentListProps) 
     let cancelled = false;
     setLoading(true);
     void window.bcis.payments
-      .list({ page, pageSize: PAYMENT_PAGE_SIZE_DEFAULT, search, method, status, from, to })
+      .list({
+        page,
+        pageSize: PAYMENT_PAGE_SIZE_DEFAULT,
+        search,
+        method,
+        status,
+        from,
+        to,
+        ...(subscriberId ? { subscriberId } : {}),
+      })
       .then((r) => {
         if (cancelled) return;
         if (r.ok) {
@@ -101,14 +112,14 @@ function PaymentList({ reloadKey, onOpen, onSessionExpired }: PaymentListProps) 
     return () => {
       cancelled = true;
     };
-  }, [page, search, method, status, from, to, reloadKey, onSessionExpired]);
+  }, [page, search, method, status, from, to, subscriberId, reloadKey, onSessionExpired]);
 
   const changeFilter = (set: (value: string) => void) => (value: string) => {
     set(value);
     setPage(1);
   };
 
-  const columns: Column<PaymentListItemDto>[] = [
+  const allColumns: Column<PaymentListItemDto>[] = [
     {
       key: "receipt",
       header: "Receipt no.",
@@ -143,6 +154,7 @@ function PaymentList({ reloadKey, onOpen, onSessionExpired }: PaymentListProps) 
     { key: "status", header: "Status", render: (p) => <PaymentStatusBadge status={p.status} /> },
     { key: "amount", header: "Amount", align: "right", render: (p) => formatPesos(p.amountCentavos) },
   ];
+  const columns = subscriberId ? allColumns.filter((c) => c.key !== "subscriber") : allColumns;
 
   const total = result?.total ?? 0;
   const pageSize = result?.pageSize ?? PAYMENT_PAGE_SIZE_DEFAULT;

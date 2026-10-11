@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { formatPesos, SUBSCRIBER_CONTACTS_MAX } from "@bcis/shared";
+import { useEffect, useState } from "react";
+import { formatPesos, SUBSCRIBER_CONTACTS_MAX, type PermissionCode } from "@bcis/shared";
 import type {
   ServiceAccountDto,
   SubscriberAddressDto,
@@ -15,11 +15,17 @@ import { AssignmentForm } from "./AssignmentForm";
 import { ContactForm } from "./ContactForm";
 import { DetailsForm } from "./DetailsForm";
 import { ActionButton, Field, formatDateTime, RowError, Section } from "./ProfileParts";
-import { describeHistory, type HistoryLookups } from "./history";
-import { LedgerSection } from "../billing/LedgerSection";
+import { balanceText, LedgerSection } from "../billing/LedgerSection";
 import { ServiceAccountScreen } from "../service-accounts/ServiceAccountScreen";
 import { StatusForm } from "./StatusForm";
 import { contactTypeLabel, serviceTypeLabel, StatusBadge } from "./status";
+import { ProfileTabBar, visibleProfileTabs, type ProfileTab } from "./ProfileTabs";
+import { AuditTab } from "./tabs/AuditTab";
+import { BillingTab } from "./tabs/BillingTab";
+import { CollectionTab } from "./tabs/CollectionTab";
+import { DocumentsTab } from "./tabs/DocumentsTab";
+import { HistoryTab } from "./tabs/HistoryTab";
+import { PaymentsTab } from "./tabs/PaymentsTab";
 
 type Editing =
   | { kind: "details" | "status" | "assignment" | "service" }
@@ -68,25 +74,21 @@ function FlagBadges({ isPrimary, isActive }: { isPrimary: boolean; isActive: boo
 
 interface SubscriberProfileProps {
   subscriberId: string;
-  canManage: boolean;
-  canViewServices: boolean;
-  canViewBilling: boolean;
-  canManageServices: boolean;
-  canControlServices: boolean;
+  /** Decides which tabs and buttons show; the server checks every request again. */
+  permissions: readonly PermissionCode[];
   onBack: () => void;
   onSessionExpired: () => void;
 }
 
-export function SubscriberProfile({
-  subscriberId,
-  canManage,
-  canViewServices,
-  canViewBilling,
-  canManageServices,
-  canControlServices,
-  onBack,
-  onSessionExpired,
-}: SubscriberProfileProps) {
+export function SubscriberProfile({ subscriberId, permissions, onBack, onSessionExpired }: SubscriberProfileProps) {
+  const canManage = permissions.includes("subscriber.manage");
+  const canViewServices = permissions.includes("service.view");
+  const canViewBilling = permissions.includes("billing.view");
+  const canManageServices = permissions.includes("service.manage");
+  const canControlServices = permissions.includes("suspension.manage");
+  const tabs = visibleProfileTabs(permissions);
+
+  const [tab, setTab] = useState<ProfileTab>("overview");
   const [subscriber, setSubscriber] = useState<SubscriberDto | null>(null);
   const [services, setServices] = useState<ServiceAccountDto[] | null>(null);
   const [servicesError, setServicesError] = useState<string | null>(null);
@@ -94,6 +96,7 @@ export function SubscriberProfile({
   // Third level: a service account opened from this profile.
   const [openServiceId, setOpenServiceId] = useState<string | null>(null);
   const [history, setHistory] = useState<SubscriberHistoryDto[]>([]);
+  const [balance, setBalance] = useState<number | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [editing, setEditing] = useState<Editing>(null);
   const [rowError, setRowError] = useState<{ section: "address" | "contact"; message: string } | null>(null);
@@ -121,6 +124,18 @@ export function SubscriberProfile({
       cancelled = true;
     };
   }, [subscriberId, onSessionExpired]);
+
+  // The Overview shows the ledger balance (owed, or a credit); needs billing.view.
+  useEffect(() => {
+    if (!canViewBilling) return;
+    let cancelled = false;
+    void window.bcis.billing.ledger(subscriberId, {}).then((r) => {
+      if (!cancelled && r.ok) setBalance(r.data.closingBalanceCentavos);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [subscriberId, canViewBilling, tab]);
 
   // A subscriber has a handful of services, so one page of 100 is all of them.
   useEffect(() => {
@@ -176,6 +191,12 @@ export function SubscriberProfile({
     setRowError({ section, message: result.message });
   }
 
+  function selectTab(next: ProfileTab) {
+    setEditing(null);
+    setRowError(null);
+    setTab(next);
+  }
+
   // Hiding controls is cosmetic: the server enforces subscriber.manage and the archived rule.
   const editable = canManage && subscriber !== null && subscriber.status !== "archived";
   const rowsEditable = editable && editing === null && !rowBusy;
@@ -194,16 +215,6 @@ export function SubscriberProfile({
     onCancel: () => setEditing(null),
     onExpired: onSessionExpired,
   };
-
-  const lookups: HistoryLookups = useMemo(
-    () => ({
-      areas: areaNames,
-      collectors: collectorNames,
-      addresses: subscriber?.addresses ?? [],
-      contacts: subscriber?.contacts ?? [],
-    }),
-    [areaNames, collectorNames, subscriber],
-  );
 
   return (
     <>
@@ -254,235 +265,251 @@ export function SubscriberProfile({
             )}
 
             {editing?.kind === "status" && <StatusForm {...formProps} />}
-            {editing?.kind === "details" && <DetailsForm {...formProps} />}
-            {editing?.kind === "assignment" && <AssignmentForm {...formProps} />}
 
-            <div className="grid grid-cols-2 gap-4">
-              <Section
-                title="Details"
-                action={
-                  editable && editing === null && <ActionButton label="Edit" onClick={() => setEditing({ kind: "details" })} />
-                }
-              >
-                <dl className="grid grid-cols-2 gap-3">
-                  <Field label="Billing day">Day {subscriber.billingDay} of each month</Field>
-                  <Field label="Customer since">{formatDateTime(subscriber.createdAt)}</Field>
-                  <div className="col-span-2">
-                    <Field label="Notes">
-                      {subscriber.notes ? (
-                        <span className="whitespace-pre-wrap">{subscriber.notes}</span>
-                      ) : (
-                        <span className="text-muted">None</span>
-                      )}
-                    </Field>
-                  </div>
-                </dl>
-              </Section>
+            <ProfileTabBar tabs={tabs} active={tab} onSelect={selectTab} />
 
-              <Section
-                title="Collection assignment"
-                action={
-                  editable &&
-                  editing === null && <ActionButton label="Change" onClick={() => setEditing({ kind: "assignment" })} />
-                }
-              >
-                <dl className="grid grid-cols-2 gap-3">
-                  <Field label="Area">
-                    {subscriber.areaCode ? `${subscriber.areaCode} – ${subscriber.areaName}` : "Not assigned"}
-                  </Field>
-                  <Field label="Collector">
-                    {subscriber.collectorCode
-                      ? `${subscriber.collectorCode} – ${subscriber.collectorName}`
-                      : "Not assigned"}
-                  </Field>
-                </dl>
-              </Section>
-            </div>
+            <div role="tabpanel" className="space-y-4">
+              {tab === "overview" && (
+                <>
+                  {editing?.kind === "details" && <DetailsForm {...formProps} />}
+                  {editing?.kind === "assignment" && <AssignmentForm {...formProps} />}
 
-            {canViewServices && (
-              <Section
-                title="Service accounts"
-                action={
-                  canAddService && <ActionButton label="Add service" onClick={() => setEditing({ kind: "service" })} />
-                }
-              >
-                {editing?.kind === "service" && (
-                  <AddServiceForm
-                    subscriber={subscriber}
-                    onSaved={() => {
-                      setEditing(null);
-                      setServicesKey((k) => k + 1);
-                    }}
-                    onCancel={() => setEditing(null)}
-                    onExpired={onSessionExpired}
-                  />
-                )}
-                {servicesError && <RowError message={`Could not load service accounts. ${servicesError}`} />}
-                {services === null && !servicesError ? (
-                  <p className="text-sm text-muted">Loading…</p>
-                ) : (
-                  <DataTable
-                    columns={[
-                      {
-                        key: "number",
-                        header: "Service no.",
-                        render: (s) => (
-                          <button
-                            className="font-medium text-accent hover:underline"
-                            onClick={() => setOpenServiceId(s.id)}
-                            title={`Open ${s.serviceNumber}`}
-                          >
-                            {s.serviceNumber}
-                          </button>
-                        ),
-                      },
-                      { key: "type", header: "Type", render: (s) => serviceTypeLabel(s.serviceType) },
-                      { key: "plan", header: "Plan", render: (s) => `${s.planCode} – ${s.planName}` },
-                      { key: "status", header: "Status", render: (s) => <StatusBadge status={s.status} /> },
-                      { key: "address", header: "Installed at", render: (s) => s.addressLine1 },
-                      { key: "activated", header: "Activated", render: (s) => s.activationDate ?? "—" },
-                      {
-                        key: "rate",
-                        header: "Monthly rate",
-                        align: "right",
-                        render: (s) => formatPesos(s.currentRateCentavos),
-                      },
-                    ]}
-                    rows={services ?? []}
-                    getRowKey={(s) => s.id}
-                    emptyMessage="No service accounts yet."
-                  />
-                )}
-              </Section>
-            )}
-
-            <Section
-              title="Addresses"
-              action={
-                rowsEditable && (
-                  <ActionButton label="Add address" onClick={() => setEditing({ kind: "address", address: null })} />
-                )
-              }
-            >
-              {editing?.kind === "address" && (
-                <AddressForm key={editing.address?.id ?? "new"} {...formProps} address={editing.address} />
-              )}
-              {rowError?.section === "address" && <RowError message={rowError.message} />}
-              <DataTable
-                columns={[
-                  { key: "label", header: "Label", render: (a) => a.label ?? "—" },
-                  { key: "line1", header: "Street or purok", render: (a) => a.line1 },
-                  { key: "barangay", header: "Barangay", render: (a) => a.barangay },
-                  {
-                    key: "city",
-                    header: "City",
-                    render: (a) => (a.province ? `${a.city}, ${a.province}` : a.city),
-                  },
-                  { key: "landmark", header: "Landmark", render: (a) => a.landmark ?? "—" },
-                  { key: "flags", header: "", render: (a) => <FlagBadges {...a} /> },
-                  ...(rowsEditable
-                    ? [
-                        {
-                          key: "actions",
-                          header: "",
-                          render: (a: SubscriberAddressDto) => (
-                            <RowActions
-                              item={a}
-                              canReactivate
-                              onEdit={() => setEditing({ kind: "address", address: a })}
-                              onAction={(action) => void runRowAction("address", a.id, action)}
-                            />
-                          ),
-                        },
-                      ]
-                    : []),
-                ]}
-                rows={subscriber.addresses}
-                getRowKey={(a) => a.id}
-                emptyMessage="No addresses."
-              />
-            </Section>
-
-            <Section
-              title="Contacts"
-              action={
-                rowsEditable &&
-                (contactsFull ? (
-                  <span className="text-xs text-muted">
-                    {SUBSCRIBER_CONTACTS_MAX} active contacts (the maximum). Deactivate one to add another.
-                  </span>
-                ) : (
-                  <ActionButton label="Add contact" onClick={() => setEditing({ kind: "contact", contact: null })} />
-                ))
-              }
-            >
-              {editing?.kind === "contact" && (
-                <ContactForm key={editing.contact?.id ?? "new"} {...formProps} contact={editing.contact} />
-              )}
-              {rowError?.section === "contact" && <RowError message={rowError.message} />}
-              <DataTable
-                columns={[
-                  { key: "type", header: "Type", render: (c) => contactTypeLabel(c.type) },
-                  { key: "value", header: "Value", render: (c) => c.value },
-                  { key: "name", header: "Contact name", render: (c) => c.contactName ?? "—" },
-                  { key: "flags", header: "", render: (c) => <FlagBadges {...c} /> },
-                  ...(rowsEditable
-                    ? [
-                        {
-                          key: "actions",
-                          header: "",
-                          render: (c: SubscriberContactDto) => (
-                            <RowActions
-                              item={c}
-                              canReactivate={!contactsFull}
-                              onEdit={() => setEditing({ kind: "contact", contact: c })}
-                              onAction={(action) => void runRowAction("contact", c.id, action)}
-                            />
-                          ),
-                        },
-                      ]
-                    : []),
-                ]}
-                rows={subscriber.contacts}
-                getRowKey={(c) => c.id}
-                emptyMessage="No contacts on file."
-              />
-            </Section>
-
-            {canViewBilling && (
-              <LedgerSection subscriberId={subscriberId} accountNumber={subscriber.accountNumber} onSessionExpired={onSessionExpired} />
-            )}
-
-            <Section title="History">
-              {history.length === 0 ? (
-                <p className="text-sm text-muted">No recorded changes.</p>
-              ) : (
-                <ol className="divide-y divide-slate-100">
-                  {history.map((row) => {
-                    const entry = describeHistory(row, lookups);
-                    return (
-                      <li key={row.id} className="py-2 text-sm">
-                        <div className="flex justify-between gap-4">
-                          <span className="font-medium text-ink">{entry.title}</span>
-                          <span className="shrink-0 text-xs text-muted">{formatDateTime(row.occurredAt)}</span>
-                        </div>
-                        {entry.details.length > 0 && (
-                          <ul className="mt-1 list-disc pl-5 text-ink">
-                            {entry.details.map((detail, i) => (
-                              <li key={i}>{detail}</li>
-                            ))}
-                          </ul>
+                  <div className="grid grid-cols-2 gap-4">
+                    <Section
+                      title="Details"
+                      action={
+                        editable &&
+                        editing === null && <ActionButton label="Edit" onClick={() => setEditing({ kind: "details" })} />
+                      }
+                    >
+                      <dl className="grid grid-cols-2 gap-3">
+                        {canViewBilling && (
+                          <Field label="Balance">
+                            {balance === null ? (
+                              "…"
+                            ) : (
+                              <span className={`money font-semibold ${balance > 0 ? "text-danger" : "text-ink"}`}>
+                                {balanceText(balance)}
+                                {balance > 0 ? " owed" : balance < 0 ? " in credit" : ""}
+                              </span>
+                            )}
+                          </Field>
                         )}
-                        <div className="mt-1 text-xs text-muted">
-                          By {row.actorName ?? row.actorUsername ?? "system"}
-                          {row.reason && <> · Reason: {row.reason}</>}
+                        <Field label="Billing day">Day {subscriber.billingDay} of each month</Field>
+                        <Field label="Customer since">{formatDateTime(subscriber.createdAt)}</Field>
+                        <div className="col-span-2">
+                          <Field label="Notes">
+                            {subscriber.notes ? (
+                              <span className="whitespace-pre-wrap">{subscriber.notes}</span>
+                            ) : (
+                              <span className="text-muted">None</span>
+                            )}
+                          </Field>
                         </div>
-                      </li>
-                    );
-                  })}
-                </ol>
+                      </dl>
+                    </Section>
+
+                    <Section
+                      title="Collection assignment"
+                      action={
+                        editable &&
+                        editing === null && <ActionButton label="Change" onClick={() => setEditing({ kind: "assignment" })} />
+                      }
+                    >
+                      <dl className="grid grid-cols-2 gap-3">
+                        <Field label="Area">
+                          {subscriber.areaCode ? `${subscriber.areaCode} – ${subscriber.areaName}` : "Not assigned"}
+                        </Field>
+                        <Field label="Collector">
+                          {subscriber.collectorCode
+                            ? `${subscriber.collectorCode} – ${subscriber.collectorName}`
+                            : "Not assigned"}
+                        </Field>
+                      </dl>
+                    </Section>
+                  </div>
+
+                  <Section
+                    title="Addresses"
+                    action={
+                      rowsEditable && (
+                        <ActionButton label="Add address" onClick={() => setEditing({ kind: "address", address: null })} />
+                      )
+                    }
+                  >
+                    {editing?.kind === "address" && (
+                      <AddressForm key={editing.address?.id ?? "new"} {...formProps} address={editing.address} />
+                    )}
+                    {rowError?.section === "address" && <RowError message={rowError.message} />}
+                    <DataTable
+                      columns={[
+                        { key: "label", header: "Label", render: (a) => a.label ?? "—" },
+                        { key: "line1", header: "Street or purok", render: (a) => a.line1 },
+                        { key: "barangay", header: "Barangay", render: (a) => a.barangay },
+                        {
+                          key: "city",
+                          header: "City",
+                          render: (a) => (a.province ? `${a.city}, ${a.province}` : a.city),
+                        },
+                        { key: "landmark", header: "Landmark", render: (a) => a.landmark ?? "—" },
+                        { key: "flags", header: "", render: (a) => <FlagBadges {...a} /> },
+                        ...(rowsEditable
+                          ? [
+                              {
+                                key: "actions",
+                                header: "",
+                                render: (a: SubscriberAddressDto) => (
+                                  <RowActions
+                                    item={a}
+                                    canReactivate
+                                    onEdit={() => setEditing({ kind: "address", address: a })}
+                                    onAction={(action) => void runRowAction("address", a.id, action)}
+                                  />
+                                ),
+                              },
+                            ]
+                          : []),
+                      ]}
+                      rows={subscriber.addresses}
+                      getRowKey={(a) => a.id}
+                      emptyMessage="No addresses."
+                    />
+                  </Section>
+
+                  <Section
+                    title="Contacts"
+                    action={
+                      rowsEditable &&
+                      (contactsFull ? (
+                        <span className="text-xs text-muted">
+                          {SUBSCRIBER_CONTACTS_MAX} active contacts (the maximum). Deactivate one to add another.
+                        </span>
+                      ) : (
+                        <ActionButton label="Add contact" onClick={() => setEditing({ kind: "contact", contact: null })} />
+                      ))
+                    }
+                  >
+                    {editing?.kind === "contact" && (
+                      <ContactForm key={editing.contact?.id ?? "new"} {...formProps} contact={editing.contact} />
+                    )}
+                    {rowError?.section === "contact" && <RowError message={rowError.message} />}
+                    <DataTable
+                      columns={[
+                        { key: "type", header: "Type", render: (c) => contactTypeLabel(c.type) },
+                        { key: "value", header: "Value", render: (c) => c.value },
+                        { key: "name", header: "Contact name", render: (c) => c.contactName ?? "—" },
+                        { key: "flags", header: "", render: (c) => <FlagBadges {...c} /> },
+                        ...(rowsEditable
+                          ? [
+                              {
+                                key: "actions",
+                                header: "",
+                                render: (c: SubscriberContactDto) => (
+                                  <RowActions
+                                    item={c}
+                                    canReactivate={!contactsFull}
+                                    onEdit={() => setEditing({ kind: "contact", contact: c })}
+                                    onAction={(action) => void runRowAction("contact", c.id, action)}
+                                  />
+                                ),
+                              },
+                            ]
+                          : []),
+                      ]}
+                      rows={subscriber.contacts}
+                      getRowKey={(c) => c.id}
+                      emptyMessage="No contacts on file."
+                    />
+                  </Section>
+                </>
               )}
-            </Section>
+
+              {tab === "services" && (
+                <Section
+                  title="Service accounts"
+                  action={
+                    canAddService && <ActionButton label="Add service" onClick={() => setEditing({ kind: "service" })} />
+                  }
+                >
+                  {editing?.kind === "service" && (
+                    <AddServiceForm
+                      subscriber={subscriber}
+                      onSaved={() => {
+                        setEditing(null);
+                        setServicesKey((k) => k + 1);
+                      }}
+                      onCancel={() => setEditing(null)}
+                      onExpired={onSessionExpired}
+                    />
+                  )}
+                  {servicesError && <RowError message={`Could not load service accounts. ${servicesError}`} />}
+                  {services === null && !servicesError ? (
+                    <p className="text-sm text-muted">Loading…</p>
+                  ) : (
+                    <DataTable
+                      columns={[
+                        {
+                          key: "number",
+                          header: "Service no.",
+                          render: (s) => (
+                            <button
+                              className="font-medium text-accent hover:underline"
+                              onClick={() => setOpenServiceId(s.id)}
+                              title={`Open ${s.serviceNumber}`}
+                            >
+                              {s.serviceNumber}
+                            </button>
+                          ),
+                        },
+                        { key: "type", header: "Type", render: (s) => serviceTypeLabel(s.serviceType) },
+                        { key: "plan", header: "Plan", render: (s) => `${s.planCode} – ${s.planName}` },
+                        { key: "status", header: "Status", render: (s) => <StatusBadge status={s.status} /> },
+                        { key: "address", header: "Installed at", render: (s) => s.addressLine1 },
+                        { key: "activated", header: "Activated", render: (s) => s.activationDate ?? "—" },
+                        {
+                          key: "rate",
+                          header: "Monthly rate",
+                          align: "right",
+                          render: (s) => formatPesos(s.currentRateCentavos),
+                        },
+                      ]}
+                      rows={services ?? []}
+                      getRowKey={(s) => s.id}
+                      emptyMessage="No service accounts yet."
+                    />
+                  )}
+                </Section>
+              )}
+
+              {tab === "billing" && (
+                <BillingTab subscriberId={subscriberId} permissions={permissions} onSessionExpired={onSessionExpired} />
+              )}
+              {tab === "payments" && (
+                <PaymentsTab subscriberId={subscriberId} permissions={permissions} onSessionExpired={onSessionExpired} />
+              )}
+              {tab === "ledger" && (
+                <LedgerSection
+                  subscriberId={subscriberId}
+                  accountNumber={subscriber.accountNumber}
+                  onSessionExpired={onSessionExpired}
+                />
+              )}
+              {tab === "collection" && <CollectionTab subscriber={subscriber} onSessionExpired={onSessionExpired} />}
+              {tab === "history" && (
+                <HistoryTab
+                  subscriber={subscriber}
+                  services={canViewServices ? services : null}
+                  history={history}
+                  areaNames={areaNames}
+                  collectorNames={collectorNames}
+                  onSessionExpired={onSessionExpired}
+                />
+              )}
+              {tab === "documents" && (
+                <DocumentsTab subscriber={subscriber} permissions={permissions} onSessionExpired={onSessionExpired} />
+              )}
+              {tab === "audit" && <AuditTab subscriberId={subscriberId} onSessionExpired={onSessionExpired} />}
+            </div>
           </div>
         )}
       </div>

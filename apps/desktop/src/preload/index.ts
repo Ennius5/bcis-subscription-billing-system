@@ -1129,6 +1129,28 @@ export interface TechnicianDto {
   username: string;
 }
 
+/* --------------------------- Subscriber profile --------------------------- */
+
+export interface SubscriberBatchDto {
+  batchId: string;
+  batchNumber: string;
+  collectionDate: string;
+  status: string;
+  collectorName: string;
+  currentCentavos: number;
+  arrearsCentavos: number;
+  totalDueCentavos: number;
+  collectedCentavos: number;
+  collections: {
+    paymentId: string;
+    receiptNumber: string;
+    method: string;
+    amountCentavos: number;
+    paymentDate: string;
+    status: string;
+  }[];
+}
+
 /* ------------------------------- Users ------------------------------- */
 
 export interface UserDto {
@@ -1467,6 +1489,14 @@ const bcis = {
   },
   dashboard: {
     get: (): Promise<ApiResult<DashboardDto>> => ipcRenderer.invoke("dashboard:get"),
+  },
+  subscriberTabs: {
+    /** Collection batches this subscriber was on (needs collection.view). */
+    collections: (subscriberId: string): Promise<ApiResult<SubscriberBatchDto[]>> =>
+      ipcRenderer.invoke("subscribers:collections", subscriberId),
+    /** Audit rows about this subscriber and its services, invoices and payments (needs audit.view). */
+    audit: (subscriberId: string, query: { page: number; pageSize: number }): Promise<ApiResult<AuditLogPageDto>> =>
+      ipcRenderer.invoke("subscribers:audit", subscriberId, query),
   },
   audit: {
     list: (query: AuditLogQuery): Promise<ApiResult<AuditLogPageDto>> => ipcRenderer.invoke("audit:list", query),

@@ -21,6 +21,8 @@ interface InvoiceListProps {
   fixed?: { period: string; status: string };
   /** Bumped by the parent to refetch, e.g. after generating or returning from an invoice. */
   reloadKey: number;
+  /** Only this subscriber's invoices (the profile's Billing tab); the Subscriber column is dropped. */
+  subscriberId?: string;
   emptyMessage?: string;
   onOpen?: (id: string) => void;
   onSessionExpired: () => void;
@@ -30,6 +32,7 @@ export function InvoiceList({
   initialPeriod = "",
   fixed,
   reloadKey,
+  subscriberId,
   emptyMessage,
   onOpen,
   onSessionExpired,
@@ -67,6 +70,7 @@ export function InvoiceList({
         period: queryPeriod,
         status: queryStatus,
         search: isFixed ? "" : search,
+        ...(subscriberId ? { subscriberId } : {}),
       })
       .then((r) => {
         if (cancelled) return;
@@ -84,14 +88,14 @@ export function InvoiceList({
     return () => {
       cancelled = true;
     };
-  }, [page, queryPeriod, queryStatus, search, isFixed, reloadKey, onSessionExpired]);
+  }, [page, queryPeriod, queryStatus, search, isFixed, subscriberId, reloadKey, onSessionExpired]);
 
   const changeFilter = (set: (value: string) => void) => (value: string) => {
     set(value);
     setPage(1);
   };
 
-  const columns: Column<InvoiceDto>[] = [
+  const allColumns: Column<InvoiceDto>[] = [
     {
       key: "number",
       header: "Invoice no.",
@@ -123,6 +127,7 @@ export function InvoiceList({
     { key: "total", header: "Total", align: "right", render: (i) => formatPesos(i.totalCentavos) },
     { key: "balance", header: "Balance", align: "right", render: (i) => formatPesos(i.balanceCentavos) },
   ];
+  const columns = subscriberId ? allColumns.filter((c) => c.key !== "subscriber") : allColumns;
 
   const total = result?.total ?? 0;
   const pageSize = result?.pageSize ?? INVOICE_PAGE_SIZE_DEFAULT;

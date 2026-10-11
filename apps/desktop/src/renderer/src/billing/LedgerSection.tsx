@@ -15,7 +15,7 @@ const ENTRY_LABELS: Record<string, string> = {
 };
 
 /** Positive balances are owed by the subscriber; a negative one is a credit in their favour. */
-function balanceText(centavos: number): string {
+export function balanceText(centavos: number): string {
   return centavos < 0 ? `${formatPesos(-centavos)} CR` : formatPesos(centavos);
 }
 
