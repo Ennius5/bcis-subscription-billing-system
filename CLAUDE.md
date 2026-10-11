@@ -39,6 +39,12 @@ Drizzle ORM + drizzle-kit, Zod 4, Vitest 5, pino, argon2id
   `apps/api/dist`: server.js, backup.js, migrate.js); installer:
   `pnpm --filter @bcis/desktop dist` (NSIS in `apps/desktop/release`).
   Server setup and tasks: `docs/deployment-guide.md`, `deploy/*.ps1`.
+- Evidence and docs: `pnpm --filter ./apps/api acceptance` (AT-01..12 +
+  reconciliation + all tests -> `tests/acceptance-test-report.md/.pdf`);
+  `pnpm docs:build` (regenerates `docs/generated/` from the route table
+  and the migrated test DB, then renders `docs/technical-documentation.pdf`
+  and `docs/erd.pdf` with headless Edge). Demo data: `db:seed-all` on a
+  fresh database (`database/seeds/README.md`).
 
 ## Money
 

@@ -72,4 +72,16 @@ describe("every API route is guarded on the server", () => {
     }
     expect(unguarded).toEqual([]);
   });
+
+  it("records each route's session and permission rule, as the generated API reference shows them", () => {
+    const wrong: string[] = [];
+    for (const route of app.routeTable) {
+      const key = `${route.method} ${route.url}`;
+      const isPublic = PUBLIC.has(key);
+      if (route.authenticated === isPublic) wrong.push(`${key}: authenticated=${route.authenticated}`);
+      const needsPermission = !isPublic && !OWN_ACCOUNT.has(key);
+      if ((route.permissions.length > 0) !== needsPermission) wrong.push(`${key}: ${route.permissions.length} rules`);
+    }
+    expect(wrong).toEqual([]);
+  });
 });

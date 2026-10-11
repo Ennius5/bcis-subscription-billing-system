@@ -19,14 +19,23 @@ import { ProofStore } from "./payments/proof-storage";
 import { registerErrorHandling } from "./http/error-handler";
 import { loggerOptions, newRequestId } from "./http/logging";
 import { MaintenanceGate } from "./http/maintenance";
+import { guardRule, type GuardRule } from "./auth/guard";
 
 declare module "fastify" {
   interface FastifyInstance {
     /** Locks everyone out during a restore; the backup routes use it. */
     maintenance: MaintenanceGate;
     /** Every route as registered, so the security test can walk all of them. */
-    routeTable: { method: string; url: string }[];
+    routeTable: RouteInfo[];
   }
+}
+
+/** A registered route and what it requires: a session, and which permissions. */
+export interface RouteInfo {
+  method: string;
+  url: string;
+  authenticated: boolean;
+  permissions: GuardRule[];
 }
 
 export interface AppDeps {
@@ -45,11 +54,14 @@ export function buildApp(config: Config, deps: AppDeps = {}): FastifyInstance {
     bodyLimit: 1024 * 1024,
   });
 
-  const routeTable: { method: string; url: string }[] = [];
+  const routeTable: RouteInfo[] = [];
   app.decorate("routeTable", routeTable);
   app.addHook("onRoute", (route) => {
+    const handlers = [route.preHandler ?? []].flat();
+    const authenticated = handlers.some((h) => typeof h === "function" && h.name === "authenticate");
+    const permissions = handlers.flatMap((h) => guardRule(h) ?? []);
     for (const method of [route.method].flat()) {
-      if (method !== "HEAD") routeTable.push({ method, url: route.url });
+      if (method !== "HEAD") routeTable.push({ method, url: route.url, authenticated, permissions });
     }
   });
 
