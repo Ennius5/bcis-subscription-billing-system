@@ -49,7 +49,7 @@ interface ChartCardProps {
 export function ChartCard({ title, subtitle, legend, chart, table, className = "" }: ChartCardProps) {
   const [showTable, setShowTable] = useState(false);
   return (
-    <section className={`rounded-lg border border-slate-200 bg-surface p-4 ${className}`}>
+    <section className={`panel p-4 ${className}`}>
       <div className="mb-3 flex items-start justify-between gap-3">
         <div>
           <h2 className="text-sm font-semibold text-navy">{title}</h2>

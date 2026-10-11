@@ -1,16 +1,18 @@
 @import "tailwindcss";
 @import "@fontsource-variable/inter";
 
+/* Frutiger Aero theme. Text colors are chosen for at least 4.5:1 contrast on white and on the
+   frosted sheet; status tones are darker than Tailwind's defaults for the same reason. */
 @theme {
   --color-navy: #0f2747;
-  --color-accent: #2563eb;
-  --color-canvas: #f6f8fb;
+  --color-accent: #1767b0;
+  --color-canvas: #d9effc;
   --color-surface: #ffffff;
   --color-ink: #0f172a;
-  --color-muted: #64748b;
-  --color-success: #059669;
-  --color-warning: #d97706;
-  --color-danger: #dc2626;
+  --color-muted: #4d5b70;
+  --color-success: #047857;
+  --color-warning: #b45309;
+  --color-danger: #c81e1e;
   /* Charts (dataviz reference palette, validated on the white card surface):
      categorical slots 1-2, the same-ramp meter track, hairline grid and axis. */
   --color-series-1: #2a78d6;
@@ -18,12 +20,36 @@
   --color-series-track: #cde2fb;
   --color-grid: #e2e8f0;
   --color-axis: #cbd5e1;
-  --font-sans: "Inter Variable","Inter", "Segoe UI", system-ui, sans-serif;
+  --font-sans: "Inter Variable", "Inter", "Segoe UI", system-ui, sans-serif;
+}
+
+:root {
+  /* Gel fills and shine are tuned so white text stays above 4.5:1 even at the tops of capitals
+     (checked with the shine blended in). */
+  --gel-blue: linear-gradient(to bottom, #216aab 0%, #165a96 48%, #0e4f8c 52%, #145895 100%);
+  --gel-blue-hover: linear-gradient(to bottom, #2672b4 0%, #19609f 48%, #105594 52%, #175e9d 100%);
+  --gel-green: linear-gradient(to bottom, #237a35 0%, #196626 48%, #135a1f 52%, #186324 100%);
+  --gel-green-hover: linear-gradient(to bottom, #27843a 0%, #1c6e2a 48%, #166123 52%, #1a6b28 100%);
+  --gel-glass: linear-gradient(to bottom, #ffffff 0%, #f1f6fb 48%, #e4edf6 52%, #f2f7fb 100%);
+  --gel-glass-hover: linear-gradient(to bottom, #ffffff 0%, #e9f4fe 48%, #d6e8f8 52%, #e9f3fc 100%);
+  --gel-edge: #8fa9c4;
+  --gel-shine: linear-gradient(to bottom, rgb(255 255 255 / 0.28), rgb(255 255 255 / 0.04));
+  --glass-shadow: 0 1px 2px rgb(15 39 71 / 0.08), 0 8px 24px rgb(15 39 71 / 0.1);
+  --focus-glow: inset 0 1px 2px rgb(15 39 71 / 0.08), 0 0 0 3px rgb(56 152 236 / 0.3);
 }
 
 @layer base {
+  /* Sky, two clouds, the sun's glow and rolling grass, all in CSS. Fixed, so it does not scroll. */
   body {
     background-color: var(--color-canvas);
+    background-image:
+      radial-gradient(ellipse 45% 35% at 12% 6%, rgb(255 255 255 / 0.9), transparent 70%),
+      radial-gradient(ellipse 28% 9% at 68% 18%, rgb(255 255 255 / 0.75), transparent 72%),
+      radial-gradient(ellipse 20% 7% at 42% 27%, rgb(255 255 255 / 0.6), transparent 72%),
+      radial-gradient(ellipse 85% 34% at 22% 106%, #78bf55 0%, #a3d67c 55%, transparent 57%),
+      radial-gradient(ellipse 80% 32% at 88% 110%, #5aa83f 0%, #88c862 55%, transparent 57%),
+      linear-gradient(to bottom, #5aa7e4 0%, #9ccff4 40%, #d6eefc 72%, #e9f7e4 100%);
+    background-attachment: fixed;
     color: var(--color-ink);
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
@@ -33,10 +59,85 @@
 /* Shared component classes. Screens use these instead of repeating utility strings, so the
    look (the theme) lives here. Layout utilities (margins, width) stay at the call site. */
 @layer components {
-  /* Buttons: .btn + one variant, optionally .btn-sm or .btn-xs. */
+  /* ---------------------------- Window chrome ---------------------------- */
+
+  /* Top bar: a dark glossy gel strip. */
+  .aero-header {
+    background: linear-gradient(to bottom, #1b5f9b 0%, #0f4a80 50%, #0a3a68 51%, #0d4273 100%);
+    border-bottom: 1px solid #072b4d;
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.35), 0 2px 8px rgb(7 43 77 / 0.25);
+    text-shadow: 0 1px 1px rgb(0 0 0 / 0.35);
+  }
+
+  /* Sidebar and the content sheet: frosted glass over the sky. */
+  .aero-nav,
+  .aero-sheet {
+    border: 1px solid rgb(255 255 255 / 0.85);
+    border-radius: 0.875rem;
+    box-shadow: var(--glass-shadow), inset 0 1px 0 rgb(255 255 255 / 0.9);
+    backdrop-filter: blur(16px) saturate(1.3);
+  }
+  .aero-nav {
+    background: linear-gradient(to bottom, rgb(255 255 255 / 0.72), rgb(255 255 255 / 0.55));
+  }
+  .aero-sheet {
+    /* Near-solid so tables, forms and muted text read as they do on white. */
+    background: rgb(255 255 255 / 0.8);
+  }
+
+  /* Sidebar rows. The open screen (aria-current) is a blue gel pill. */
+  .nav-item {
+    @apply block w-full rounded-md px-3 py-2 text-left text-sm text-ink;
+    position: relative;
+    isolation: isolate;
+    &:hover {
+      background: rgb(255 255 255 / 0.7);
+      box-shadow: inset 0 0 0 1px rgb(143 169 196 / 0.6);
+    }
+    &[aria-current="page"] {
+      @apply font-medium text-white;
+      background: var(--gel-blue);
+      box-shadow: inset 0 0 0 1px #0b4a86;
+      text-shadow: 0 -1px 0 rgb(0 0 0 / 0.3);
+      &::after {
+        content: "";
+        position: absolute;
+        inset: 1px 1px 52% 1px;
+        z-index: -1;
+        border-radius: 0.3rem 0.3rem 0.6rem 0.6rem;
+        background: var(--gel-shine);
+      }
+    }
+  }
+  .nav-group {
+    @apply flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm font-semibold text-navy;
+    &:hover {
+      background: rgb(255 255 255 / 0.7);
+    }
+  }
+
+  /* ------------------------------- Buttons ------------------------------- */
+
+  /* .btn + one variant, optionally .btn-sm or .btn-xs. The ::after is the gel shine on the
+     upper half; it sits under the label (isolation + z-index -1). */
   .btn {
-    @apply inline-flex items-center justify-center gap-1 rounded border px-4 py-2 text-sm font-medium;
+    @apply inline-flex items-center justify-center gap-1 rounded-md border px-4 py-2 text-sm font-medium;
     @apply disabled:cursor-not-allowed disabled:opacity-50;
+    position: relative;
+    isolation: isolate;
+    box-shadow: 0 1px 2px rgb(15 39 71 / 0.15);
+    &::after {
+      content: "";
+      position: absolute;
+      inset: 1px 1px 52% 1px;
+      z-index: -1;
+      border-radius: 0.3rem 0.3rem 0.6rem 0.6rem;
+      background: var(--gel-shine);
+      pointer-events: none;
+    }
+    &:enabled:active {
+      box-shadow: inset 0 1px 3px rgb(0 0 0 / 0.25);
+    }
   }
   .btn-sm {
     @apply px-3 py-1;
@@ -45,61 +146,134 @@
     @apply px-2 py-1 text-xs;
   }
   .btn-primary {
-    @apply border-navy bg-navy text-white enabled:hover:bg-navy/90;
+    @apply text-white;
+    border-color: #0b4a86;
+    background: var(--gel-blue);
+    text-shadow: 0 -1px 0 rgb(0 0 0 / 0.3);
+    &:enabled:hover {
+      background: var(--gel-blue-hover);
+    }
   }
   .btn-accent {
-    @apply border-accent bg-accent text-white enabled:hover:bg-accent/90;
+    @apply text-white;
+    border-color: #145a1f;
+    background: var(--gel-green);
+    text-shadow: 0 -1px 0 rgb(0 0 0 / 0.3);
+    &:enabled:hover {
+      background: var(--gel-green-hover);
+    }
   }
   .btn-secondary {
-    @apply border-slate-300 bg-surface font-normal text-ink enabled:hover:bg-slate-100;
+    @apply font-normal text-ink;
+    border-color: var(--gel-edge);
+    background: var(--gel-glass);
+    &:enabled:hover {
+      background: var(--gel-glass-hover);
+      border-color: #5f8fbd;
+    }
   }
   .btn-danger {
-    @apply border-danger/40 bg-surface font-normal text-danger enabled:hover:bg-danger/5;
-  }
-
-  /* Pill tabs (role="tab"): the selected one is marked by aria-selected, not by a class. */
-  .tab-pill {
-    @apply rounded border border-slate-300 px-3 py-1 text-sm text-ink hover:bg-slate-50;
-    &[aria-selected="true"] {
-      @apply border-navy bg-navy text-white hover:bg-navy;
+    @apply font-normal text-danger;
+    border-color: rgb(200 30 30 / 0.45);
+    background: var(--gel-glass);
+    &:enabled:hover {
+      background: linear-gradient(to bottom, #ffffff 0%, #fdf0f0 48%, #f8e1e1 52%, #fcefef 100%);
     }
   }
 
-  /* Cards and sections. Padding is chosen at the call site. */
+  /* Pill tabs (role="tab"): glass when idle, blue gel when selected (aria-selected). */
+  .tab-pill {
+    @apply rounded-full border px-3 py-1 text-sm text-ink;
+    border-color: var(--gel-edge);
+    background: var(--gel-glass);
+    box-shadow: 0 1px 2px rgb(15 39 71 / 0.12);
+    &:hover {
+      background: var(--gel-glass-hover);
+    }
+    &[aria-selected="true"] {
+      @apply text-white;
+      border-color: #0b4a86;
+      background: var(--gel-blue);
+      text-shadow: 0 -1px 0 rgb(0 0 0 / 0.3);
+    }
+  }
+
+  /* -------------------------- Surfaces and text -------------------------- */
+
+  /* Cards, sections and tables stay solid white: data is never read through glass. */
   .panel {
-    @apply rounded-lg border border-slate-200 bg-surface;
+    @apply rounded-[0.625rem] border bg-surface;
+    border-color: #c9d8e8;
+    box-shadow: 0 1px 2px rgb(15 39 71 / 0.06), 0 4px 14px rgb(15 39 71 / 0.06), inset 0 1px 0 #ffffff;
   }
 
   /* Messages: .alert + a tone. */
   .alert {
-    @apply rounded border px-3 py-2 text-sm;
+    @apply rounded-md border px-3 py-2 text-sm;
   }
+  /* Solid tints (mixed with white, not transparent) so the glass sheet does not grey them. */
   .alert-danger {
-    @apply border-danger/30 bg-danger/5 text-danger;
+    @apply border-danger/30 text-danger;
+    background-color: color-mix(in srgb, var(--color-danger) 6%, white);
   }
   .alert-warning {
-    @apply border-warning/30 bg-warning/5 text-warning;
+    @apply border-warning/30 text-warning;
+    background-color: color-mix(in srgb, var(--color-warning) 6%, white);
   }
   .alert-success {
-    @apply border-success/30 bg-success/5 text-success;
+    @apply border-success/30 text-success;
+    background-color: color-mix(in srgb, var(--color-success) 6%, white);
   }
   .alert-note {
     @apply border-slate-200 bg-slate-50 text-muted;
   }
 
-  /* Text inputs, selects and textareas; .field-box wraps an input with a prefix (MoneyField). */
+  /* Text inputs, selects and textareas; .field-box wraps an input with a prefix (MoneyField).
+     Slightly inset, with a soft aqua glow on focus. */
   .field {
-    @apply mt-1 block w-full rounded border border-slate-300 bg-surface px-3 py-2 font-normal text-ink;
-    @apply focus:border-accent focus:ring-2 focus:ring-accent/30 focus:outline-none;
+    @apply mt-1 block w-full rounded-md border bg-surface px-3 py-2 font-normal text-ink;
     @apply disabled:bg-slate-100 disabled:opacity-70;
+    border-color: var(--gel-edge);
+    box-shadow: inset 0 1px 2px rgb(15 39 71 / 0.08);
+    &:focus {
+      outline: none;
+      border-color: #2f7fc6;
+      box-shadow: var(--focus-glow);
+    }
   }
   .field-box {
-    @apply mt-1 flex items-center rounded border border-slate-300 bg-surface;
-    @apply focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/30;
+    @apply mt-1 flex items-center rounded-md border bg-surface;
+    border-color: var(--gel-edge);
+    box-shadow: inset 0 1px 2px rgb(15 39 71 / 0.08);
+    &:focus-within {
+      border-color: #2f7fc6;
+      box-shadow: var(--focus-glow);
+    }
   }
   .field.field-error,
   .field-box.field-error {
-    @apply border-danger focus:border-danger focus:ring-danger/30 focus-within:border-danger focus-within:ring-danger/30;
+    border-color: var(--color-danger);
+    &:focus,
+    &:focus-within {
+      border-color: var(--color-danger);
+      box-shadow: inset 0 1px 2px rgb(15 39 71 / 0.08), 0 0 0 3px rgb(200 30 30 / 0.25);
+    }
+  }
+}
+
+/* Paper gets none of the theme: no sky, no glass (backdrop-filter would also become the
+   receipt's containing block and clip it), no shadows. */
+@media print {
+  body {
+    background: none;
+  }
+  .aero-header,
+  .aero-nav,
+  .aero-sheet,
+  .panel {
+    backdrop-filter: none;
+    box-shadow: none;
+    background: none;
   }
 }
 

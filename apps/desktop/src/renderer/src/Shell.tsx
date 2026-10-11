@@ -110,7 +110,7 @@ export function Shell({ session, onSignOut }: ShellProps) {
 
   return (
     <div className="flex h-screen flex-col">
-      <header className="flex items-center justify-between gap-6 bg-navy px-6 py-3 text-white">
+      <header className="aero-header flex items-center justify-between gap-6 px-6 py-3 text-white">
         <span className="font-semibold">BCIS Billing</span>
         {canSearch && (
           <input
@@ -143,16 +143,16 @@ export function Shell({ session, onSignOut }: ShellProps) {
           </button>
           <button
             onClick={onSignOut}
-            className="rounded border border-white/40 px-3 py-1 hover:bg-white/10"
+            className="rounded-md border border-white/40 bg-white/10 px-3 py-1 hover:bg-white/20"
           >
             Sign out
           </button>
         </span>
       </header>
 
-      <div className="flex min-h-0 flex-1 border-t border-white/10">
+      <div className="flex min-h-0 flex-1 gap-3 p-3">
         {items.length > 0 && <Sidebar items={items} activeId={activeId} onSelect={selectScreen} />}
-        <main className="flex-1 overflow-y-auto p-8">
+        <main className="aero-sheet flex-1 overflow-y-auto p-8">
           {changingPassword && !searching && (
             <ChangePasswordPanel onClose={() => setChangingPassword(false)} onExpired={onSignOut} />
           )}

@@ -40,21 +40,15 @@ export function Sidebar({ items, activeId, onSelect }: SidebarProps) {
     });
   }
 
-  const rowBase = "block w-full rounded px-3 py-2 text-left text-sm";
-  const leafClass = (id: string) =>
-    `${rowBase} ${
-      id === activeId ? "bg-white/15 font-medium text-white" : "text-white/80 hover:bg-white/10"
-    }`;
-
   return (
-    <nav aria-label="Main navigation" className="w-60 shrink-0 overflow-y-auto bg-navy p-3 text-white">
+    <nav aria-label="Main navigation" className="aero-nav w-60 shrink-0 overflow-y-auto p-3">
       <ul className="space-y-1">
         {items.map((item) => {
           if (!item.children) {
             return (
               <li key={item.id}>
                 <button
-                  className={leafClass(item.id)}
+                  className="nav-item"
                   aria-current={item.id === activeId ? "page" : undefined}
                   onClick={() => onSelect(item.id)}
                 >
@@ -67,21 +61,21 @@ export function Sidebar({ items, activeId, onSelect }: SidebarProps) {
           return (
             <li key={item.id}>
               <button
-                className={`${rowBase} flex items-center justify-between font-medium text-white hover:bg-white/10`}
+                className="nav-group"
                 aria-expanded={expanded}
                 onClick={() => toggle(item.id)}
               >
                 {item.label}
-                <span aria-hidden="true" className="text-xs text-white/60">
+                <span aria-hidden="true" className="text-xs text-muted">
                   {expanded ? "▾" : "▸"}
                 </span>
               </button>
               {expanded && (
-                <ul className="mt-1 space-y-1 border-l border-white/20 pl-2 ml-3">
+                <ul className="mt-1 ml-3 space-y-1 border-l border-slate-400/40 pl-2">
                   {item.children.map((child) => (
                     <li key={child.id}>
                       <button
-                        className={leafClass(child.id)}
+                        className="nav-item"
                         aria-current={child.id === activeId ? "page" : undefined}
                         onClick={() => onSelect(child.id)}
                       >
