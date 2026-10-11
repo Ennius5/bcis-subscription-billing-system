@@ -19,11 +19,15 @@ export function Login({ onSignedIn }: LoginProps) {
   const [addressError, setAddressError] = useState<string | null>(null);
   const [testingAddress, setTestingAddress] = useState(false);
   const [recheck, setRecheck] = useState(0);
+  const [versions, setVersions] = useState<{ app: string; server: string | null } | null>(null);
 
   useEffect(() => {
     setServer("checking");
     void window.bcis.server.get().then(setServerAddress);
-    void window.bcis.getHealth().then((r) => setServer(r.ok ? "connected" : "unreachable"));
+    void window.bcis.getHealth().then((r) => {
+      setServer(r.ok ? "connected" : "unreachable");
+      setVersions({ app: r.appVersion, server: r.serverVersion });
+    });
   }, [recheck]);
 
   async function saveServerAddress(event: FormEvent) {
@@ -146,6 +150,17 @@ export function Login({ onSignedIn }: LoginProps) {
               </button>
             )}
           </p>
+          {server === "connected" && versions && (
+            <p className="mt-1">
+              App version {versions.app} · server version {versions.server ?? "unknown (older than 1.0.0)"}
+            </p>
+          )}
+          {server === "connected" && versions && versions.server !== versions.app && (
+            <p role="alert" className="alert alert-warning mt-2 text-left">
+              This app and the server are different versions, so some screens may not work. Ask the
+              administrator to update the server (deployment guide, section 7).
+            </p>
+          )}
           {server === "unreachable" && !editingServer && (
             <p className="mt-1">Check the network cable or Wi-Fi, or ask the administrator for the server address.</p>
           )}

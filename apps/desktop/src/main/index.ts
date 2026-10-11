@@ -156,12 +156,15 @@ ipcMain.handle("server:set", async (_event, input: unknown): Promise<ApiResult<{
 });
 
 ipcMain.handle("api:health", async () => {
+  const appVersion = app.getVersion();
   try {
     const res = await fetch(`${apiUrl}/health/db`);
     const data: unknown = await res.json();
-    return { ok: res.ok, data };
+    // An API older than 1.0.0 does not report a version.
+    const version = (data as { version?: unknown } | null)?.version;
+    return { ok: res.ok, data, appVersion, serverVersion: typeof version === "string" ? version : null };
   } catch {
-    return { ok: false, data: null };
+    return { ok: false, data: null, appVersion, serverVersion: null };
   }
 });
 

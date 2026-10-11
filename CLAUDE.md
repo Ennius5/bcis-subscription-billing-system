@@ -139,6 +139,10 @@ Drizzle ORM + drizzle-kit, Zod 4, Vitest 5, pino, argon2id
   `node install.js` inside that copy (`node_modules/.pnpm/electron@*`).
 - `bcis_app` has no CREATEDB: `bcis_verify` / `bcis_test_verify` were
   created once by `postgres` (test restore needs them).
+- The installed setup runs the BUILT API (`apps/api/dist`, "BCIS API"
+  task). After API changes: `pnpm --filter ./apps/api build`, then restart
+  the task as admin. The sign-in page warns when app and server versions
+  differ (`/health` reports `version`).
 - PowerShell POSTs need `-ContentType "application/json"`.
 - Windows PowerShell 5.1 shows the peso sign garbled; files are UTF-8
   and fine.

@@ -19,6 +19,7 @@ import { ProofStore } from "./payments/proof-storage";
 import { registerErrorHandling } from "./http/error-handler";
 import { loggerOptions, newRequestId } from "./http/logging";
 import { MaintenanceGate } from "./http/maintenance";
+import { API_VERSION } from "./version";
 import { guardRule, type GuardRule } from "./auth/guard";
 
 declare module "fastify" {
@@ -74,19 +75,20 @@ export function buildApp(config: Config, deps: AppDeps = {}): FastifyInstance {
   app.get("/health", async () => ({
     status: "ok",
     service: "bcis-api",
+    version: API_VERSION,
     time: new Date().toISOString(),
   }));
 
   app.get("/health/db", async (_req, reply) => {
     if (!deps.pool) {
-      return reply.code(503).send({ status: "unavailable" });
+      return reply.code(503).send({ status: "unavailable", version: API_VERSION });
     }
     try {
       await deps.pool.query("SELECT 1");
-      return { status: "ok", database: "connected" };
+      return { status: "ok", database: "connected", version: API_VERSION };
     } catch (err) {
       app.log.error(err, "database health check failed");
-      return reply.code(503).send({ status: "error", database: "unreachable" });
+      return reply.code(503).send({ status: "error", database: "unreachable", version: API_VERSION });
     }
   });
 

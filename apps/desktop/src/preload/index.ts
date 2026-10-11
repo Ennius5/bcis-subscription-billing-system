@@ -3,6 +3,9 @@ import { contextBridge, ipcRenderer } from "electron";
 export interface HealthResult {
   ok: boolean;
   data: unknown;
+  /** This app's version, and the server's (null when unreachable or too old to say). */
+  appVersion: string;
+  serverVersion: string | null;
 }
 
 export interface SessionInfo {
