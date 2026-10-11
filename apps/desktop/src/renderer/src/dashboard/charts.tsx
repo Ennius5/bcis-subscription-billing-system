@@ -200,26 +200,28 @@ interface HBarListProps {
   color?: string;
 }
 
-/** One series as horizontal bars with the value at each bar's tip (negative values show no bar). */
+/**
+ * One series as horizontal bars, values right-aligned in their own column (negative values show
+ * no bar). The value column is sized by its content, so a long amount never runs past the card.
+ */
 export function HBarList({ rows, format, color = "var(--color-series-1)" }: HBarListProps) {
   const max = Math.max(0, ...rows.map((r) => r.value));
   return (
-    <ul className="space-y-2">
+    <ul className="grid grid-cols-[minmax(4rem,7rem)_minmax(2rem,1fr)_auto] items-center gap-x-3 gap-y-2 text-xs">
       {rows.map((r) => {
         const pct = max > 0 ? (Math.max(0, r.value) / max) * 100 : 0;
         return (
-          <li key={r.key} className="grid grid-cols-[7rem_1fr] items-center gap-3 text-xs">
+          <li key={r.key} className="contents">
             <span className="truncate text-ink">{r.label}</span>
-            <span className="flex min-w-0 items-center gap-2">
-              {/* The longest bar takes 65% of the row, leaving room for its value at the tip. */}
+            <span className="min-w-0">
               <span
-                className="h-3.5 shrink-0 rounded-r-[4px] transition-opacity hover:opacity-80"
-                style={{ width: `${pct * 0.65}%`, background: color, minWidth: r.value > 0 ? 2 : 0 }}
+                className="block h-3.5 rounded-r-[4px] transition-opacity hover:opacity-80"
+                style={{ width: `${pct}%`, background: color, minWidth: r.value > 0 ? 2 : 0 }}
               />
-              <span className="whitespace-nowrap tabular-nums text-ink">
-                {format(r.value)}
-                {r.note && <span className="ml-1 text-muted">{r.note}</span>}
-              </span>
+            </span>
+            <span className="whitespace-nowrap text-right tabular-nums text-ink">
+              {format(r.value)}
+              {r.note && <span className="ml-1 text-muted">{r.note}</span>}
             </span>
           </li>
         );

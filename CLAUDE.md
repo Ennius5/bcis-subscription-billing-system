@@ -43,8 +43,12 @@ Drizzle ORM + drizzle-kit, Zod 4, Vitest 5, pino, argon2id
   reconciliation + all tests -> `tests/acceptance-test-report.md/.pdf`);
   `pnpm docs:build` (regenerates `docs/generated/` from the route table
   and the migrated test DB, then renders `docs/technical-documentation.pdf`
-  and `docs/erd.pdf` with headless Edge). Demo data: `db:seed-all` on a
-  fresh database (`database/seeds/README.md`).
+  `docs/erd.pdf` and `docs/user-manual.pdf` with headless Edge). Demo data:
+  `db:seed-all` on a fresh database (`database/seeds/README.md`); then
+  `pnpm --filter ./apps/api report-samples` (`reports-samples/`) and
+  `pnpm screenshots` (Playwright drives the built Electron app against a
+  local API on port 3999 -> `tests/screenshots/`). VS Code's terminal sets
+  ELECTRON_RUN_AS_NODE=1; the screenshot script removes it for Electron.
 
 ## Money
 

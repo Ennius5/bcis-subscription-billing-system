@@ -121,7 +121,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
   const args = process.argv.slice(2);
   const outIndex = args.indexOf("-o");
   const output = outIndex >= 0 ? args[outIndex + 1] : undefined;
-  const inputs = args.filter((_, i) => i !== outIndex && i !== outIndex + 1);
+  const inputs = outIndex >= 0 ? args.filter((_, i) => i !== outIndex && i !== outIndex + 1) : args;
   if (inputs.length === 0) {
     console.error("Usage: node scripts/md-to-pdf.mjs <input.md> [more.md ...] [-o output.pdf]");
     process.exit(1);

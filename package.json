@@ -1,13 +1,14 @@
 {
   "name": "bcis-subscription-billing-system",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "BCIS Subscription Billing and Collection System",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "lint": "oxlint --type-aware --deny-warnings .",
-    "docs:build": "pnpm --filter ./apps/api docs:reference && node scripts/build-docs.mjs"
+    "docs:build": "pnpm --filter ./apps/api docs:reference && node scripts/build-docs.mjs",
+    "screenshots": "node scripts/screenshots.mjs"
   },
   "keywords": [],
   "author": "",
@@ -28,6 +29,7 @@
     "mermaid": "^12.1.0",
     "oxlint": "1.85.0",
     "oxlint-tsgolint": "7.0.2003",
+    "playwright-core": "^1.64.0",
     "typescript": "^7.0.2"
   }
 }

@@ -1,6 +1,6 @@
 {
   "name": "@bcis/api",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -18,7 +18,8 @@
     "backup": "tsx src/backup/cli.ts",
     "concurrency": "tsx src/concurrency/three-clients.ts",
     "acceptance": "node scripts/acceptance-report.mjs",
-    "docs:reference": "tsx scripts/docs-reference.ts"
+    "docs:reference": "tsx scripts/docs-reference.ts",
+    "report-samples": "tsx scripts/report-samples.ts"
   },
   "dependencies": {
     "@bcis/shared": "workspace:*",

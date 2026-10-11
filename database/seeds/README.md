@@ -46,6 +46,10 @@ last four months day by day: billing on the 1st, each subscriber paying around t
 date according to how they pay, services terminated, suspended and reconnected on the day,
 and collectors going out with batches. Receipt numbers therefore follow the payment dates.
 
+Business dates (installation, billing, due, payment, collection and reconnection dates) are
+back-dated; record timestamps (such as "Customer since" or "entered at") are the moment the seed
+ran, because the system always stamps when a record was actually written.
+
 The random choices come from a fixed seed, so every run produces the same people and the
 same payment pattern. The months are counted back from today, so **seed shortly before a
 demo**: a dataset seeded weeks earlier has no bill for the new month and older aging.
