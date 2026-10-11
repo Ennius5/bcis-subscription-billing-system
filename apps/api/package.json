@@ -14,8 +14,10 @@
     "db:seed": "tsx src/db/seed-rbac.ts",
     "db:seed-demo": "tsx src/db/seed-demo-users.ts",
     "db:seed-data": "tsx src/db/seed-demo-data.ts",
+    "db:seed-all": "pnpm db:seed && pnpm db:seed-demo && pnpm db:seed-data",
     "backup": "tsx src/backup/cli.ts",
-    "concurrency": "tsx src/concurrency/three-clients.ts"
+    "concurrency": "tsx src/concurrency/three-clients.ts",
+    "acceptance": "node scripts/acceptance-report.mjs"
   },
   "dependencies": {
     "@bcis/shared": "workspace:*",
