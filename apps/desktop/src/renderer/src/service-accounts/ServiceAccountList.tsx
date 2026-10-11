@@ -4,6 +4,7 @@ import {
   SERVICE_ACCOUNT_PAGE_SIZE_DEFAULT,
   SERVICE_ACCOUNT_STATUSES,
   SERVICE_TYPE_CODES,
+  type ServiceAccountStatus,
 } from "@bcis/shared";
 import type { ServiceAccountDto, ServiceAccountPageDto } from "../../../preload/index";
 import { DataTable, type Column } from "../ui/DataTable";
@@ -24,16 +25,29 @@ const TYPE_OPTIONS: SelectOption[] = [
 ];
 
 interface ServiceAccountListProps {
+  title?: string;
+  /** Shown under the title. */
+  description?: string;
+  /** Locks the list to one status and hides the Status filter (the Services hub tabs). */
+  fixedStatus?: ServiceAccountStatus;
   /** Bumped by the parent to refetch the current page, e.g. after returning from an account. */
   reloadKey: number;
   onOpen: (id: string) => void;
   onSessionExpired: () => void;
 }
 
-export function ServiceAccountList({ reloadKey, onOpen, onSessionExpired }: ServiceAccountListProps) {
+export function ServiceAccountList({
+  title = "Service Accounts",
+  description,
+  fixedStatus,
+  reloadKey,
+  onOpen,
+  onSessionExpired,
+}: ServiceAccountListProps) {
   const [searchText, setSearchText] = useState("");
   const [search, setSearch] = useState("");
-  const [status, setStatus] = useState("");
+  const [chosenStatus, setStatus] = useState("");
+  const status = fixedStatus ?? chosenStatus;
   const [serviceType, setServiceType] = useState("");
   const [page, setPage] = useState(1);
 
@@ -115,14 +129,20 @@ export function ServiceAccountList({ reloadKey, onOpen, onSessionExpired }: Serv
   const lastPage = Math.max(1, Math.ceil(total / pageSize));
   const first = total === 0 ? 0 : (page - 1) * pageSize + 1;
   const last = Math.min(page * pageSize, total);
-  const filtered = search !== "" || status !== "" || serviceType !== "";
+  const filtered = search !== "" || chosenStatus !== "" || serviceType !== "";
+  const emptyMessage = filtered
+    ? "No service accounts match these filters."
+    : fixedStatus
+      ? `No ${statusLabel(fixedStatus).toLowerCase()} service accounts.`
+      : "No service accounts yet.";
 
   return (
     <div>
-      <h1 className="mb-4 text-xl font-semibold text-navy">Service Accounts</h1>
+      <h1 className={`${description ? "mb-1" : "mb-4"} text-xl font-semibold text-navy`}>{title}</h1>
+      {description && <p className="mb-4 text-sm text-muted">{description}</p>}
 
       <div className="mb-4 grid grid-cols-4 gap-3">
-        <div className="col-span-2">
+        <div className={fixedStatus ? "col-span-3" : "col-span-2"}>
           <TextField
             label="Search service no., account no. or name"
             value={searchText}
@@ -130,7 +150,9 @@ export function ServiceAccountList({ reloadKey, onOpen, onSessionExpired }: Serv
             maxLength={100}
           />
         </div>
-        <SelectField label="Status" value={status} onChange={changeFilter(setStatus)} options={STATUS_OPTIONS} />
+        {!fixedStatus && (
+          <SelectField label="Status" value={status} onChange={changeFilter(setStatus)} options={STATUS_OPTIONS} />
+        )}
         <SelectField label="Type" value={serviceType} onChange={changeFilter(setServiceType)} options={TYPE_OPTIONS} />
       </div>
 
@@ -148,7 +170,7 @@ export function ServiceAccountList({ reloadKey, onOpen, onSessionExpired }: Serv
             columns={columns}
             rows={result?.items ?? []}
             getRowKey={(s) => s.id}
-            emptyMessage={filtered ? "No service accounts match these filters." : "No service accounts yet."}
+            emptyMessage={emptyMessage}
           />
           <div className="mt-3 flex items-center justify-between text-sm text-muted">
             <span aria-live="polite">

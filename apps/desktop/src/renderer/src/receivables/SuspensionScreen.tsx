@@ -82,7 +82,7 @@ export function SuspensionScreen({ permissions, onSessionExpired }: SuspensionSc
 
 /* ------------------------------ Candidates ------------------------------ */
 
-interface ListProps {
+export interface ListProps {
   reloadKey: number;
   onOpen: (serviceAccountId: string) => void;
   onSessionExpired: () => void;
@@ -229,7 +229,7 @@ const RECONNECTION_STATUS_OPTIONS: SelectOption[] = [
   { value: "", label: "All" },
 ];
 
-function ReconnectionList({ reloadKey, onOpen, onSessionExpired }: ListProps) {
+export function ReconnectionList({ reloadKey, onOpen, onSessionExpired }: ListProps) {
   const [status, setStatus] = useState("open");
   const [page, setPage] = useState(1);
   const [result, setResult] = useState<ReconnectionPageDto | null>(null);

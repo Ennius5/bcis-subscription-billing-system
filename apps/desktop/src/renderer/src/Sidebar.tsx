@@ -1,18 +1,6 @@
 import { useState } from "react";
 import type { NavItem } from "@bcis/shared";
 
-export function firstLeaf(items: readonly NavItem[]): NavItem | null {
-  for (const item of items) {
-    if (item.children) {
-      const leaf = firstLeaf(item.children);
-      if (leaf) return leaf;
-    } else {
-      return item;
-    }
-  }
-  return null;
-}
-
 export function findItem(items: readonly NavItem[], id: string): NavItem | null {
   for (const item of items) {
     if (item.id === id) return item;

@@ -87,3 +87,14 @@ export function visibleNavigation(granted: readonly PermissionCode[]): NavItem[]
     });
   return walk(NAV_ITEMS);
 }
+
+/** Screens a user lands on after sign-in, in order of preference; the technician lands on Services. */
+const HOME_PREFERENCE = ["dashboard", "subscribers.all", "services"] as const;
+
+/** The leaf to open after sign-in: the first preferred screen the user can see, else the first leaf. */
+export function homeScreenId(items: readonly NavItem[]): string | null {
+  const leaves = (list: readonly NavItem[]): NavItem[] =>
+    list.flatMap((item) => (item.children ? leaves(item.children) : [item]));
+  const visible = leaves(items);
+  return HOME_PREFERENCE.find((id) => visible.some((item) => item.id === id)) ?? visible[0]?.id ?? null;
+}

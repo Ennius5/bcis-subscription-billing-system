@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { PERMISSIONS, visibleNavigation, type PermissionCode } from "@bcis/shared";
+import { homeScreenId, PERMISSIONS, visibleNavigation, type PermissionCode } from "@bcis/shared";
 import type { SessionInfo } from "../../preload/index";
-import { findItem, firstLeaf, Sidebar } from "./Sidebar";
+import { findItem, Sidebar } from "./Sidebar";
 import { PlansScreen } from "./plans/PlanScreen";
 import { AreasScreen } from "./collection/AreaScreen";
 import { CollectorsHub } from "./collection/CollectorReportScreen";
@@ -11,6 +11,7 @@ import { NewSubscriberScreen } from "./subscribers/NewSubscriberScreen";
 import { SearchResults } from "./subscribers/SearchResults";
 import { SubscribersScreen } from "./subscribers/SubscribersScreen";
 import { ServiceAccountsScreen } from "./service-accounts/ServiceAccountsScreen";
+import { ServicesHub } from "./service-accounts/ServicesHub";
 import { GenerateBillingScreen } from "./billing/GenerateBillingScreen";
 import { currentMonth } from "./billing/invoiceStatus";
 import { InvoicesScreen } from "./billing/InvoicesScreen";
@@ -50,7 +51,7 @@ export function Shell({ session, onSignOut }: ShellProps) {
     () => session.permissions.filter(isPermissionCode),
     [session.permissions],
   );
-  const [activeId, setActiveId] = useState<string | null>(() => firstLeaf(items)?.id ?? null);
+  const [activeId, setActiveId] = useState<string | null>(() => homeScreenId(items));
   const active = activeId ? findItem(items, activeId) : null;
   // Set when a profile should open straight away (after New Subscriber or from search).
   // openRequest remounts All Subscribers so it opens that profile even if it is already showing.
@@ -183,6 +184,8 @@ export function Shell({ session, onSignOut }: ShellProps) {
                 <NewSubscriberScreen onCreated={openSubscriber} onSessionExpired={onSignOut} />
               ) : active.id === "subscribers.services" ? (
                 <ServiceAccountsScreen permissions={permissions} onSessionExpired={onSignOut} />
+              ) : active.id === "services" ? (
+                <ServicesHub permissions={permissions} onSessionExpired={onSignOut} />
               ) : active.id === "billing.current" ? (
                 <InvoicesScreen
                   title="Current Billing"

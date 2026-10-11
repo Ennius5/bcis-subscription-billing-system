@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ROLE_PERMISSIONS } from "./permissions";
-import { visibleNavigation, type NavItem } from "./navigation";
+import { homeScreenId, visibleNavigation, type NavItem } from "./navigation";
 
 function ids(items: readonly NavItem[]): string[] {
   return items.flatMap((i) => (i.children ? [i.id, ...ids(i.children)] : [i.id]));
@@ -54,5 +54,21 @@ describe("visibleNavigation", () => {
     it("shows Service Plans to the administrator but not to the cashier", () => {
     expect(ids(visibleNavigation(ROLE_PERMISSIONS.administrator))).toContain("subscribers.plans");
     expect(ids(visibleNavigation(ROLE_PERMISSIONS.cashier))).not.toContain("subscribers.plans");
+  });
+});
+
+describe("homeScreenId", () => {
+  it("opens the dashboard for roles that have it", () => {
+    expect(homeScreenId(visibleNavigation(ROLE_PERMISSIONS.owner))).toBe("dashboard");
+    expect(homeScreenId(visibleNavigation(ROLE_PERMISSIONS.viewer))).toBe("dashboard");
+  });
+
+  it("opens Services for the technician", () => {
+    expect(homeScreenId(visibleNavigation(ROLE_PERMISSIONS.technician))).toBe("services");
+  });
+
+  it("falls back to the first visible screen, or nothing", () => {
+    expect(homeScreenId(visibleNavigation(["plan.view"]))).toBe("subscribers.plans");
+    expect(homeScreenId([])).toBeNull();
   });
 });
