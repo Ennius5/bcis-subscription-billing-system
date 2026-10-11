@@ -1,3 +1,4 @@
+import { pathToFileURL } from "node:url";
 import { count, eq, inArray } from "drizzle-orm";
 import {
   areaCreateSchema,
@@ -157,6 +158,167 @@ async function ensureCollectors(db: Db, actorId: string): Promise<Map<string, st
   return existing;
 }
 
+/** Seeds the demo dataset into `db`; exported so the reconciliation test can build the same data. */
+export async function seedDemoData(db: Db, store: ProofStore): Promise<void> {
+  const found = await db
+    .select({ id: users.id, username: users.username })
+    .from(users)
+    .where(inArray(users.username, Object.values(DEMO_USERNAMES)));
+  const userId = (username: string) => {
+    const user = found.find((u) => u.username === username);
+    if (!user) throw new Error(`User "${username}" not found. Run db:seed-demo first.`);
+    return user.id;
+  };
+  const demoUsers = {
+    admin: userId(DEMO_USERNAMES.admin),
+    cashier: userId(DEMO_USERNAMES.cashier),
+    supervisor: userId(DEMO_USERNAMES.supervisor),
+    technician: userId(DEMO_USERNAMES.technician),
+  };
+  const actorId = demoUsers.admin;
+
+  const planIds = await ensurePlans(db, actorId);
+  const areaIds = await ensureAreas(db, actorId);
+  const collectorIds = await ensureCollectors(db, actorId);
+
+  const [seeded] = await db.select({ value: count() }).from(subscribers).where(eq(subscribers.notes, DEMO_NOTE));
+  if ((seeded?.value ?? 0) > 0) {
+    console.log(`Demo subscribers already exist (${seeded?.value}); leaving them unchanged.`);
+    return;
+  }
+  const [billed] = await db.select({ value: count() }).from(invoices);
+  const [paid] = await db.select({ value: count() }).from(payments);
+  if ((billed?.value ?? 0) > 0 || (paid?.value ?? 0) > 0) {
+    throw new Error(
+      "This database already has invoices or payments. The demo dataset replays the last months " +
+        "itself, so it needs a fresh database: see database/seeds/README.md.",
+    );
+  }
+
+  const rand = prng(20261009);
+  const planId = (code: string) => {
+    const id = planIds.get(code);
+    if (!id) throw new Error(`Plan missing: ${code}`);
+    return id;
+  };
+  const statusChange = (status: string, effectiveDate: string, reason: string) =>
+    serviceStatusChangeSchema.parse({ status, effectiveDate, reason });
+
+  const usedNames = new Set<string>();
+  const tally = { subscribers: 0, services: 0, pending: 0, active: 0 };
+  const demoSubscribers: DemoSubscriber[] = [];
+
+  for (let i = 0; i < SUBSCRIBER_COUNT; i++) {
+    let fullName: string;
+    do fullName = `${rand.pick(FIRST_NAMES)} ${rand.pick(LAST_NAMES)}`;
+    while (usedNames.has(fullName));
+    usedNames.add(fullName);
+
+    const area = AREAS[i % AREAS.length]!;
+    const collector = COLLECTORS.find((c) => (c.areas as readonly string[]).includes(area.code))!;
+    const number = String(i + 1).padStart(4, "0");
+    const contacts: Array<Record<string, unknown>> = [
+      { type: "mobile", value: `0999 000 ${number}`, isPrimary: true },
+    ];
+    if (i % 3 === 0) {
+      const [first, last] = fullName.toLowerCase().split(" ");
+      contacts.push({ type: "email", value: `${first}.${last}${i + 1}@example.com` });
+    }
+
+    const billingDay = rand.pick(BILLING_DAYS);
+    const subscriber = await createSubscriber(
+      db,
+      actorId,
+      subscriberCreateSchema.parse({
+        fullName,
+        billingDay,
+        collectionAreaId: areaIds.get(area.code),
+        assignedCollectorId: collectorIds.get(collector.code),
+        notes: DEMO_NOTE,
+        address: {
+          line1: `Purok ${rand.int(1, 12)}`,
+          barangay: rand.pick(area.barangays),
+          city: "Maramag",
+          province: "Bukidnon",
+        },
+        contacts,
+      }),
+    );
+    tally.subscribers++;
+    const demo: DemoSubscriber = {
+      index: i,
+      id: subscriber.id,
+      fullName,
+      mobile: `0999 000 ${number}`,
+      billingDay,
+      collectorCode: collector.code,
+      services: [],
+    };
+    demoSubscribers.push(demo);
+
+    // Every subscriber has one service; every fourth also has a second one (63 in all).
+    const first = rand.pick(["INET-25", "INET-25", "INET-50", "INET-100", "CABLE-BASIC", "COMBO-25", "COMBO-50"]);
+    const codes = i % 4 === 0 ? [first, first.startsWith("CABLE") ? "INET-25" : "CABLE-PLUS"] : [first];
+
+    for (const [n, code] of codes.entries()) {
+      const service = await createServiceAccount(
+        db,
+        actorId,
+        subscriber.id,
+        serviceAccountCreateSchema.parse({ planId: planId(code), installationAddressId: subscriber.addresses[0]!.id }),
+      );
+      tally.services++;
+      const k = tally.services; // decides this account's story below
+
+      // A few new connections are still waiting for installation.
+      if (k % 15 === 0) {
+        tally.pending++;
+        continue;
+      }
+
+      // Most accounts were installed 3 to 8 months ago, so billing has several months to work with.
+      const activatedDaysAgo = rand.int(95, 240) - n * 30;
+      await changeServiceStatus(
+        db,
+        actorId,
+        service.id,
+        statusChange("active", daysAgo(activatedDaysAgo), "Installation completed"),
+      );
+      tally.active++;
+
+      // What happens to it later is replayed on the day (seed-demo-activity.ts).
+      const story: ServiceStory =
+        k % 20 === 7
+          ? "terminate"
+          : k % 20 === 13
+            ? "suspend"
+            : k % 17 === 4
+              ? "discount"
+              : k % 17 === 9 && code === "INET-25"
+                ? "upgrade"
+                : "none";
+      demo.services.push({ id: service.id, planCode: code, story });
+    }
+  }
+
+  console.log(
+    `Created ${tally.subscribers} subscribers and ${tally.services} service accounts ` +
+      `(${tally.active} installed, ${tally.pending} waiting for installation).`,
+  );
+
+  await seedActivity({
+    db,
+    store,
+    users: demoUsers,
+    collectorIds,
+    planIds,
+    planPrices: new Map(PLANS.map((p) => [p.code, p.priceCentavos])),
+    subscribers: demoSubscribers,
+    rand,
+  });
+  console.log("Demo data seed complete.");
+}
+
 async function main() {
   const config = loadConfig();
   if (config.NODE_ENV === "production") {
@@ -165,169 +327,16 @@ async function main() {
 
   const { db, pool } = createDb(config.DATABASE_URL);
   try {
-    const found = await db
-      .select({ id: users.id, username: users.username })
-      .from(users)
-      .where(inArray(users.username, Object.values(DEMO_USERNAMES)));
-    const userId = (username: string) => {
-      const user = found.find((u) => u.username === username);
-      if (!user) throw new Error(`User "${username}" not found. Run db:seed-demo first.`);
-      return user.id;
-    };
-    const demoUsers = {
-      admin: userId(DEMO_USERNAMES.admin),
-      cashier: userId(DEMO_USERNAMES.cashier),
-      supervisor: userId(DEMO_USERNAMES.supervisor),
-      technician: userId(DEMO_USERNAMES.technician),
-    };
-    const actorId = demoUsers.admin;
-
-    const planIds = await ensurePlans(db, actorId);
-    const areaIds = await ensureAreas(db, actorId);
-    const collectorIds = await ensureCollectors(db, actorId);
-
-    const [seeded] = await db.select({ value: count() }).from(subscribers).where(eq(subscribers.notes, DEMO_NOTE));
-    if ((seeded?.value ?? 0) > 0) {
-      console.log(`Demo subscribers already exist (${seeded?.value}); leaving them unchanged.`);
-      return;
-    }
-    const [billed] = await db.select({ value: count() }).from(invoices);
-    const [paid] = await db.select({ value: count() }).from(payments);
-    if ((billed?.value ?? 0) > 0 || (paid?.value ?? 0) > 0) {
-      throw new Error(
-        "This database already has invoices or payments. The demo dataset replays the last months " +
-          "itself, so it needs a fresh database: see database/seeds/README.md.",
-      );
-    }
-
-    const rand = prng(20261009);
-    const planId = (code: string) => {
-      const id = planIds.get(code);
-      if (!id) throw new Error(`Plan missing: ${code}`);
-      return id;
-    };
-    const statusChange = (status: string, effectiveDate: string, reason: string) =>
-      serviceStatusChangeSchema.parse({ status, effectiveDate, reason });
-
-    const usedNames = new Set<string>();
-    const tally = { subscribers: 0, services: 0, pending: 0, active: 0 };
-    const demoSubscribers: DemoSubscriber[] = [];
-
-    for (let i = 0; i < SUBSCRIBER_COUNT; i++) {
-      let fullName: string;
-      do fullName = `${rand.pick(FIRST_NAMES)} ${rand.pick(LAST_NAMES)}`;
-      while (usedNames.has(fullName));
-      usedNames.add(fullName);
-
-      const area = AREAS[i % AREAS.length]!;
-      const collector = COLLECTORS.find((c) => (c.areas as readonly string[]).includes(area.code))!;
-      const number = String(i + 1).padStart(4, "0");
-      const contacts: Array<Record<string, unknown>> = [
-        { type: "mobile", value: `0999 000 ${number}`, isPrimary: true },
-      ];
-      if (i % 3 === 0) {
-        const [first, last] = fullName.toLowerCase().split(" ");
-        contacts.push({ type: "email", value: `${first}.${last}${i + 1}@example.com` });
-      }
-
-      const billingDay = rand.pick(BILLING_DAYS);
-      const subscriber = await createSubscriber(
-        db,
-        actorId,
-        subscriberCreateSchema.parse({
-          fullName,
-          billingDay,
-          collectionAreaId: areaIds.get(area.code),
-          assignedCollectorId: collectorIds.get(collector.code),
-          notes: DEMO_NOTE,
-          address: {
-            line1: `Purok ${rand.int(1, 12)}`,
-            barangay: rand.pick(area.barangays),
-            city: "Maramag",
-            province: "Bukidnon",
-          },
-          contacts,
-        }),
-      );
-      tally.subscribers++;
-      const demo: DemoSubscriber = {
-        index: i,
-        id: subscriber.id,
-        fullName,
-        mobile: `0999 000 ${number}`,
-        billingDay,
-        collectorCode: collector.code,
-        services: [],
-      };
-      demoSubscribers.push(demo);
-
-      // Every subscriber has one service; every fourth also has a second one (63 in all).
-      const first = rand.pick(["INET-25", "INET-25", "INET-50", "INET-100", "CABLE-BASIC", "COMBO-25", "COMBO-50"]);
-      const codes = i % 4 === 0 ? [first, first.startsWith("CABLE") ? "INET-25" : "CABLE-PLUS"] : [first];
-
-      for (const [n, code] of codes.entries()) {
-        const service = await createServiceAccount(
-          db,
-          actorId,
-          subscriber.id,
-          serviceAccountCreateSchema.parse({ planId: planId(code), installationAddressId: subscriber.addresses[0]!.id }),
-        );
-        tally.services++;
-        const k = tally.services; // decides this account's story below
-
-        // A few new connections are still waiting for installation.
-        if (k % 15 === 0) {
-          tally.pending++;
-          continue;
-        }
-
-        // Most accounts were installed 3 to 8 months ago, so billing has several months to work with.
-        const activatedDaysAgo = rand.int(95, 240) - n * 30;
-        await changeServiceStatus(
-          db,
-          actorId,
-          service.id,
-          statusChange("active", daysAgo(activatedDaysAgo), "Installation completed"),
-        );
-        tally.active++;
-
-        // What happens to it later is replayed on the day (seed-demo-activity.ts).
-        const story: ServiceStory =
-          k % 20 === 7
-            ? "terminate"
-            : k % 20 === 13
-              ? "suspend"
-              : k % 17 === 4
-                ? "discount"
-                : k % 17 === 9 && code === "INET-25"
-                  ? "upgrade"
-                  : "none";
-        demo.services.push({ id: service.id, planCode: code, story });
-      }
-    }
-
-    console.log(
-      `Created ${tally.subscribers} subscribers and ${tally.services} service accounts ` +
-        `(${tally.active} installed, ${tally.pending} waiting for installation).`,
-    );
-
-    await seedActivity({
-      db,
-      store: new ProofStore(config.PROOF_STORAGE_DIR),
-      users: demoUsers,
-      collectorIds,
-      planIds,
-      planPrices: new Map(PLANS.map((p) => [p.code, p.priceCentavos])),
-      subscribers: demoSubscribers,
-      rand,
-    });
-    console.log("Demo data seed complete.");
+    await seedDemoData(db, new ProofStore(config.PROOF_STORAGE_DIR));
   } finally {
     await pool.end();
   }
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+// Only when run as a script (pnpm db:seed-data), not when a test imports seedDemoData.
+if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
+  main().catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
+}

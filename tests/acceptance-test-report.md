@@ -4,8 +4,8 @@ BCIS Subscription Billing and Collection System: mandatory acceptance tests (spe
 
 | | |
 |---|---|
-| Generated | October 11, 2026 at 3:37 PM (Asia/Manila) |
-| Source | commit `071dda2` |
+| Generated | October 11, 2026 at 4:08 PM (Asia/Manila) |
+| Source | commit `54ea6e9` plus uncommitted changes |
 | Environment | Node v24.15.0, PostgreSQL 18.6, Windows_NT 10.0.19045 |
 | Billing months used | 2026-08 (the spec's "August"), 2026-09 ("September"), 2026-10 |
 | Overall result | <span class="pass">PASS</span> all tests passed |
@@ -20,18 +20,18 @@ To reproduce: `pnpm --filter ./apps/api acceptance` (this report), or `pnpm --fi
 
 | ID | Scenario | Test data | Expected result | Result | Time |
 |---|---|---|---|---|---|
-| AT-01 | Exact payment | Invoice ₱999; payment ₱999 | Remaining ₱0; invoice PAID; ledger balanced; receipt created. | <span class="pass">PASS</span> | 249 ms |
-| AT-02 | Partial payment | Invoice ₱999; payment ₱500 | Remaining ₱499; PARTIALLY_PAID; allocation and ledger correct. | <span class="pass">PASS</span> | 44 ms |
-| AT-03 | Advance payment | Monthly ₱1,000; payment ₱3,000 | Allocation/credit follows documented policy without losing value. | <span class="pass">PASS</span> | 138 ms |
-| AT-04 | Oldest-first arrears | August 2026 ₱999 + September 2026 ₱999; payment ₱1,200 | August ₱0; September ₱798 remaining. | <span class="pass">PASS</span> | 116 ms |
-| AT-05 | Duplicate GCash reference | GCash reference 970396420405, verified once (with proof image), then submitted again | System blocks or explicitly warns according to documented verification policy. | <span class="pass">PASS</span> | 137 ms |
-| AT-06 | Payment reversal | Reverse an incorrectly posted ₱999 cash payment | Original remains visible; linked reversal exists; balances restore; actor/reason audited. | <span class="pass">PASS</span> | 74 ms |
-| AT-07 | Collector balanced remittance | Cash collected ₱20,000; remitted ₱20,000 | Difference ₱0; batch may reconcile/close. | <span class="pass">PASS</span> | 151 ms |
-| AT-08 | Collector shortage | Cash collected ₱20,000; remitted ₱19,500 | ₱500 shortage displayed; cannot silently close as balanced. | <span class="pass">PASS</span> | 149 ms |
-| AT-09 | Concurrent users | Three signed-in sessions (two cashiers, one administrator) each post 5 payments of ₱100 and read the payment list, all at the same time | No data corruption, duplicate numbering or unauthorized cross-session effect. | <span class="pass">PASS</span> | 836 ms |
-| AT-10 | Authorization | Cashier calls admin-only user and backup endpoints directly (no UI) | Server rejects operation even if API is called directly. | <span class="pass">PASS</span> | 26 ms |
-| AT-11 | Duplicate billing | Run billing generation and finalization for September 2026 twice more | No duplicate finalized invoice for same service account/period. | <span class="pass">PASS</span> | 65 ms |
-| AT-12 | Backup/restore | Create a backup, post a ₱100 payment, restore the backup | Restored database passes integrity check and expected records return. | <span class="pass">PASS</span> | 5514 ms |
+| AT-01 | Exact payment | Invoice ₱999; payment ₱999 | Remaining ₱0; invoice PAID; ledger balanced; receipt created. | <span class="pass">PASS</span> | 214 ms |
+| AT-02 | Partial payment | Invoice ₱999; payment ₱500 | Remaining ₱499; PARTIALLY_PAID; allocation and ledger correct. | <span class="pass">PASS</span> | 166 ms |
+| AT-03 | Advance payment | Monthly ₱1,000; payment ₱3,000 | Allocation/credit follows documented policy without losing value. | <span class="pass">PASS</span> | 281 ms |
+| AT-04 | Oldest-first arrears | August 2026 ₱999 + September 2026 ₱999; payment ₱1,200 | August ₱0; September ₱798 remaining. | <span class="pass">PASS</span> | 40 ms |
+| AT-05 | Duplicate GCash reference | GCash reference 970582150305, verified once (with proof image), then submitted again | System blocks or explicitly warns according to documented verification policy. | <span class="pass">PASS</span> | 86 ms |
+| AT-06 | Payment reversal | Reverse an incorrectly posted ₱999 cash payment | Original remains visible; linked reversal exists; balances restore; actor/reason audited. | <span class="pass">PASS</span> | 78 ms |
+| AT-07 | Collector balanced remittance | Cash collected ₱20,000; remitted ₱20,000 | Difference ₱0; batch may reconcile/close. | <span class="pass">PASS</span> | 175 ms |
+| AT-08 | Collector shortage | Cash collected ₱20,000; remitted ₱19,500 | ₱500 shortage displayed; cannot silently close as balanced. | <span class="pass">PASS</span> | 169 ms |
+| AT-09 | Concurrent users | Three signed-in sessions (two cashiers, one administrator) each post 5 payments of ₱100 and read the payment list, all at the same time | No data corruption, duplicate numbering or unauthorized cross-session effect. | <span class="pass">PASS</span> | 936 ms |
+| AT-10 | Authorization | Cashier calls admin-only user and backup endpoints directly (no UI) | Server rejects operation even if API is called directly. | <span class="pass">PASS</span> | 23 ms |
+| AT-11 | Duplicate billing | Run billing generation and finalization for September 2026 twice more | No duplicate finalized invoice for same service account/period. | <span class="pass">PASS</span> | 69 ms |
+| AT-12 | Backup/restore | Create a backup, post a ₱100 payment, restore the backup | Restored database passes integrity check and expected records return. | <span class="pass">PASS</span> | 3966 ms |
 
 ## Results in detail
 
@@ -43,9 +43,9 @@ To reproduce: `pnpm --filter ./apps/api acceptance` (this report), or `pnpm --fi
 
 **Observed:**
 
-- Invoice INV-000089: total ₱999.00, paid ₱999.00, remaining ₱0.00, status paid.
+- Invoice INV-000315: total ₱999.00, paid ₱999.00, remaining ₱0.00, status paid.
 - Ledger: debits ₱999.00 = credits ₱999.00; balance ₱0.00.
-- Receipt RCPT-000098 issued (cash, ₱999.00), all of it applied to INV-000089.
+- Receipt RCPT-000228 issued (cash, ₱999.00), all of it applied to INV-000315.
 
 Automated test: `AT-01 Exact payment: ₱999 on a ₱999 invoice leaves ₱0, PAID, ledger balanced, receipt created`
 
@@ -59,8 +59,8 @@ Also covered by: `apps/api/src/payments/service.test.ts`, `packages/shared/src/a
 
 **Observed:**
 
-- Invoice INV-000090: paid ₱500.00, remaining ₱499.00, stored status partially_paid (shown as "overdue" because the due date has passed).
-- Allocation: ₱500.00 of receipt RCPT-000099 to INV-000090.
+- Invoice INV-000316: paid ₱500.00, remaining ₱499.00, stored status partially_paid (shown as "overdue" because the due date has passed).
+- Allocation: ₱500.00 of receipt RCPT-000229 to INV-000316.
 - Ledger balance ₱499.00 (debits ₱999.00, credits ₱500.00).
 
 Automated test: `AT-02 Partial payment: ₱500 on ₱999 leaves ₱499, PARTIALLY_PAID, allocation and ledger correct`
@@ -76,8 +76,8 @@ Also covered by: `apps/api/src/payments/service.test.ts`, `packages/shared/src/a
 **Observed:**
 
 - Policy: a payment pays open bills oldest-first; the rest is kept as credit and applied oldest-first when the next month is finalized.
-- On posting: ₱1,000.00 to INV-000091 (September 2026), ₱2,000.00 kept as credit; ledger -₱2,000.00 (in the subscriber's favour).
-- After billing October 2026: INV-000104 paid from credit; receipt RCPT-000100 now ₱2,000.00 applied + ₱1,000.00 credit = ₱3,000.00. Ledger -₱1,000.00.
+- On posting: ₱1,000.00 to INV-000317 (September 2026), ₱2,000.00 kept as credit; ledger -₱2,000.00 (in the subscriber's favour).
+- After billing October 2026: INV-000330 paid from credit; receipt RCPT-000230 now ₱2,000.00 applied + ₱1,000.00 credit = ₱3,000.00. Ledger -₱1,000.00.
 
 Automated test: `AT-03 Advance payment: ₱3,000 on a ₱1,000 plan becomes credit used by later bills, nothing lost`
 
@@ -91,8 +91,8 @@ Also covered by: `apps/api/src/payments/service.test.ts`, `packages/shared/src/a
 
 **Observed:**
 
-- INV-000088 (August 2026): ₱999.00 applied, remaining ₱0.00, paid.
-- INV-000092 (September 2026): ₱201.00 applied, remaining ₱798.00, partially_paid.
+- INV-000314 (August 2026): ₱999.00 applied, remaining ₱0.00, paid.
+- INV-000318 (September 2026): ₱201.00 applied, remaining ₱798.00, partially_paid.
 
 Automated test: `AT-04 Oldest-first arrears: ₱1,200 on two ₱999 bills clears the older, leaves ₱798 on the newer`
 
@@ -100,7 +100,7 @@ Also covered by: `apps/api/src/payments/service.test.ts`, `packages/shared/src/a
 
 ### AT-05 Duplicate GCash reference <span class="pass">PASS</span>
 
-**Test data:** GCash reference 970396420405, verified once (with proof image), then submitted again
+**Test data:** GCash reference 970582150305, verified once (with proof image), then submitted again
 
 **Expected (spec):** System blocks or explicitly warns according to documented verification policy.
 
@@ -108,7 +108,7 @@ Also covered by: `apps/api/src/payments/service.test.ts`, `packages/shared/src/a
 
 - Policy: a GCash reference can be used once; the server refuses a second submission (unique index on the normalized reference).
 - First submission verified: payment posted for ₱999.00.
-- Second submission: HTTP 409 DUPLICATE_REFERENCE: "GCash reference 970396420405 is already used by receipt RCPT-000102 (account BCIS-001019)."
+- Second submission: HTTP 409 DUPLICATE_REFERENCE: "GCash reference 970582150305 is already used by receipt RCPT-000232 (account BCIS-000390)."
 - Payments for the subscriber: 1 before and 1 after the attempt.
 
 Automated test: `AT-05 Duplicate GCash reference: a verified reference cannot be used again`
@@ -123,8 +123,8 @@ Also covered by: `apps/api/src/payments/gcash.test.ts`, `apps/api/src/payments/r
 
 **Observed:**
 
-- Receipt RCPT-000103 is still on file with status reversed; reversal by Test administrator: "Posted to the wrong subscriber".
-- Invoice INV-000094 back to ₱999.00 owing (unpaid).
+- Receipt RCPT-000233 is still on file with status reversed; reversal by Test administrator: "Posted to the wrong subscriber".
+- Invoice INV-000320 back to ₱999.00 owing (unpaid).
 - Ledger balance ₱1,998.00 before, ₱1,998.00 after; two entries added (payment credit and reversal debit), none removed.
 - Audit: payment.reverse by Test administrator, reason "Posted to the wrong subscriber".
 
@@ -140,7 +140,7 @@ Also covered by: `apps/api/src/payments/service.test.ts`
 
 **Observed:**
 
-- Batch CB-000007: cash collected ₱20,000.00 (two field collections of ₱10,000), remitted ₱20,000.00.
+- Batch CB-000013: cash collected ₱20,000.00 (two field collections of ₱10,000), remitted ₱20,000.00.
 - Reconciled: difference ₱0.00, balanced. Closed: status closed.
 
 Automated test: `AT-07 Collector balanced remittance: ₱20,000 collected and remitted, difference ₱0, batch closes`
@@ -155,7 +155,7 @@ Also covered by: `apps/api/src/collection/reconciliation.test.ts`, `apps/api/src
 
 **Observed:**
 
-- Batch CB-000008: collected ₱20,000.00, remitted ₱19,500.00.
+- Batch CB-000014: collected ₱20,000.00, remitted ₱19,500.00.
 - Reconcile as balanced: HTTP 409 "The figures changed: the difference is now ₱500.00 shortage. Review the batch and confirm again."
 - Reconcile without a reason: HTTP 400 (Explain the shortage or overage.)
 - Reconciled with reason: difference -₱500.00, shortage.
@@ -173,7 +173,7 @@ Also covered by: `apps/api/src/collection/reconciliation.test.ts`, `apps/api/src
 
 **Observed:**
 
-- 30 requests in parallel, all HTTP 200. 15 receipts RCPT-000108 to RCPT-000122: no repeats, no gaps.
+- 30 requests in parallel, all HTTP 200. 15 receipts RCPT-000238 to RCPT-000252: no repeats, no gaps.
 - Each subscriber's balance went down by exactly ₱500.00 (₱1,998.00, ₱1,998.00, ₱1,998.00 → ₱1,498.00, ₱1,498.00, ₱1,498.00).
 - Each receipt names the user of the session that posted it.
 - After one cashier signed out: that token gets 401; the other two sessions still get 200.
@@ -229,15 +229,31 @@ Also covered by: `apps/api/src/billing/service.test.ts`, `apps/api/src/billing/s
 
 **Observed:**
 
-- Backup BK-000097 created and verified (checksums + pg_restore --list).
-- Payments: 25 at backup, 26 after the change, 25 after restoring; receipt RCPT-000123 (made after the backup) is gone.
-- A safety backup BK-000098 was taken before restoring.
+- Backup BK-000019 created and verified (checksums + pg_restore --list).
+- Payments: 25 at backup, 26 after the change, 25 after restoring; receipt RCPT-000253 (made after the backup) is gone.
+- A safety backup BK-000020 was taken before restoring.
 - Integrity check after restore: migrations passed, invoice_paid passed, payment_allocated passed, ledger_balance passed, counters passed, proof_files passed, row_counts passed.
 - All sessions were signed out by the restore (old token: HTTP 401).
 
 Automated test: `AT-12 Backup/restore: back up, change data, restore; integrity passes and the records return`
 
 Also covered by: `apps/api/src/backup/restore.test.ts`
+
+## Reconciliation checks (spec section 14)
+
+`apps/api/src/acceptance/reconciliation.test.ts` seeds the full demo dataset (four months of billing, payments, reversals, voids, adjustments and collector batches) and checks every report that shows money against the invoices, payments and ledger underneath it, and the exported files against the reports.
+
+| Check | Result |
+|---|---|
+| seeds a dataset with something in every aging bucket, so the checks below mean something | <span class="pass">PASS</span> |
+| AR aging totals equal the open invoice balances, and net of credit equal the ledgers | <span class="pass">PASS</span> |
+| every subscriber's ledger balance and Statement of Account agree with their invoices and payments | <span class="pass">PASS</span> |
+| the Outstanding and Overdue lists add up to the aging report | <span class="pass">PASS</span> |
+| the dashboard's aging and this month's collections match the reports | <span class="pass">PASS</span> |
+| the Collections report equals the posted payments, by method and by month | <span class="pass">PASS</span> |
+| Billing vs Collection bills what the invoices say and collects what the Collections report says | <span class="pass">PASS</span> |
+| exported XLSX files carry the same totals as the reports; PDFs are produced | <span class="pass">PASS</span> |
+| passes the same integrity check that backups and restores run | <span class="pass">PASS</span> |
 
 ## All automated tests
 
@@ -246,8 +262,8 @@ Unit tests for the domain and money rules (`packages/shared`), and integration t
 | Package | Test files | Tests | Passed | Failed |
 |---|---|---|---|---|
 | @bcis/shared (domain rules, money, allocation, validation) | 17 | 209 | 209 | 0 |
-| @bcis/api (services, routes, security, backup, concurrency) | 48 | 551 | 551 | 0 |
+| @bcis/api (services, routes, security, backup, concurrency) | 49 | 560 | 560 | 0 |
 
 ## Manual and desktop evidence
 
-Desktop workflows are checked by hand against the same rules; screenshots are in `tests/screenshots/`, sample report files in `reports-samples/`, and defects found with their fixes in `docs/bug-log.md`.
+Desktop workflows are checked by hand against the same rules; screenshots are in `tests/screenshots/`, sample report files in `reports-samples/`, defects found with their fixes in `docs/bug-log.md`, and the spec section 14 checklist in `docs/qa-checklist.md`.

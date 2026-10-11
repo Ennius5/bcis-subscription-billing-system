@@ -138,6 +138,22 @@ try {
     lines.push(`Automated test: \`${r?.title ?? id}\``, "", `Also covered by: ${SUPPORTING[id].map((f) => `\`${f}\``).join(", ")}`, "");
   }
 
+  const reconciliation = acceptance.testResults
+    .filter((file) => file.name.includes("reconciliation"))
+    .flatMap((file) => file.assertionResults);
+  if (reconciliation.length > 0) {
+    lines.push(
+      "## Reconciliation checks (spec section 14)",
+      "",
+      "`apps/api/src/acceptance/reconciliation.test.ts` seeds the full demo dataset (four months of billing, payments, reversals, voids, adjustments and collector batches) and checks every report that shows money against the invoices, payments and ledger underneath it, and the exported files against the reports.",
+      "",
+      "| Check | Result |",
+      "|---|---|",
+      ...reconciliation.map((r) => `| ${cell(r.title)} | ${verdict(r.status)} |`),
+      "",
+    );
+  }
+
   if (suites) {
     const row = (name, report) =>
       `| ${name} | ${report.testResults.length} | ${report.numTotalTests} | ${report.numPassedTests} | ${report.numFailedTests} |`;
@@ -161,7 +177,7 @@ try {
   lines.push(
     "## Manual and desktop evidence",
     "",
-    "Desktop workflows are checked by hand against the same rules; screenshots are in `tests/screenshots/`, sample report files in `reports-samples/`, and defects found with their fixes in `docs/bug-log.md`.",
+    "Desktop workflows are checked by hand against the same rules; screenshots are in `tests/screenshots/`, sample report files in `reports-samples/`, defects found with their fixes in `docs/bug-log.md`, and the spec section 14 checklist in `docs/qa-checklist.md`.",
     "",
   );
 
